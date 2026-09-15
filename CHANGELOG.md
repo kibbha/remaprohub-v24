@@ -1,6 +1,17 @@
+# Changelog — ReMaPro Hub
+
+## V25.4.0 — Android pipeline correction
+
+- Corrige le blocage GitHub Actions dans `Setup Java 21`.
+- `actions/setup-java@v5` n’utilise plus le cache Gradle avant la création du projet Android.
+- Le projet Android est généré proprement par Capacitor avant l’activation du cache Gradle.
+- Java 21 et Node 24 sont conservés pour Capacitor 8.
+- Validation XML du manifest et validation de l’activité immersive avant compilation.
+- Plein écran Android et navigation interne V25.3 conservés.
+
 # Changelog
 
-## V25.3.0 — Plein écran Android & navigation interne
+## V25.4.0 — Plein écran Android & navigation interne
 - Correction du mode plein écran Android avec activité native Java et WindowInsets.
 - Les barres système Android sont masquées en mode immersif afin de ne plus recouvrir la barre d’onglets.
 - Réapplication automatique du mode immersif après une réapparition temporaire des barres système.
