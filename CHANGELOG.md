@@ -1,9 +1,8 @@
 # Changelog
 
-## V24.1.1
-- Correction majeure : les modules spécialisés ne sont plus des écrans fictifs.
-- Ajout des formulaires et persistances locales HACCP, équipe, RH, documents, recettes, achats, traçabilité, pertes et réservations.
-- Accueil allégé avec accès rapides essentiels ; catalogue complet dans Plus.
-- Ajout de modifications/suppressions sur les éléments concernés.
-- Migration de stockage V24.0.x vers `remaprohub-data-v24-1-1`.
-- Workflows synchronisés.
+## V24.2.0
+- Modules métier opérationnels avec enregistrement local.
+- Copilot local contextualisé sur CA, stock, équipe, RH, recettes et actions.
+- Capture photo produit réelle sans faux résultat de reconnaissance.
+- Migration de stockage V24.1.x/V24.0.x vers une clé V24.2.0.
+- Chaîne Android : JDK 21, Node 22, TypeScript explicite, projet Android recréé proprement.
