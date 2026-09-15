@@ -1,42 +1,25 @@
-# ReMaPro Hub V25.7.1
+# ReMaPro Hub V25.7.2
 
-Version de test complète et corrigée.
+## Correctif pipeline Android
+V25.7.2 conserve les fonctionnalités de V25.7.1 et ajoute un mécanisme de restauration automatique de la source depuis le package V25.7.2 lorsque GitHub Actions démarre avec un checkout ancien.
 
-### Fichiers de livraison
-- `ReMaPro_Hub_V25_7_1_READY.zip`
-- `install-v25-7-1.yml`
-- `build-android-v25-7-1.yml`
+### Fichiers synchronisés
+- `ReMaPro_Hub_V25_7_2_READY.zip`
+- `install-v25-7-2.yml`
+- `build-android-v25-7-2.yml`
 
-### Corrections principales
-- Changement de langue fiable et réversible dans toute l’interface.
-- Traduction des contenus générés dynamiquement et des formulaires.
-- Audit JavaScript/Bash/YAML, fonctions, événements et IDs.
-- Toolchain Android : Capacitor 8, Java 21, Node 24.
-- Plein écran natif Android conservé.
+### Android
+- Node 24
+- Java 21
+- Capacitor 8
+- `@capacitor/assets` 3.0.5
+- versionCode 25702
+- versionName 25.7.2
+- fullscreen immersif conservé
 
-# ReMaPro Hub V25.7.1
+### Utilisation
+1. Déposer `ReMaPro_Hub_V25_7_2_READY.zip` dans le dépôt.
+2. Lancer **Install ReMaPro Hub V25.7.2**.
+3. Lancer **Android ReMaPro Hub V25.7.2**.
 
-Version corrective dédiée au plein écran mobile et à la navigation.
-
-- PWA `display: fullscreen` avec `display_override`.
-- Android : masquage des barres système via `WindowInsetsController`, réapplication dans `onResume` et `onWindowFocusChanged`.
-- Barre d’onglets repositionnée avec prise en compte de la safe-area.
-- Marge basse renforcée pour empêcher le contenu d’être masqué par la navigation.
-- Navigation interne Retour / Accueil conservée.
-- Build Android sans cache Gradle avant création du projet.
-
-Fichiers de livraison :
-- `ReMaPro_Hub_ReMaPro_Hub_V25_5_2_READY.zip`
-- `.github/workflows/install-v25-6-0.yml`
-- `.github/workflows/build-android-v25-6-0.yml`
-
-
-## V25.7.1 — correction workflow
-- Vérification JavaScript sans processus de substitution `/proc/*/fd/pipe`, afin d’éviter les erreurs `ENOENT` / `Broken pipe` du runner GitHub Actions.
-- Validation Android sans `onResume()` dans `MainActivity`, compatible avec Capacitor 8.
-
-
-## V25.7.1
-- Les formulaires se ferment automatiquement après un enregistrement réussi.
-- Le bouton de période du graphique CA permet maintenant de choisir 7 jours, 30 jours, 12 semaines ou une période personnalisée.
-- Le graphique et ses libellés sont recalculés selon la période sélectionnée.
+Le workflow Android vérifie désormais la version et peut restaurer automatiquement la source depuis le ZIP si le dépôt contient encore une ancienne version.

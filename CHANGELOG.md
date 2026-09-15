@@ -1,4 +1,12 @@
-# V25.7.1 — Nouveau logo beige
+# Changelog
+
+## V25.7.2 — pipeline Android résilient
+- restauration automatique de la source V25.7.2 depuis le ZIP si le checkout GitHub est ancien ;
+- installation et génération des assets Capacitor épinglées sur `@capacitor/assets` 3.0.5 ;
+- version Android 25.7.2 / versionCode 25702 ;
+- conservation du nouveau logo beige et des corrections multilingues.
+
+# V25.7.2 — Nouveau logo beige
 
 - Nouveau logo officiel de l’application intégré.
 - Déclinaison complète + icône optimisée PWA/Android.
