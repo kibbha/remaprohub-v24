@@ -1,4 +1,14 @@
-# CHANGELOG — ReMaPro Hub
+# Changelog
+
+## V25.2.0 — Abonnements & modèle commercial
+- Essai gratuit de 7 jours avec accès complet.
+- Standard : 9,99 CHF/mois ou 99 CHF/an.
+- Multi : 14,99 CHF/mois ou 150 CHF/an.
+- Gestion des restaurants, managers et accès personnel.
+- Espace Abonnement dédié et gestion depuis Paramètres.
+- Mode test local sans paiement réel ; Stripe prévu côté serveur pour la production.
+
+HANGELOG — ReMaPro Hub
 
 ## V25.1.2 — 15 septembre 2026
 - Correction complète du changement de langue après rendu dynamique.
