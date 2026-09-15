@@ -1,16 +1,11 @@
-# ReMaPro Hub V24.0.1
+# ReMaPro Hub V24.0.2
 
-Base propre et autonome de ReMaPro Hub, copilote du manager de restauration.
+Clean foundation for the ReMaPro Hub restaurant management companion.
 
-## Fichiers
-- `ReMaPro_Hub_V24_0_1_READY.zip`
-- `.github/workflows/install-v24-0-1.yml`
-- `.github/workflows/build-android-v24-0-1.yml`
+## Files
+- `ReMaPro_Hub_V24_0_2_READY.zip`
+- `.github/workflows/install-v24-0-2.yml`
+- `.github/workflows/build-android-v24-0-2.yml`
 
-## Ordre recommandé
-1. Ajouter le ZIP et les deux workflows au nouveau dépôt.
-2. Lancer `Install V24.0.1`.
-3. Vérifier le dépôt.
-4. Lancer `Android V24.0.1`.
-
-Le workflow Android peut également amorcer sa source depuis le ZIP si l'étape d'installation n'a pas encore été exécutée.
+## Android build
+The Android project is generated from zero with Capacitor 7. The native package explicitly includes TypeScript because `capacitor.config.ts` is used. The workflow installs dependencies, verifies `tsc` and Capacitor, generates assets, applies Android preparation, validates the manifest, and builds a debug APK.
