@@ -1,0 +1,87 @@
+name: Android ReMaPro Hub V25.5.2
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Verify source
+        run: |
+          set -euo pipefail
+          test -f app/index.html
+          test -f app/manifest.json
+          test -f native/package.json
+          test -f native/capacitor.config.ts
+          test -f native/scripts/prepare-android.sh
+          grep -q "APP_VERSION='25.5.2'" app/index.html
+          grep -q 'function goBack' app/index.html
+          grep -q 'function goHome' app/index.html
+          grep -q 'pageBackBtn' app/index.html
+          grep -q 'WindowInsets.Type.navigationBars' native/scripts/prepare-android.sh
+          grep -q 'WindowInsets.Type.statusBars' native/scripts/prepare-android.sh
+          ! grep -q 'onResume' native/scripts/prepare-android.sh
+          grep -q '"display": "fullscreen"' app/manifest.json
+      - name: Setup Node 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Capacitor dependencies
+        working-directory: native
+        run: npm install --no-audit --no-fund
+      - name: Verify Capacitor toolchain
+        working-directory: native
+        run: npx tsc --version && npx cap --version
+      - name: Create fresh Android project
+        working-directory: native
+        run: rm -rf android && npx cap add android && test -f android/gradlew
+      - name: Generate native assets
+        working-directory: native
+        run: npx @capacitor/assets generate --android --assetPath assets
+      - name: Prepare Android immersive fullscreen
+        working-directory: native
+        run: bash scripts/prepare-android.sh
+      - name: Sync Capacitor
+        working-directory: native
+        run: npx cap sync android
+      - name: Validate Android activity
+        working-directory: native
+        run: |
+          python3 - <<'PY2'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          ET.parse('android/app/src/main/AndroidManifest.xml')
+          t=Path('android/app/src/main/java/com/remaprohub/app/MainActivity.java').read_text()
+          assert 'onResume' not in t and 'WindowInsets.Type.navigationBars()' in t and 'WindowInsets.Type.statusBars()' in t
+          print('Android XML and fullscreen activity: PASS')
+          PY2
+      - name: Set Android version
+        working-directory: native
+        run: |
+          python3 - <<'PY2'
+          from pathlib import Path
+          import re
+          p=Path('android/app/build.gradle'); s=p.read_text()
+          s=re.sub(r'versionCode\s+\d+','versionCode 25502',s,count=1)
+          s=re.sub(r'versionName\s+"[^"]+"','versionName "25.5.2"',s,count=1)
+          p.write_text(s)
+          PY2
+      - name: Build debug APK
+        working-directory: native/android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Verify APK
+        run: test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: ReMaPro-Hub-V25.5.2-debug-apk
+          path: native/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
