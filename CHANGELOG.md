@@ -1,8 +1,11 @@
-# Changelog
+# CHANGELOG ReMaPro Hub
 
-## V24.2.0
-- Modules métier opérationnels avec enregistrement local.
-- Copilot local contextualisé sur CA, stock, équipe, RH, recettes et actions.
-- Capture photo produit réelle sans faux résultat de reconnaissance.
-- Migration de stockage V24.1.x/V24.0.x vers une clé V24.2.0.
-- Chaîne Android : JDK 21, Node 22, TypeScript explicite, projet Android recréé proprement.
+## V25.0.0
+- Réintégration de la base métier complète V19.9.
+- Modules Stock, Recettes, HACCP, Équipe, RH, Documents, Conformité, Achats, Traçabilité, Pertes, Réservations/CRM et Finance.
+- Tâches & priorités, Clients & fidélité, Prévisions & analyse, Intégrations, Catégories & référentiels.
+- 23 documents professionnels/RH et 12 formulaires RH conservés.
+- Manager Copilot avec contexte métier et fallback local.
+- Ajout stock par photo avec capture caméra Android.
+- Icônes PWA et ressources Android.
+- Migration silencieuse vers remaprohub-data.

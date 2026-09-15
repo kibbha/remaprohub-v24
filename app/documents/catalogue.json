@@ -1,0 +1,57 @@
+[
+  {
+    "id": "HACCP-001",
+    "name": "Plan HACCP",
+    "pdf": "pdf/HACCP-001_haccp.pdf"
+  },
+  {
+    "id": "HACCP-002",
+    "name": "Registre de contrôle des températures",
+    "pdf": "pdf/HACCP-002_temp.pdf"
+  },
+  {
+    "id": "HYGI-001",
+    "name": "Plan de nettoyage et désinfection",
+    "pdf": "pdf/HYGI-001_clean.pdf"
+  },
+  {
+    "id": "ALL-001",
+    "name": "Matrice des allergènes",
+    "pdf": "pdf/ALL-001_allergen.pdf"
+  },
+  {
+    "id": "TRACE-001",
+    "name": "Registre de traçabilité des lots",
+    "pdf": "pdf/TRACE-001_trace.pdf"
+  },
+  {
+    "id": "QUAL-001",
+    "name": "Fiche de non-conformité et action corrective",
+    "pdf": "pdf/QUAL-001_nonconform.pdf"
+  },
+  {
+    "id": "CUIS-001",
+    "name": "Fiche technique recette",
+    "pdf": "pdf/CUIS-001_recipe.pdf"
+  },
+  {
+    "id": "ACH-001",
+    "name": "Bon de commande fournisseur",
+    "pdf": "pdf/ACH-001_po.pdf"
+  },
+  {
+    "id": "TRACE-002",
+    "name": "Fiche retrait / rappel produit",
+    "pdf": "pdf/TRACE-002_recall.pdf"
+  },
+  {
+    "id": "QUAL-002",
+    "name": "Rapport d’incident",
+    "pdf": "pdf/QUAL-002_incident.pdf"
+  },
+  {
+    "id": "MGMT-001",
+    "name": "Rapport mensuel de gestion",
+    "pdf": "pdf/MGMT-001_monthly.pdf"
+  }
+]

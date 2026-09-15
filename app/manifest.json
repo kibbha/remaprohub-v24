@@ -1,12 +1,13 @@
 {
   "name": "ReMaPro Hub",
-  "short_name": "ReMaPro",
+  "short_name": "ReMaPro Hub",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f5efe7",
-  "theme_color": "#3b3029",
+  "background_color": "#fbf7f1",
+  "theme_color": "#2e241b",
   "lang": "fr",
-  "version": "24.2.0",
+  "version": "25.0.0",
+  "description": "Complete Restaurant Management Platform",
   "icons": [
     {
       "src": "icons/remaprohub-192.png",

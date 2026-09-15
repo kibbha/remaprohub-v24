@@ -1,9 +1,12 @@
-# ReMaPro Hub V24.2.0
+# ReMaPro Hub V25.0.0
 
-Assistant de pilotage pour la restauration.
+Plateforme complète de management de la restauration dans la poche.
 
-Fonctions : accueil synthétique, Copilot local contextualisé, actions, stock, finance, HACCP, équipe, RH, documents, recettes, achats, traçabilité, pertes, réservations, paramètres.
+## Modules
+Dashboard/KPI, Opérations, Stock & inventaire, Recettes & food cost, HACCP & sécurité, Équipe & planning, RH & salaires, Documents professionnels, Conformité, Achats & fournisseurs, Traçabilité, Pertes & déchets, Réservations & CRM, Tâches & priorités, Clients & fidélité, Prévisions & analyse, Intégrations, Manager Copilot, Finance, Catégories & référentiels, Paramètres.
 
-Le module Stock accepte une vraie photo via la caméra du téléphone. Aucune reconnaissance fictive n’est annoncée.
+## Documents
+Bibliothèque professionnelle et RH complète, filtres, PDF, formulaires RH, sauvegarde et impression.
 
-Workflows : `.github/workflows/install-v24-2.yml` et `.github/workflows/build-android-v24-2.yml`.
+## Android
+Le workflow génère un projet Android propre avec Capacitor, TypeScript, icônes, permission caméra et APK debug.
