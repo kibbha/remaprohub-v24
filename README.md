@@ -1,4 +1,4 @@
-# ReMaPro Hub V25.2.0
+# ReMaPro Hub V25.3.0
 
 Version complète de test avec système commercial intégré : essai gratuit 7 jours, offre Standard et offre Multi.
 
@@ -8,19 +8,19 @@ Version complète de test avec système commercial intégré : essai gratuit 7 j
 - Aide & formation, stock par photo/IA, documents, RH, HACCP, finance, achats, CRM et pilotage conservés.
 
 ## Fichiers
-- `ReMaPro_Hub_V25_2_READY.zip`
-- `install-v25-2.yml`
-- `build-android-v25-2.yml`
+- `ReMaPro_Hub_V25_3_READY.zip`
+- `install-v25-3.yml`
+- `build-android-v25-3.yml`
 
-# ReMaPro Hub V25.2.0
+# ReMaPro Hub V25.3.0
 
 Plateforme complète de management de la restauration dans la poche.
 
-## Correctif V25.2.0
+## Correctif V25.3.0
 
 Le workflow d’installation valide maintenant correctement le dashboard actif (`view active`) et confirme la correspondance des 29 entrées de navigation avec les 29 vues.
 
-## Objectif V25.2.0
+## Objectif V25.3.0
 
 Cette version conserve la base visuelle actuelle et donne la priorité à la **fonctionnalité métier**. Les modules sont accessibles depuis la navigation complète et depuis le bouton **Plus** sur mobile.
 
@@ -88,21 +88,21 @@ Capacitor génère un projet Android propre à chaque build. TypeScript et `@cap
 
 Le Copilot fonctionne en mode local pour les tests et peut utiliser Supabase Edge Function lorsque la clé publishable/anon et le service cloud sont configurés. La clé OpenAI reste côté serveur. L'analyse photo produit est optionnelle et ne remplace pas la vérification humaine.
 
-## Fichiers V25.2.0
+## Fichiers V25.3.0
 
-- `ReMaPro_Hub_V25_2_READY.zip`
-- `.github/workflows/install-v25-2.yml`
-- `.github/workflows/build-android-v25-2.yml`
+- `ReMaPro_Hub_V25_3_READY.zip`
+- `.github/workflows/install-v25-3.yml`
+- `.github/workflows/build-android-v25-3.yml`
 
-### V25.2.0
+### V25.3.0
 - Changement de langue renforcé sur les contenus statiques et dynamiques.
 - Correction des dictionnaires allemand et italien.
 - Ajout de l’onglet **Aide & formation** avec parcours pratiques et accès direct aux modules.
 
-## V25.2.0 — Langue & aide
+## V25.3.0 — Langue & aide
 Le moteur de langue ne se contente plus de traduire la page initiale : après un changement de langue, les modules sont entièrement rerendus puis traduits, y compris les contenus générés dynamiquement, statuts, états vides, navigation et attributs d’interface.
 
 Le nouvel onglet **Aide & formation** sert de mini centre de formation intégré : démarrage, stock/achats, recettes/marge, HACCP, équipe/RH, documents, Copilot, ajout de stock par photo et méthode de pilotage.
 
 ## Validation
-Voir `TEST_REPORT_V25_2_0.md`. La compilation native complète dépend de l’environnement GitHub Actions ; le workflow V25.2 repart d’un projet Android propre et valide le manifeste avant Gradle.
+Voir `TEST_REPORT_V25_3_0.md`. La compilation native complète dépend de l’environnement GitHub Actions ; le workflow V25.3 repart d’un projet Android propre et valide le manifeste avant Gradle.

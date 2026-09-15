@@ -1,5 +1,15 @@
 # Changelog
 
+## V25.3.0 — Plein écran Android & navigation interne
+- Correction du mode plein écran Android avec activité native Java et WindowInsets.
+- Les barres système Android sont masquées en mode immersif afin de ne plus recouvrir la barre d’onglets.
+- Réapplication automatique du mode immersif après une réapparition temporaire des barres système.
+- Ajout d’un historique de navigation entre les vues.
+- Ajout d’un bouton **Retour** et d’un bouton **Fermer / Accueil** sur les pages secondaires.
+- Le bouton Retour est localisé avec la langue active.
+- Amélioration de la gestion de la hauteur mobile (`dvh`) et des zones sûres.
+- Workflow Android simplifié : plus de génération automatique d’assets susceptible de perturber le manifeste XML.
+
 ## V25.2.0 — Abonnements & modèle commercial
 - Essai gratuit de 7 jours avec accès complet.
 - Standard : 9,99 CHF/mois ou 99 CHF/an.
