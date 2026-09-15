@@ -1,3 +1,15 @@
+# CHANGELOG — ReMaPro Hub
+
+## V25.1.2 — 15 septembre 2026
+- Correction complète du changement de langue après rendu dynamique.
+- Normalisation des traductions pour que les contenus français et anglais générés par les modules puissent être reconnus et convertis dans la langue active.
+- Correction des dictionnaires allemand et italien qui étaient mal structurés dans V25.1.1.
+- Renforcement des traductions de navigation, statuts, actions et états vides.
+- Ajout d’un onglet **Aide & formation** accessible depuis la navigation et le menu Plus.
+- Guide pratique : démarrage, stock/achats, recettes/marge, HACCP, équipe/RH, documents, Copilot, stock par photo et méthode de pilotage.
+- Les boutons d’aide depuis Paramètres > À propos ouvrent désormais directement le centre d’aide.
+- Version web, PWA et Android synchronisée en 25.1.2.
+
 ## V25.1.1
 
 - Correctif du workflow d’installation : le tableau de bord `view active` est maintenant correctement reconnu par l’audit des vues.

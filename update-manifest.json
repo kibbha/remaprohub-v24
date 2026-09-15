@@ -1,10 +1,12 @@
 {
-  "version": "25.1.1",
-  "title": "ReMaPro Hub V25.1.1 — correctif workflow et audit fonctionnel",
+  "version": "25.1.2",
+  "title": "ReMaPro Hub V25.1.2 — langues complètes & centre d’aide",
   "notes": [
-    "Correction de l'audit du workflow d'installation : le dashboard actif est bien reconnu comme vue.",
-    "Validation explicite des 29 vues et 29 entrées de navigation.",
-    "Aucune modification de la base visuelle Signature.",
-    "Version web, PWA et Android synchronisée en 25.1.1."
+    "Correction du moteur de langue : les vues et contenus générés dynamiquement sont maintenant retraités après chaque changement de langue.",
+    "Correction des dictionnaires allemand et italien mal structurés dans la version précédente.",
+    "Ajout de la traduction des libellés de navigation, statuts et contenus opérationnels manquants.",
+    "Ajout d’un véritable onglet Aide & formation avec parcours guidés pour le pilotage d’un restaurant.",
+    "Accès direct à l’aide depuis le menu Plus et Paramètres > À propos.",
+    "Version web, PWA et Android synchronisée en 25.1.2."
   ]
 }
