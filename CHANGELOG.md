@@ -1,21 +1,21 @@
-# V25.5.3 — Correction build et validation
+# V25.5.4 — Correction build et validation
 
 - Correction définitive de la vérification JavaScript GitHub Actions : extraction vers un fichier temporaire au lieu de `node --check <( ... )`, qui provoquait `ENOENT` sur `/proc/.../fd/...` et `Broken pipe`.
 - Validation de `MainActivity.java` sans override `onResume()`, compatible Capacitor 8.
-- Workflows renommés `install-v25-5-3.yml` et `build-android-v25-5-3.yml`.
-- Version Android 25.5.3 / versionCode 25503.
+- Workflows renommés `install-v25-5-4.yml` et `build-android-v25-5-4.yml`.
+- Version Android 25.5.4 / versionCode 25503.
 
-# V25.5.3 — Correctif Android fullscreen
+# V25.5.4 — Correctif Android fullscreen
 
 - Correction de compilation `onResume() cannot override onResume() in BridgeActivity`.
 - MainActivity Java compatible Capacitor 8.
 - Plein écran immersif conservé.
-- Workflows synchronisés V25.5.3.
+- Workflows synchronisés V25.5.4.
 
-## V25.5.3 — Correction du pipeline d’installation
+## V25.5.4 — Correction du pipeline d’installation
 
 - Correction de la recherche du package ZIP : le workflow cherchait par erreur `ReMaPro_Hub_V25_4_READY.zip`.
-- Recherche du package V25.5.3 dans tout le dépôt.
+- Recherche du package V25.5.4 dans tout le dépôt.
 - Vérification renforcée de la racine extraite avant installation.
 - Aucun changement de la base fonctionnelle ou visuelle.
 

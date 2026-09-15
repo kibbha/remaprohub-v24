@@ -1,11 +1,10 @@
 {
-  "version": "25.5.3",
-  "title": "ReMaPro Hub V25.5.3 — essai 7 jours, abonnements Standard & Multi",
+  "version": "25.5.4",
+  "title": "ReMaPro Hub V25.5.4 — formulaires & périodes CA",
   "notes": [
-    "7 jours gratuits avec accès complet",
-    "Standard 9,99 CHF/mois ou 99 CHF/an",
-    "Multi 14,99 CHF/mois ou 150 CHF/an",
-    "Gestion des rôles, restaurants et accès",
-    "Abonnement local en mode test, Stripe à brancher côté serveur"
+    "Fermeture automatique des modales après enregistrement réussi",
+    "Sélecteur fonctionnel pour l’évolution du chiffre d’affaires",
+    "Périodes 7 jours, 30 jours, 12 semaines et personnalisée",
+    "Dates locales utilisées pour les calculs du tableau de bord"
   ]
 }
