@@ -1,1 +1,30 @@
-{"name":"ReMaPro Hub","short_name":"ReMaPro","start_url":"./","display":"standalone","background_color":"#f5efe7","theme_color":"#3b3029","lang":"fr","icons":[{"src":"icons/remaprohub-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icons/remaprohub-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icons/remaprohub-512-maskable.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}
+{
+  "name": "ReMaPro Hub",
+  "short_name": "ReMaPro",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5efe7",
+  "theme_color": "#3b3029",
+  "lang": "fr",
+  "version": "24.1.1",
+  "icons": [
+    {
+      "src": "icons/remaprohub-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/remaprohub-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/remaprohub-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

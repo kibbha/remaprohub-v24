@@ -1,0 +1,10 @@
+{
+  "version": "24.1.1",
+  "title": "ReMaPro Hub V24.1.1 — modules réellement fonctionnels",
+  "notes": [
+    "Modules spécialisés activables et utilisables",
+    "Accueil allégé avec accès rapides essentiels",
+    "Persistance locale et formulaires de gestion",
+    "Workflows Install et Android synchronisés"
+  ]
+}
