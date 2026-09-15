@@ -1,10 +1,5 @@
 {
-  "version": "25.5.4",
-  "title": "ReMaPro Hub V25.5.4 — formulaires & périodes CA",
-  "notes": [
-    "Fermeture automatique des modales après enregistrement réussi",
-    "Sélecteur fonctionnel pour l’évolution du chiffre d’affaires",
-    "Périodes 7 jours, 30 jours, 12 semaines et personnalisée",
-    "Dates locales utilisées pour les calculs du tableau de bord"
-  ]
+  "version": "25.7.0",
+  "title": "ReMaPro Hub V25.7.0 — nouveau logo beige",
+  "notes": "Nouveau logo ReMaPro Hub intégré dans l’interface, la PWA et les assets Android."
 }

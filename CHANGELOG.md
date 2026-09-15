@@ -1,21 +1,37 @@
-# V25.5.4 — Correction build et validation
+# V25.7.0 — Nouveau logo beige
+
+- Nouveau logo officiel de l’application intégré.
+- Déclinaison complète + icône optimisée PWA/Android.
+- Palette beige/taupe alignée avec l’identité visuelle de ReMaPro Hub.
+
+# ReMaPro Hub V25.6.0 — 15 septembre 2026
+
+## Corrections globales
+- Moteur de traduction entièrement réversible : changement de langue fiable même après plusieurs bascules.
+- Traduction des contenus dynamiques, libellés de formulaires, statuts, boutons, placeholders et menus.
+- Cache de traduction optimisé pour éviter les ralentissements lors du rafraîchissement complet de l’interface.
+- Audit statique des fonctions, IDs, événements, workflows et toolchain.
+- Version Android préparée avec Capacitor 8 / Java 21 / Node 24.
+- `@capacitor/assets` actualisé vers 3.0.14.
+
+# V25.6.0 — Correction build et validation
 
 - Correction définitive de la vérification JavaScript GitHub Actions : extraction vers un fichier temporaire au lieu de `node --check <( ... )`, qui provoquait `ENOENT` sur `/proc/.../fd/...` et `Broken pipe`.
 - Validation de `MainActivity.java` sans override `onResume()`, compatible Capacitor 8.
-- Workflows renommés `install-v25-5-4.yml` et `build-android-v25-5-4.yml`.
-- Version Android 25.5.4 / versionCode 25503.
+- Workflows renommés `install-v25-6-0.yml` et `build-android-v25-6-0.yml`.
+- Version Android 25.6.0 / versionCode 25503.
 
-# V25.5.4 — Correctif Android fullscreen
+# V25.6.0 — Correctif Android fullscreen
 
 - Correction de compilation `onResume() cannot override onResume() in BridgeActivity`.
 - MainActivity Java compatible Capacitor 8.
 - Plein écran immersif conservé.
-- Workflows synchronisés V25.5.4.
+- Workflows synchronisés V25.6.0.
 
-## V25.5.4 — Correction du pipeline d’installation
+## V25.6.0 — Correction du pipeline d’installation
 
 - Correction de la recherche du package ZIP : le workflow cherchait par erreur `ReMaPro_Hub_V25_4_READY.zip`.
-- Recherche du package V25.5.4 dans tout le dépôt.
+- Recherche du package V25.6.0 dans tout le dépôt.
 - Vérification renforcée de la racine extraite avant installation.
 - Aucun changement de la base fonctionnelle ou visuelle.
 
