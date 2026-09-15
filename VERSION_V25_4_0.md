@@ -1,4 +1,4 @@
-# ReMaPro Hub V25.4.0
+# ReMaPro Hub V25.5.0
 
 ## Correction technique majeure
 

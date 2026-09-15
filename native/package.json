@@ -1,7 +1,7 @@
 {
   "name": "remaprohub-native",
   "private": true,
-  "version": "25.4.0",
+  "version": "25.5.1",
   "scripts": {
     "sync:android": "npx cap sync android",
     "build:android": "cd android && ./gradlew assembleDebug"

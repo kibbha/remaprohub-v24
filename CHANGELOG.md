@@ -1,6 +1,21 @@
+## V25.5.1 — Correction du pipeline d’installation
+
+- Correction de la recherche du package ZIP : le workflow cherchait par erreur `ReMaPro_Hub_V25_4_READY.zip`.
+- Recherche du package V25.5.1 dans tout le dépôt.
+- Vérification renforcée de la racine extraite avant installation.
+- Aucun changement de la base fonctionnelle ou visuelle.
+
+## V25.5.0 — Plein écran mobile & navigation
+
+- Correction du plein écran PWA (`display: fullscreen`).
+- Renforcement du plein écran Android avec réapplication des `WindowInsets` au retour au premier plan et au focus.
+- Barre de navigation basse protégée contre les zones système Android.
+- Réserve verticale augmentée pour éviter toute superposition du contenu.
+- Conservation des boutons Retour / Fermer / Accueil.
+
 # Changelog — ReMaPro Hub
 
-## V25.4.0 — Android pipeline correction
+## V25.5.0 — Android pipeline correction
 
 - Corrige le blocage GitHub Actions dans `Setup Java 21`.
 - `actions/setup-java@v5` n’utilise plus le cache Gradle avant la création du projet Android.
@@ -11,7 +26,7 @@
 
 # Changelog
 
-## V25.4.0 — Plein écran Android & navigation interne
+## V25.5.0 — Plein écran Android & navigation interne
 - Correction du mode plein écran Android avec activité native Java et WindowInsets.
 - Les barres système Android sont masquées en mode immersif afin de ne plus recouvrir la barre d’onglets.
 - Réapplication automatique du mode immersif après une réapparition temporaire des barres système.
