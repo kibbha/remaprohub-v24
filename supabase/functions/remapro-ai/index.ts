@@ -34,10 +34,16 @@ Deno.serve(async (req) => {
     if(!apiKey) return json({error:"OPENAI_API_KEY is not configured on the Supabase server. Add it as a Supabase secret."},503);
 
     const model = body.model || configuredModel;
-    let input = "";
+    let input: string | Array<Record<string, unknown>> = "";
     let instructions = "";
 
-    if(action === "translate"){
+    if(action === "stock-photo"){
+      const image = body.image || "";
+      if(!image || typeof image !== "string" || !image.startsWith("data:image/")) return json({error:"A valid image data URL is required."},400);
+      instructions = `You are a restaurant inventory assistant. Inspect the product photo and identify the most likely food or beverage product. Return ONLY valid JSON with this shape: {"product":{"name":"string","unit":"kg|g|l|cl|ml|pièce|unité","quantity":1,"unitCost":0,"confidence":0.0}}. Never invent a price from the photo: unitCost must be 0 unless a visible price can be read. Quantity should be 1 unless a package quantity is clearly visible. If uncertain, keep the best likely name and lower confidence.`;
+      input = [{type:"input_text",text:"Identify this restaurant inventory product from the photo."},{type:"input_image",image_url:image}];
+    } else if(action === "translate"){
+
       const lang = body.language || "en";
       const strings = Array.isArray(body.strings) ? body.strings.slice(0,80) : [];
       instructions = `You are ReMaPro Hub's UI localization engine. Translate each supplied French UI string into ${languageNames[lang] || lang}. Preserve placeholders, numbers, punctuation, product names, IDs, HTML-free plain text, and meaning. Return ONLY a JSON object mapping each original string to its translation.`;
@@ -67,6 +73,10 @@ Deno.serve(async (req) => {
     if(action === "translate"){
       try { return json({translations: JSON.parse(text)}); }
       catch { return json({error:"Translation response was not valid JSON."},502); }
+    }
+    if(action === "stock-photo"){
+      try { return json(JSON.parse(text)); }
+      catch { return json({error:"Vision response was not valid JSON."},502); }
     }
 
     return json({answer:text || ""});
