@@ -1,0 +1,106 @@
+name: Install ReMaPro Hub V25.3
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Locate and validate package
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$(find . -maxdepth 2 -type f -name 'ReMaPro_Hub_V25_3_READY.zip' -print -quit)"
+          test -n "$ZIP" || { echo "::error::ReMaPro_Hub_V25_3_READY.zip introuvable"; exit 1; }
+          unzip -t "$ZIP" >/dev/null
+          rm -rf "$RUNNER_TEMP/remapro-v25" && mkdir -p "$RUNNER_TEMP/remapro-v25"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/remapro-v25"
+          ROOT="$(find "$RUNNER_TEMP/remapro-v25" -type f -path '*/app/index.html' -print -quit | xargs -r dirname | xargs -r dirname)"
+          test -f "$ROOT/app/index.html"
+          test -f "$ROOT/app/manifest.json"
+          test -f "$ROOT/app/sw.js"
+          test -f "$ROOT/native/package.json"
+          test -f "$ROOT/native/capacitor.config.ts"
+          test -f "$ROOT/native/scripts/prepare-android.sh"
+          grep -q "APP_VERSION='25.3.0'" "$ROOT/app/index.html"
+          grep -q '"version": "25.3.0"' "$ROOT/app/manifest.json"
+          grep -q 'remaprohub-v25-3-0' "$ROOT/app/sw.js"
+          grep -q 'function ensureSubscriptionState' "$ROOT/app/index.html"
+          grep -q 'function openSubscription' "$ROOT/app/index.html"
+          grep -q 'trialDays:7' "$ROOT/app/index.html"
+          grep -q '9.99' "$ROOT/app/index.html"
+          grep -q '14.99' "$ROOT/app/index.html"
+          grep -q '150' "$ROOT/app/index.html"
+          grep -q 'function analyzeStockPhoto' "$ROOT/app/index.html"
+          grep -q '<section id="help" class="view"' "$ROOT/app/index.html"
+          grep -q 'function goBack' "$ROOT/app/index.html"
+          grep -q 'function goHome' "$ROOT/app/index.html"
+          grep -q 'pageBackBtn' "$ROOT/app/index.html"
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Install clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf app native supabase
+          cp -a "$ROOT/app" app
+          cp -a "$ROOT/native" native
+          cp -a "$ROOT/supabase" supabase
+          find "$ROOT" -maxdepth 1 -type f -name '*.md' -exec cp {} . \;
+          cp "$ROOT/update-manifest.json" .
+          rm -f ReMaPro_Hub_V25_3_READY.zip
+          rm -f app_extracted.js
+
+      - name: Verify installed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          from html.parser import HTMLParser
+
+          class Parser(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.views=set()
+              def handle_starttag(self, tag, attrs):
+                  a=dict(attrs)
+                  if tag=='section' and 'view' in (a.get('class') or '').split():
+                      self.views.add(a.get('id'))
+          s=Path('app/index.html').read_text(encoding='utf-8')
+          js=s.split('<script>',1)[1].rsplit('</script>',1)[0]
+          Path('/tmp/remapro.js').write_text(js,encoding='utf-8')
+          p=Parser(); p.feed(s)
+          m=re.search(r'const navItems=\[(.*?)\];',js,re.S)
+          assert m, 'navItems introuvable'
+          nav=set(re.findall(r"\['([^']+)'",m.group(1)))
+          assert nav <= p.views, f'Vues manquantes: {sorted(nav-p.views)}'
+          assert 'dashboard' in p.views and 'dashboard' in nav
+          assert 'help' in p.views and 'help' in nav
+          assert 'subscription' in p.views and 'subscription' in nav
+          assert 'Module prêt à être utilisé' not in s
+          assert 'data-rmp-data-rmp-onclick' not in s
+          print(f'Navigation/view audit: {len(nav)} nav items, {len(p.views)} views — PASS')
+          PY
+          node --check /tmp/remapro.js
+          bash -n native/scripts/prepare-android.sh
+          grep -q '"version": "25.3.0"' native/package.json
+          grep -q 'typescript' native/package.json
+
+      - name: Commit V25.3.0
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'ReMaPro Hub V25.3.0 immersive fullscreen and internal navigation'
+          git push origin HEAD:main
