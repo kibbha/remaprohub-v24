@@ -1,4 +1,4 @@
-# ReMaPro Hub V25.7.0
+# ReMaPro Hub V25.7.1
 
 ## Identité visuelle
 - Nouveau logo ReMaPro Hub : cercle avec fourchette, couteau et cuillère.

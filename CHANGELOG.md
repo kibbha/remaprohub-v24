@@ -1,4 +1,4 @@
-# V25.7.0 — Nouveau logo beige
+# V25.7.1 — Nouveau logo beige
 
 - Nouveau logo officiel de l’application intégré.
 - Déclinaison complète + icône optimisée PWA/Android.

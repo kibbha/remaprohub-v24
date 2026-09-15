@@ -1,7 +1,7 @@
 {
   "name": "remaprohub-native",
   "private": true,
-  "version": "25.7.0",
+  "version": "25.7.1",
   "scripts": {
     "sync:android": "npx cap sync android",
     "build:android": "cd android && ./gradlew assembleDebug"
@@ -13,6 +13,6 @@
   "devDependencies": {
     "@capacitor/cli": "^8.0.0",
     "typescript": "^5.9.2",
-    "@capacitor/assets": "^3.0.14"
+    "@capacitor/assets": "^3.0.5"
   }
 }

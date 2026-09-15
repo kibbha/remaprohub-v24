@@ -1,11 +1,11 @@
-# ReMaPro Hub V25.7.0
+# ReMaPro Hub V25.7.1
 
 Version de test complète et corrigée.
 
 ### Fichiers de livraison
-- `ReMaPro_Hub_V25_7_READY.zip`
-- `install-v25-7.yml`
-- `build-android-v25-7.yml`
+- `ReMaPro_Hub_V25_7_1_READY.zip`
+- `install-v25-7-1.yml`
+- `build-android-v25-7-1.yml`
 
 ### Corrections principales
 - Changement de langue fiable et réversible dans toute l’interface.
@@ -14,7 +14,7 @@ Version de test complète et corrigée.
 - Toolchain Android : Capacitor 8, Java 21, Node 24.
 - Plein écran natif Android conservé.
 
-# ReMaPro Hub V25.7.0
+# ReMaPro Hub V25.7.1
 
 Version corrective dédiée au plein écran mobile et à la navigation.
 
@@ -31,12 +31,12 @@ Fichiers de livraison :
 - `.github/workflows/build-android-v25-6-0.yml`
 
 
-## V25.7.0 — correction workflow
+## V25.7.1 — correction workflow
 - Vérification JavaScript sans processus de substitution `/proc/*/fd/pipe`, afin d’éviter les erreurs `ENOENT` / `Broken pipe` du runner GitHub Actions.
 - Validation Android sans `onResume()` dans `MainActivity`, compatible avec Capacitor 8.
 
 
-## V25.7.0
+## V25.7.1
 - Les formulaires se ferment automatiquement après un enregistrement réussi.
 - Le bouton de période du graphique CA permet maintenant de choisir 7 jours, 30 jours, 12 semaines ou une période personnalisée.
 - Le graphique et ses libellés sont recalculés selon la période sélectionnée.
