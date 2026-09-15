@@ -1,6 +1,6 @@
 {
-  "version": "25.0.0",
-  "title": "ReMaPro Hub V25.0.0 — plateforme restaurant complète",
+  "version": "25.0.1",
+  "title": "ReMaPro Hub V25.0.1 — plateforme restaurant complète",
   "notes": "Base complète issue de la version fonctionnelle V19.9, enrichie avec modules administratifs, Copilot, caméra stock, catégories, documents, RH, finance et Android propre.",
   "apkUrl": "",
   "releaseUrl": "https://github.com/kibbha/remaprohub-application/actions"
