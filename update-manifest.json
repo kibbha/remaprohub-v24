@@ -1,5 +1,5 @@
 {
-  "version": "25.9.1",
-  "title": "ReMaPro Hub V25.9.1 — langues & onboarding corrigés",
-  "notes": "Correction du workflow d’installation, changement de langue renforcé, onboarding multi-pages conservé et cache service worker versionné."
+  "version": "25.9.3",
+  "title": "ReMaPro Hub V25.9.3",
+  "notes": "Correctif installation GitHub + changement de langue renforcé."
 }

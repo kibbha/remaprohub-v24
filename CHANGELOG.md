@@ -1,3 +1,9 @@
+## V25.9.2 — Language switch hardening
+- Persist language before rendering.
+- Clear translation caches and reverse map.
+- Separate render/apply error handling.
+- Bump service-worker cache.
+
 ## V25.9.0
 - Onboarding guidé multi-pages à la première utilisation.
 - Sélection de langue intégrée à l’onboarding.
