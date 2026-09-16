@@ -15,9 +15,13 @@ jobs:
           set -euo pipefail
           test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json; test -f native/capacitor.config.ts
           grep -q "APP_VERSION='26.0.1'" app/index.html
-          grep -q 'window.location.replace' app/index.html
-          grep -q 'rmp_lang' app/index.html
-          grep -q 'onchange="setAppLanguage(this.value)"' app/index.html
+          ! grep -q 'window.location.replace' app/index.html
+          ! grep -q 'rmp_lang' app/index.html
+          ! grep -Eq 'id="(appLanguage|profileLanguage)"[^>]*onchange=' app/index.html
+          node tests/i18n-static.test.mjs
+          node tests/i18n-coverage.test.mjs
+          node tests/i18n-runtime.test.mjs
+          node tests/i18n-dom.test.mjs
           grep -q 'sw.js?v=26.0.1' app/index.html
           grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json

@@ -29,7 +29,6 @@ jobs:
               tag=m.group(0)
               tag=re.sub(r'\s+onchange\s*=\s*(?:"[^"]*"|\'[^\']*\')','',tag,flags=re.I)
               if 'data-rmp-language-selector' not in tag: tag=tag[:-1]+' data-rmp-language-selector>'
-              if 'onchange=' not in tag: tag=tag[:-1]+' onchange="setAppLanguage(this.value)">'
               return tag
           h=re.sub(r'<select\b[^>]*\bid=["\']appLanguage["\'][^>]*>',sel,h,count=1,flags=re.I)
           h=re.sub(r'<select\b[^>]*\bid=["\']profileLanguage["\'][^>]*>',sel,h,count=1,flags=re.I)
@@ -37,14 +36,16 @@ jobs:
           if a<0 or b<0: raise SystemExit('Language handler boundaries not found')
           new='''function setAppLanguage(lang){
             lang=I18N[lang]?lang:'fr';
-            state=state||defaultState();
-            state.preferences=state.preferences||{}; state.user=state.user||{};
-            state.preferences.language=lang; state.user.language=lang;
-            try{localStorage.setItem('remaprohub-language',lang);localStorage.setItem('remaprohub-data',JSON.stringify(state));}catch(e){console.error('language persistence',e)}
+            state.preferences=state.preferences||{};
+            state.preferences.language=lang;
+            try{localStorage.setItem('remaprohub-data',JSON.stringify(state));}catch(e){console.error('language persistence',e)}
             document.documentElement.lang=lang;
-            try{const u=new URL(window.location.href);u.searchParams.set('lang',lang);u.searchParams.set('rmp_lang',String(Date.now()));window.location.replace(u.toString());}catch(e){window.location.href='?lang='+encodeURIComponent(lang)+'&rmp_lang='+Date.now();}
+            try{__translationCache.clear();__translationReverse=null;}catch(e){}
+            try{renderAll()}catch(e){console.error('language renderAll',e)}
+            const ap=document.getElementById('appLanguage'),pl=document.getElementById('profileLanguage');if(ap)ap.value=lang;if(pl)pl.value=lang;
+            if(document.getElementById('onboarding')?.classList.contains('open')){try{renderOnboarding()}catch(e){console.error('onboarding language',e)}}
+            window.dispatchEvent(new CustomEvent('remapro:languagechange',{detail:{language:lang}}));
           }
-          function bindLanguageSelectors(){document.querySelectorAll('[data-rmp-language-selector],#profileLanguage').forEach(el=>{if(el.dataset.rmpLanguageBound==='1')return;el.dataset.rmpLanguageBound='1';el.addEventListener('change',()=>setAppLanguage(el.value));});}
           '''
           h=h[:a]+new+h[b:]; p.write_text(h,encoding='utf-8')
           for f in ['app/manifest.json','native/package.json']:
@@ -58,9 +59,13 @@ jobs:
           set -euo pipefail
           test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json
           grep -q "APP_VERSION='26.0.1'" app/index.html
-          grep -q 'window.location.replace' app/index.html
-          grep -q 'rmp_lang' app/index.html
-          grep -q 'onchange="setAppLanguage(this.value)"' app/index.html
+          ! grep -q 'window.location.replace' app/index.html
+          ! grep -q 'rmp_lang' app/index.html
+          ! grep -Eq 'id="(appLanguage|profileLanguage)"[^>]*onchange=' app/index.html
+          node tests/i18n-static.test.mjs
+          node tests/i18n-coverage.test.mjs
+          node tests/i18n-runtime.test.mjs
+          node tests/i18n-dom.test.mjs
           grep -q 'sw.js?v=26.0.1' app/index.html
           grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json
