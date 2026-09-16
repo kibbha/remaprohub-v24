@@ -23,8 +23,8 @@ jobs:
           test -f native/capacitor.config.ts
           test -f native/scripts/prepare-android.sh
           grep -q "APP_VERSION='26.0.0'" app/index.html
-          grep -q 'function setAppLanguage' app/index.html
-          grep -q 'function bindLanguageSelectors' app/index.html
+          grep -Eq 'function setAppLanguage|window\.setAppLanguage=function' app/index.html
+          grep -Eq 'function bindLanguageSelectors|window\.bindLanguageSelectors=function' app/index.html
           grep -q "const urlLang=new URLSearchParams(location.search).get('lang')" app/index.html
           grep -q 'sw.js?v=26.0.0' app/index.html
           grep -q 'remaprohub-v26-0-0' app/sw.js
