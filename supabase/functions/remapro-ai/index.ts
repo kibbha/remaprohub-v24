@@ -37,7 +37,13 @@ Deno.serve(async (req) => {
     let input: string | Array<Record<string, unknown>> = "";
     let instructions = "";
 
-    if(action === "stock-photo"){
+    if(action === "invoice-photo"){
+      const image = body.image || "";
+      if(!image || typeof image !== "string" || !image.startsWith("data:image/")) return json({error:"A valid image data URL is required."},400);
+      const lang = body.language || "fr";
+      instructions = `You are a restaurant receiving and invoice OCR assistant. Read the photographed supplier delivery invoice carefully. Extract the supplier, invoice number, invoice date, currency, every purchasable product line, quantity, unit, unit purchase price and line total. Return ONLY valid JSON with this exact shape: {"supplier":"string","invoiceNumber":"string","date":"YYYY-MM-DD or empty","currency":"CHF|EUR|USD|GBP or detected","total":0,"items":[{"name":"string","quantity":0,"unit":"kg|g|l|cl|ml|pièce|unité|other","unitPrice":0,"totalPrice":0,"confidence":0.0}]}. Do not invent missing values. If a value is unreadable, use an empty string or 0 and lower confidence. Preserve decimal precision. Exclude VAT/tax summary lines, discounts, subtotals and delivery fees from items. The item unitPrice must be the purchase price for the stated quantity/unit. Answer in a way suitable for a ${languageNames[lang] || lang} interface.`;
+      input = [{type:"input_text",text:"Read this supplier delivery invoice and extract all product lines for restaurant stock receiving."},{type:"input_image",image_url:image}];
+    } else if(action === "stock-photo"){
       const image = body.image || "";
       if(!image || typeof image !== "string" || !image.startsWith("data:image/")) return json({error:"A valid image data URL is required."},400);
       instructions = `You are a restaurant inventory assistant. Inspect the product photo and identify the most likely food or beverage product. Return ONLY valid JSON with this shape: {"product":{"name":"string","unit":"kg|g|l|cl|ml|pièce|unité","quantity":1,"unitCost":0,"confidence":0.0}}. Never invent a price from the photo: unitCost must be 0 unless a visible price can be read. Quantity should be 1 unless a package quantity is clearly visible. If uncertain, keep the best likely name and lower confidence.`;
@@ -74,7 +80,7 @@ Deno.serve(async (req) => {
       try { return json({translations: JSON.parse(text)}); }
       catch { return json({error:"Translation response was not valid JSON."},502); }
     }
-    if(action === "stock-photo"){
+    if(action === "stock-photo" || action === "invoice-photo"){
       try { return json(JSON.parse(text)); }
       catch { return json({error:"Vision response was not valid JSON."},502); }
     }

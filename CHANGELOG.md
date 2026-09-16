@@ -1,12 +1,19 @@
+# V25.8.0
+- Réception intelligente par photo de facture fournisseur.
+- Extraction IA du fournisseur, référence, date, produits, quantités, unités et prix d’achat.
+- Écran de vérification avant toute modification du stock.
+- Mise à jour automatique du dernier prix d’achat et des quantités.
+- Historique des factures de livraison intégrées.
+
 # Changelog
 
-## V25.7.2 — pipeline Android résilient
-- restauration automatique de la source V25.7.2 depuis le ZIP si le checkout GitHub est ancien ;
+## V25.7.3 — pipeline Android résilient
+- restauration automatique de la source V25.7.3 depuis le ZIP si le checkout GitHub est ancien ;
 - installation et génération des assets Capacitor épinglées sur `@capacitor/assets` 3.0.5 ;
-- version Android 25.7.2 / versionCode 25702 ;
+- version Android 25.7.3 / versionCode 25702 ;
 - conservation du nouveau logo beige et des corrections multilingues.
 
-# V25.7.2 — Nouveau logo beige
+# V25.7.3 — Nouveau logo beige
 
 - Nouveau logo officiel de l’application intégré.
 - Déclinaison complète + icône optimisée PWA/Android.

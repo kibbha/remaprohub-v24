@@ -1,10 +1,10 @@
-# ReMaPro Hub V25.7.2
+# ReMaPro Hub V25.7.3
 
 ## Correctif pipeline Android
-V25.7.2 conserve les fonctionnalités de V25.7.1 et ajoute un mécanisme de restauration automatique de la source depuis le package V25.7.2 lorsque GitHub Actions démarre avec un checkout ancien.
+V25.7.3 conserve les fonctionnalités de V25.7.1 et ajoute un mécanisme de restauration automatique de la source depuis le package V25.7.3 lorsque GitHub Actions démarre avec un checkout ancien.
 
 ### Fichiers synchronisés
-- `ReMaPro_Hub_V25_7_2_READY.zip`
+- `ReMaPro_Hub_V25_7_3_READY.zip`
 - `install-v25-7-2.yml`
 - `build-android-v25-7-2.yml`
 
@@ -14,12 +14,12 @@ V25.7.2 conserve les fonctionnalités de V25.7.1 et ajoute un mécanisme de rest
 - Capacitor 8
 - `@capacitor/assets` 3.0.5
 - versionCode 25702
-- versionName 25.7.2
+- versionName 25.7.3
 - fullscreen immersif conservé
 
 ### Utilisation
-1. Déposer `ReMaPro_Hub_V25_7_2_READY.zip` dans le dépôt.
-2. Lancer **Install ReMaPro Hub V25.7.2**.
-3. Lancer **Android ReMaPro Hub V25.7.2**.
+1. Déposer `ReMaPro_Hub_V25_7_3_READY.zip` dans le dépôt.
+2. Lancer **Install ReMaPro Hub V25.7.3**.
+3. Lancer **Android ReMaPro Hub V25.7.3**.
 
 Le workflow Android vérifie désormais la version et peut restaurer automatiquement la source depuis le ZIP si le dépôt contient encore une ancienne version.
