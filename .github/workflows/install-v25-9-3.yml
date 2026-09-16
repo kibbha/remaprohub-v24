@@ -1,0 +1,91 @@
+name: Install ReMaPro Hub V25.9.3
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Locate and validate exact V25.9.3 package or source
+        run: |
+          set -euo pipefail
+          CURRENT="$(grep -o "APP_VERSION='[0-9.]*'" app/index.html 2>/dev/null | head -1 || true)"
+          if [ "$CURRENT" = "APP_VERSION='25.9.3'" ]; then
+            echo 'Source already at V25.9.3; no package extraction required.'
+            echo 'ROOT=$GITHUB_WORKSPACE' >> "$GITHUB_ENV"
+            exit 0
+          fi
+          ZIP="$(find . -type f -name 'ReMaPro_Hub_V25_9_3_READY.zip' -print -quit)"
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: checkout is $CURRENT and the exact V25.9.3 package is missing."
+            echo 'Upload ReMaPro_Hub_V25_9_3_READY.zip to the repository, then rerun this workflow.'
+            exit 1
+          fi
+          unzip -t "$ZIP" >/dev/null
+          rm -rf "$RUNNER_TEMP/remapro-v25-9-3"
+          mkdir -p "$RUNNER_TEMP/remapro-v25-9-3"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/remapro-v25-9-3"
+          ROOT="$(find "$RUNNER_TEMP/remapro-v25-9-3" -type f -path '*/app/index.html' -print -quit | xargs -r dirname | xargs -r dirname)"
+          test -f "$ROOT/app/index.html"
+          test -f "$ROOT/native/package.json"
+          test -f "$ROOT/native/capacitor.config.ts"
+          grep -q "APP_VERSION='25.9.3'" "$ROOT/app/index.html"
+          grep -q 'function setAppLanguage' "$ROOT/app/index.html"
+          grep -q 'function canonicalTranslation' "$ROOT/app/index.html"
+          grep -q 'const jobs=' "$ROOT/app/index.html"
+          grep -q 'remaprohub-v25-9-3-0' "$ROOT/app/sw.js"
+          grep -q '"version": "25.9.3"' "$ROOT/app/manifest.json"
+          echo "ROOT=$ROOT" >> "$GITHUB_ENV"
+      - name: Install clean V25.9.3 source
+        run: |
+          set -euo pipefail
+          if [ "$ROOT" != "$GITHUB_WORKSPACE" ]; then
+            rm -rf app native supabase
+            cp -a "$ROOT/app" app
+            cp -a "$ROOT/native" native
+            cp -a "$ROOT/supabase" supabase
+            find "$ROOT" -maxdepth 1 -type f -name '*.md' -exec cp {} . \;
+            test -f "$ROOT/update-manifest.json" && cp "$ROOT/update-manifest.json" . || true
+          fi
+      - name: Verify installed source
+        run: |
+          set -euo pipefail
+          grep -q "APP_VERSION='25.9.3'" app/index.html
+          grep -q 'function canonicalTranslation' app/index.html
+          grep -q 'function setAppLanguage' app/index.html
+          grep -q 'const jobs=' app/index.html
+          grep -q '"version": "25.9.3"' app/manifest.json
+          grep -q '"version": "25.9.3"' native/package.json
+          grep -q 'remaprohub-v25-9-3-0' app/sw.js
+          ! grep -q 'data-rmp-data-rmp-onclick' app/index.html
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          html=Path('app/index.html').read_text(encoding='utf-8')
+          scripts=re.findall(r'<script\b[^>]*>([\s\S]*?)</script>', html, flags=re.I)
+          Path('/tmp/remapro-inline.js').write_text('\n'.join(scripts), encoding='utf-8')
+          print(f'Inline script blocks checked: {len(scripts)}')
+          PY
+          node --check /tmp/remapro-inline.js
+          bash -n native/scripts/prepare-android.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('app/manifest.json').read_text())
+          assert m['version']=='25.9.3'
+          assert m['display']=='fullscreen'
+          print('Manifest: PASS')
+          PY
+      - name: Commit V25.9.3 to main
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'ReMaPro Hub V25.9.3 language and installer fix'
+          git push origin HEAD:main
