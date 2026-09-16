@@ -4,7 +4,8 @@
   "version": "26.0.1",
   "scripts": {
     "sync:android": "npx cap sync android",
-    "build:android": "cd android && ./gradlew assembleDebug"
+    "build:android": "cd android && ./gradlew assembleDebug",
+    "test:i18n": "node ../tests/i18n-static.test.mjs && node ../tests/i18n-runtime.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
