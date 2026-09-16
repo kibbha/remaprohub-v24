@@ -1,0 +1,82 @@
+name: Install ReMaPro Hub V26.0.1
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Rebuild V26.0.1 language-safe source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app/index.html
+          test -f app/manifest.json
+          test -f app/sw.js
+          test -f native/package.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          p=Path('app/index.html'); h=p.read_text(encoding='utf-8')
+          h=re.sub(r"APP_VERSION\s*=\s*['\"][^'\"]+['\"]", "APP_VERSION='26.0.1'", h, count=1)
+          h=re.sub(r"sw\.js\?v=[0-9.]+", "sw.js?v=26.0.1", h)
+          def sel(m):
+              tag=m.group(0)
+              tag=re.sub(r'\s+onchange\s*=\s*(?:"[^"]*"|\'[^\']*\')','',tag,flags=re.I)
+              if 'data-rmp-language-selector' not in tag: tag=tag[:-1]+' data-rmp-language-selector>'
+              if 'onchange=' not in tag: tag=tag[:-1]+' onchange="setAppLanguage(this.value)">'
+              return tag
+          h=re.sub(r'<select\b[^>]*\bid=["\']appLanguage["\'][^>]*>',sel,h,count=1,flags=re.I)
+          h=re.sub(r'<select\b[^>]*\bid=["\']profileLanguage["\'][^>]*>',sel,h,count=1,flags=re.I)
+          a=h.find('function setAppLanguage(lang){'); b=h.find('function logoutLocal()',a)
+          if a<0 or b<0: raise SystemExit('Language handler boundaries not found')
+          new='''function setAppLanguage(lang){
+            lang=I18N[lang]?lang:'fr';
+            state=state||defaultState();
+            state.preferences=state.preferences||{}; state.user=state.user||{};
+            state.preferences.language=lang; state.user.language=lang;
+            try{localStorage.setItem('remaprohub-language',lang);localStorage.setItem('remaprohub-data',JSON.stringify(state));}catch(e){console.error('language persistence',e)}
+            document.documentElement.lang=lang;
+            try{const u=new URL(window.location.href);u.searchParams.set('lang',lang);u.searchParams.set('rmp_lang',String(Date.now()));window.location.replace(u.toString());}catch(e){window.location.href='?lang='+encodeURIComponent(lang)+'&rmp_lang='+Date.now();}
+          }
+          function bindLanguageSelectors(){document.querySelectorAll('[data-rmp-language-selector],#profileLanguage').forEach(el=>{if(el.dataset.rmpLanguageBound==='1')return;el.dataset.rmpLanguageBound='1';el.addEventListener('change',()=>setAppLanguage(el.value));});}
+          '''
+          h=h[:a]+new+h[b:]; p.write_text(h,encoding='utf-8')
+          for f in ['app/manifest.json','native/package.json']:
+              q=Path(f); d=json.loads(q.read_text(encoding='utf-8')); d['version']='26.0.1'; q.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          sp=Path('app/sw.js'); x=sp.read_text(encoding='utf-8'); x=re.sub(r"const CACHE\s*=\s*['\"][^'\"]+['\"]","const CACHE='remaprohub-v26-0-1'",x,count=1); sp.write_text(x,encoding='utf-8')
+          print('Rebuild: PASS')
+          PY
+      - name: Verify V26.0.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json
+          grep -q "APP_VERSION='26.0.1'" app/index.html
+          grep -q 'window.location.replace' app/index.html
+          grep -q 'rmp_lang' app/index.html
+          grep -q 'onchange="setAppLanguage(this.value)"' app/index.html
+          grep -q 'sw.js?v=26.0.1' app/index.html
+          grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
+          grep -q '"version": "26.0.1"' app/manifest.json
+          grep -q '"version": "26.0.1"' native/package.json
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          h=Path('app/index.html').read_text(encoding='utf-8'); scripts=re.findall(r'<script\b[^>]*>([\s\S]*?)</script>',h,re.I); Path('/tmp/rmp.js').write_text('\n'.join(scripts),encoding='utf-8')
+          PY
+          node --check /tmp/rmp.js
+          bash -n native/scripts/prepare-android.sh
+      - name: Commit V26.0.1 rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then echo 'Already clean.'; else git commit -m 'ReMaPro Hub V26.0.1 language fix'; git push origin HEAD:main; fi
