@@ -1,3 +1,9 @@
+## V25.9.0
+- Onboarding guidé multi-pages à la première utilisation.
+- Sélection de langue intégrée à l’onboarding.
+- Correction du changement de langue : mise à jour immédiate sans reload.
+- Ajout d’un aperçu visuel des principales fonctions.
+
 # V25.8.0
 - Réception intelligente par photo de facture fournisseur.
 - Extraction IA du fournisseur, référence, date, produits, quantités, unités et prix d’achat.
@@ -126,3 +132,10 @@ HANGELOG — ReMaPro Hub
 - Copilot local/cloud et analyse photo stock IA optionnelle.
 - Export/import et stockage local conservés.
 - Android : workflow propre, TypeScript explicite et validation du manifeste avant Gradle.
+
+## V25.9.1 — Installation & langues
+
+- Correction du workflow Install : il cherchait par erreur le package V25.8.0 au lieu du package V25.9.x.
+- L’installateur accepte désormais une source V25.9.1 déjà présente dans le dépôt, évitant l’échec inutile de localisation du ZIP.
+- Changement de langue renforcé et partagé entre Paramètres et onboarding.
+- Cache service worker versionné pour éviter les anciennes ressources.

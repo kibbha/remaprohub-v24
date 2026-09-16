@@ -1,5 +1,5 @@
 {
-  "version": "25.8.0",
-  "title": "ReMaPro Hub V25.8.0 — réception fournisseur par photo",
-  "notes": "Lecture IA des factures détaillées, contrôle des lignes et intégration automatique des quantités et prix d’achat dans le stock."
+  "version": "25.9.1",
+  "title": "ReMaPro Hub V25.9.1 — langues & onboarding corrigés",
+  "notes": "Correction du workflow d’installation, changement de langue renforcé, onboarding multi-pages conservé et cache service worker versionné."
 }
