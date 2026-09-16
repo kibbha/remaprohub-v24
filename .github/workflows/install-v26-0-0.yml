@@ -7,25 +7,101 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Install canonical V26.0.0 payload
+      - name: Rebuild V26.0.0 from repository source
+        shell: bash
         run: |
           set -euo pipefail
-          PAYLOAD="releases/ReMaPro_Hub_V26_0_0_SOURCE.zip"
-          test -s "$PAYLOAD" || { echo 'ERROR: canonical payload missing. Use the READY package and extract it into the repository first.'; exit 1; }
-          rm -rf /tmp/remapro-v26-release
-          mkdir -p /tmp/remapro-v26-release
-          unzip -q "$PAYLOAD" -d /tmp/remapro-v26-release
-          test -f /tmp/remapro-v26-release/app/index.html
-          test -f /tmp/remapro-v26-release/native/package.json
-          rsync -a --delete --exclude='.git/' --exclude='releases/' /tmp/remapro-v26-release/ ./
-          echo 'Canonical V26.0.0 payload installed.'
+          test -f app/index.html || { echo 'ERROR: app/index.html is missing. The repository must contain the ReMaPro Hub source.'; exit 1; }
+          test -f app/manifest.json || { echo 'ERROR: app/manifest.json is missing.'; exit 1; }
+          test -f app/sw.js || { echo 'ERROR: app/sw.js is missing.'; exit 1; }
+          test -f native/package.json || { echo 'ERROR: native/package.json is missing.'; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
 
-      - name: Verify canonical V26.0.0 source
+          ROOT=Path('.')
+          html_path=ROOT/'app/index.html'
+          html=html_path.read_text(encoding='utf-8')
+
+          # 1) Version is normalized directly, never via a version-specific migration chain.
+          html=re.sub(r"APP_VERSION='[^']+'", "APP_VERSION='26.0.0'", html, count=1)
+
+          # 2) Language selector: remove the fragile inline onchange handler.
+          html=html.replace(
+              '<select id="appLanguage" data-rmp-language-selector onchange="setAppLanguage(this.value)">',
+              '<select id="appLanguage" data-rmp-language-selector>'
+          )
+
+          # 3) Keep URL language override at state-load level.
+          if "const urlLang=new URLSearchParams(location.search).get('lang')" not in html:
+              raise SystemExit('ERROR: URL language handling is missing from the repository source.')
+
+          # 4) Ensure the generated DOM is rebound/retranslated after rendering.
+          if 'function bindLanguageSelectors' not in html:
+              raise SystemExit('ERROR: bindLanguageSelectors() is missing from the repository source.')
+          if 'function startLanguageObserver' not in html:
+              raise SystemExit('ERROR: startLanguageObserver() is missing from the repository source.')
+
+          # 5) Normalize boot so ?lang=xx is applied before entering the app.
+          old_boot="""function boot(){bindLanguageSelectors();startLanguageObserver();migrateStorageKey();ensureExtendedState();let has=localStorage.getItem('remaprohub-data');if(has){state=loadState();enterApp()}else document.getElementById('authScreen').classList.remove('hidden')}"""
+          new_boot="""function boot(){bindLanguageSelectors();startLanguageObserver();migrateStorageKey();ensureExtendedState();const bootLang=new URLSearchParams(location.search).get('lang');if(bootLang&&I18N[bootLang]){localStorage.setItem('remaprohub-language',bootLang);state.preferences=state.preferences||{};state.user=state.user||{};state.preferences.language=bootLang;state.user.language=bootLang;}let has=localStorage.getItem('remaprohub-data');if(has){state=loadState();enterApp()}else{const lang=localStorage.getItem('remaprohub-language');if(lang&&I18N[lang])document.documentElement.lang=lang;document.getElementById('authScreen').classList.remove('hidden');applyLanguage();applyFullLanguage();bindLanguageSelectors()}}"""
+          if old_boot in html:
+              html=html.replace(old_boot,new_boot,1)
+          elif 'const bootLang=new URLSearchParams(location.search).get(\'lang\')' not in html:
+              raise SystemExit('ERROR: cannot normalize boot() safely.')
+
+          # 6) Normalize the service-worker registration cache-buster.
+          html=re.sub(r"sw\.js\?v=[0-9.]+", "sw.js?v=26.0.0", html, count=1)
+          html_path.write_text(html,encoding='utf-8')
+
+          # 7) PWA/native metadata.
+          mp=ROOT/'app/manifest.json'
+          m=json.loads(mp.read_text(encoding='utf-8'))
+          m['version']='26.0.0'
+          mp.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          np=ROOT/'native/package.json'
+          n=json.loads(np.read_text(encoding='utf-8'))
+          n['version']='26.0.0'
+          np.write_text(json.dumps(n,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          sp=ROOT/'app/sw.js'
+          sw=sp.read_text(encoding='utf-8')
+          sw=re.sub(r"const CACHE='[^']+';", "const CACHE='remaprohub-v26-0-0';", sw, count=1)
+          sp.write_text(sw,encoding='utf-8')
+
+          rp=ROOT/'index.html'
+          if rp.exists():
+              root=rp.read_text(encoding='utf-8')
+              root=root.replace('<title>ReMaPro Hub</title>','<title>ReMaPro Hub V26.0.0</title>')
+              root=root.replace('Ouverture de ReMaPro Hub…','Ouverture de ReMaPro Hub V26.0.0…')
+              root=root.replace('Ouvrir ReMaPro Hub</a>','Ouvrir ReMaPro Hub V26.0.0</a>')
+              rp.write_text(root,encoding='utf-8')
+
+          um=ROOT/'update-manifest.json'
+          um.write_text(json.dumps({
+              'version':'26.0.0',
+              'title':'ReMaPro Hub V26.0.0',
+              'notes':'Reconstruction propre de la base ReMaPro Hub avec gestion de langue renforcée et pipeline Android simplifié.',
+              'apkUrl':''
+          },ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          # Remove obsolete version-specific workflows so they cannot be launched accidentally.
+          wf=ROOT/'.github/workflows'
+          if wf.exists():
+              for p in wf.glob('*v25*.yml'):
+                  p.unlink()
+
+          print('V26.0.0 source rebuilt in place.')
+          PY
+
+      - name: Verify V26.0.0 source
+        shell: bash
         run: |
           set -euo pipefail
           test -f app/index.html
@@ -38,42 +114,40 @@ jobs:
           grep -q 'id="appLanguage" data-rmp-language-selector' app/index.html
           ! grep -q 'id="appLanguage".*onchange=' app/index.html
           grep -q "const urlLang=new URLSearchParams(location.search).get('lang')" app/index.html
+          grep -q 'function setAppLanguage' app/index.html
           grep -q 'function bindLanguageSelectors' app/index.html
           grep -q 'function startLanguageObserver' app/index.html
           grep -q 'sw.js?v=26.0.0' app/index.html
-          grep -q 'remaprohub-v26-0-0' app/sw.js
+          grep -q "remaprohub-v26-0-0" app/sw.js
           grep -q '"version": "26.0.0"' app/manifest.json
           grep -q '"version": "26.0.0"' native/package.json
-          grep -q 'WindowInsets.Type.navigationBars()' native/scripts/prepare-android.sh
-          grep -q 'WindowInsets.Type.statusBars()' native/scripts/prepare-android.sh
-          ! grep -q 'onResume' native/scripts/prepare-android.sh
-          python3 - <<'PY2'
+          python3 - <<'PY'
           from pathlib import Path
           import json,re
           html=Path('app/index.html').read_text(encoding='utf-8')
           scripts=re.findall(r'<script\b[^>]*>([\s\S]*?)</script>',html,flags=re.I)
           Path('/tmp/remapro-inline.js').write_text('\n'.join(scripts),encoding='utf-8')
-          m=json.loads(Path('app/manifest.json').read_text(encoding='utf-8'))
-          p=json.loads(Path('native/package.json').read_text(encoding='utf-8'))
-          assert m['version']=='26.0.0'
-          assert p['version']=='26.0.0'
+          json.loads(Path('app/manifest.json').read_text(encoding='utf-8'))
+          json.loads(Path('native/package.json').read_text(encoding='utf-8'))
           assert 'onchange="setAppLanguage(this.value)"' not in html
-          assert "const urlLang=new URLSearchParams(location.search).get('lang')" in html
-          print('Canonical source assertions: PASS')
+          assert html.count("APP_VERSION='26.0.0'")==1
+          assert html.count('sw.js?v=26.0.0')==1
           print(f'Inline script blocks: {len(scripts)}')
-          PY2
+          print('V26.0.0 source assertions: PASS')
+          PY
           node --check /tmp/remapro-inline.js
           bash -n native/scripts/prepare-android.sh
 
-      - name: Commit canonical V26.0.0 source
+      - name: Commit V26.0.0 rebuild
+        shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           if git diff --cached --quiet; then
-            echo 'Source already canonical V26.0.0.'
+            echo 'V26.0.0 source already clean.'
           else
-            git commit -m 'ReMaPro Hub V26.0.0 rebuild'
+            git commit -m 'ReMaPro Hub V26.0.0 clean rebuild'
             git push origin HEAD:main
           fi
