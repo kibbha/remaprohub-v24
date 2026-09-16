@@ -19,7 +19,9 @@ jobs:
           ! grep -q 'rmp_lang' app/index.html
           ! grep -Eq 'id="(appLanguage|profileLanguage)"[^>]*onchange=' app/index.html
           node tests/i18n-static.test.mjs
+          node tests/i18n-coverage.test.mjs
           node tests/i18n-runtime.test.mjs
+          node tests/i18n-dom.test.mjs
           grep -q 'sw.js?v=26.0.1' app/index.html
           grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json
