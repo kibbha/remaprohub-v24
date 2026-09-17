@@ -3,36 +3,52 @@ from pathlib import Path
 p = Path('app/index.html')
 s = p.read_text(encoding='utf-8')
 
-# The release runtime deliberately mirrors the selected language in this key.
-# Legacy loadState() used to delete it immediately at startup, which made the
-# bootstrap path contradictory and could reintroduce stale language state.
 s = s.replace("if(legacyLang)localStorage.removeItem('remaprohub-language');delete d.user.language;", "delete d.user.language;", 1)
-
-# A few section joins were accidentally committed as visible backslash+n text.
-# Convert only the safe HTML section-boundary form, never JS string escapes.
 s = s.replace('</section>\\n<section', '</section>\n<section')
 
-# Header chrome is updated outside several module renderers. Translate it at the
-# final write point so late renders cannot restore French Account/Back/subtitle.
+# Screenshot-confirmed French strings that are written by late renderers.
+# Translate literal DOM writes at source so they cannot overwrite the selected language.
+late_literals = [
+    'Compte','Retour','Mode test local','Opérations','Ouverture, service, fermeture et tâches opérationnelles.',
+    'Ouverture cuisine','Contrôle températures','Mise en place salle','Contrôle caisse / fond de caisse',
+    'Fermeture et nettoyage','Fait','À faire','HACCP & sécurité alimentaire',
+    'Relevés de température et actions correctives.','Aucun relevé de température.',
+    'Finance & chiffre d’affaires','CA du jour','Dépenses du jour','Résultat du jour','Moyens de paiement',
+    'Indicateurs du jour','Aucun paiement pour cette journée.','CA enregistré','Nombre total de couverts',
+    'Panier moyen / couvert','Dépense moyenne','Documents',
+    'Bibliothèque complète des documents professionnels et RH inclus dans ReMaPro Hub.',
+    'Chiffre d’affaires','Couverts','Panier moyen','Aucune vente enregistrée','total du jour',
+    'calculé depuis vos recettes','Évolution du chiffre d’affaires','Activité du jour','Activité récente',
+    'Dernières actions enregistrées','Aucune activité récente.','À faire aujourd’hui',
+    'Les points qui méritent votre attention','Hygiène & HACCP','Suivi du jour','Contrôles réalisés',
+    'Ouvrir HACCP','Stock valorisé','Valeur indicative','Aucun article','Gérer le stock',
+    'Gestion opérationnelle et administrative'
+]
+lang_expr = "state?.preferences?.language||'fr'"
+for lit in late_literals:
+    q1 = ".textContent='" + lit.replace("'", "\\'") + "'"
+    q2 = '.textContent="' + lit.replace('"', '\\"') + '"'
+    repl = ".textContent=translateString(" + repr(lit) + "," + lang_expr + ")"
+    s = s.replace(q1, repl)
+    s = s.replace(q2, repl)
+
+# Header chrome is updated outside several module renderers.
 needle = "function updateHeader(){"
 if needle in s:
     start = s.index(needle)
     end = s.find("function ", start + len(needle))
     if end < 0: end = len(s)
     block = s[start:end]
-    block = block.replace(".textContent='Compte'", ".textContent=translateString('Compte',state?.preferences?.language||'fr')")
-    block = block.replace('.textContent="Compte"', ".textContent=translateString('Compte',state?.preferences?.language||'fr')")
-    block = block.replace(".textContent='Retour'", ".textContent=translateString('Retour',state?.preferences?.language||'fr')")
-    block = block.replace('.textContent="Retour"', ".textContent=translateString('Retour',state?.preferences?.language||'fr')")
-    block = block.replace(".textContent='Gestion opérationnelle et administrative'", ".textContent=translateString('Gestion opérationnelle et administrative',state?.preferences?.language||'fr')")
-    block = block.replace('.textContent="Gestion opérationnelle et administrative"', ".textContent=translateString('Gestion opérationnelle et administrative',state?.preferences?.language||'fr')")
+    for lit in ('Compte','Retour','Gestion opérationnelle et administrative'):
+        block = block.replace(".textContent='"+lit+"'", ".textContent=translateString("+repr(lit)+","+lang_expr+")")
+        block = block.replace('.textContent="'+lit+'"', ".textContent=translateString("+repr(lit)+","+lang_expr+")")
     s = s[:start] + block + s[end:]
 
-# Always run the full language pass once after renderAll completes. This covers
-# static header nodes as well as dynamic nodes added by individual renderers.
+# Run a translation pass after the synchronous renderer and again on the next
+# animation frame. The second pass catches renderer writes queued after renderAll.
 render_tail = "try{applyFullLanguage()}catch(e){console.error('applyFullLanguage',e)}"
 if render_tail in s:
-    s = s.replace(render_tail, render_tail+";try{queueMicrotask(()=>applyFullLanguage())}catch(e){}", 1)
+    s = s.replace(render_tail, render_tail+";try{queueMicrotask(()=>applyFullLanguage());requestAnimationFrame(()=>applyFullLanguage())}catch(e){}", 1)
 
 p.write_text(s, encoding='utf-8')
 print('Final language runtime cleanup applied')
