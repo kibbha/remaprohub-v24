@@ -27,6 +27,7 @@ jobs:
           node tests/i18n-runtime.test.mjs
           node tests/i18n-dom.test.mjs
           node tests/i18n-language-cycle.test.mjs
+          node tests/i18n-six-language-scope.test.mjs
           grep -q 'sw.js?v=26.0.1' app/index.html
           grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json
