@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../app/index.html', import.meta.url), 'utf8');
+const releaseLanguages = ['fr', 'en', 'es', 'de', 'it', 'pt'];
 
 function extractFunction(name) {
   const start = source.indexOf(`function ${name}(`);
@@ -38,18 +39,21 @@ const context = vm.createContext({
 });
 vm.runInContext(extractFunction('setAppLanguage'), context);
 
-for (const language of ['fr', 'en', 'de', 'it', 'es', 'pt', 'nl', 'zh']) {
+for (const language of releaseLanguages) {
   context.setAppLanguage(language);
   assert.equal(context.state.preferences.language, language);
   assert.equal(context.document.documentElement.lang, language);
   assert.equal(selectors.appLanguage.value, language);
   assert.equal(selectors.profileLanguage.value, language);
   assert.equal(JSON.parse(writes.get('remaprohub-data')).preferences.language, language);
+  assert.equal(writes.get('remaprohub-language'), language, 'local language mirror must follow canonical preference');
   assert.equal(events.at(-1).detail.language, language);
 }
-assert.equal(renders, 8, 'each language change must render exactly once');
+assert.equal(renders, releaseLanguages.length, 'each release language change must render exactly once');
 assert.equal(context.__translationCache.size, 0, 'translation cache must be invalidated');
-assert.equal(writes.has('remaprohub-language'), false, 'legacy language storage must not be written');
-context.setAppLanguage('unsupported');
-assert.equal(context.state.preferences.language, 'fr', 'unsupported languages must fall back to French');
-console.log('I18N runtime behavior checks passed.');
+for (const unsupported of ['nl', 'zh', 'unsupported']) {
+  context.setAppLanguage(unsupported);
+  assert.equal(context.state.preferences.language, 'fr', `${unsupported} must fall back to French in this release`);
+  assert.equal(writes.get('remaprohub-language'), 'fr', 'fallback language must also be persisted');
+}
+console.log('I18N six-language runtime behavior checks passed.');

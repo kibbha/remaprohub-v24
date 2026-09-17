@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const source=readFileSync(new URL('../app/index.html',import.meta.url),'utf8');
+const start=source.indexOf('function setAppLanguage(lang)');
+assert.ok(start>=0,'setAppLanguage must exist');
+const end=source.indexOf('\nfunction ',start+10);
+const body=source.slice(start,end>start?end:start+5000);
+assert.match(body,/localStorage\.setItem\('remaprohub-language',lang\)/,'language must be persisted');
+assert.match(body,/document\.documentElement\.lang=lang/,'document language must update');
+assert.match(body,/remapro:languagechange/,'language event must be emitted');
+assert.doesNotMatch(body,/location\.(replace|reload)\s*\(/,'language switch must not reload');
+for(const id of ['appLanguage','profileLanguage'])assert.match(source,new RegExp(`id=["']${id}["']`),`${id} must exist`);
+console.log('I18N language-cycle regression contract passed.');
