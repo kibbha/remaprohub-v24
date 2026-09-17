@@ -1,6 +1,9 @@
 name: Android ReMaPro Hub V26.0.1
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/language-system-clean
 permissions:
   contents: read
 jobs:
