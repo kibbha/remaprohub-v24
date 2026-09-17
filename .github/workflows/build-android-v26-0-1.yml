@@ -9,6 +9,8 @@ jobs:
     steps:
       - name: Checkout canonical source
         uses: actions/checkout@v5
+        with:
+          ref: main
       - name: Verify V26.0.1 source
         shell: bash
         run: |
@@ -22,8 +24,8 @@ jobs:
           node tests/i18n-coverage.test.mjs
           node tests/i18n-runtime.test.mjs
           node tests/i18n-dom.test.mjs
-          grep -q 'sw.js?v=26.0.1' app/index.html
-          grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
+          grep -q 'sw.js?v=26.0.1-i18n2' app/index.html
+          grep -q "const CACHE='remaprohub-v26-0-1-i18n2'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json
           grep -q '"version": "26.0.1"' native/package.json
           python3 - <<'PY'
@@ -38,7 +40,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: native/package.json
+          cache-dependency-path: native/package-lock.json
       - name: Setup Java 21
         uses: actions/setup-java@v5
         with:
@@ -46,7 +48,7 @@ jobs:
           java-version: '21'
       - name: Install Capacitor dependencies
         working-directory: native
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Create fresh Android project
         working-directory: native
         run: rm -rf android && npx cap add android && test -f android/gradlew
@@ -59,6 +61,9 @@ jobs:
       - name: Sync Capacitor
         working-directory: native
         run: npx cap sync android
+      - name: Verify synchronized Android web assets
+        working-directory: native
+        run: npm run test:android-assets
       - name: Set Android version
         working-directory: native
         run: |
@@ -70,8 +75,19 @@ jobs:
       - name: Build debug APK
         working-directory: native/android
         run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon --stacktrace
-      - name: Verify APK exists
-        run: test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Verify APK embeds the canonical i18n runtime
+        run: |
+          set -euo pipefail
+          test -s native/android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -p native/android/app/build/outputs/apk/debug/app-debug.apk assets/public/index.html > /tmp/apk-index.html
+          unzip -p native/android/app/build/outputs/apk/debug/app-debug.apk assets/public/sw.js > /tmp/apk-sw.js
+          cmp --silent app/index.html /tmp/apk-index.html
+          cmp --silent app/sw.js /tmp/apk-sw.js
+          grep -q 'function isNativeRuntime()' /tmp/apk-index.html
+          grep -q 'registration.unregister()' /tmp/apk-index.html
+          grep -q 'function setAppLanguage(lang)' /tmp/apk-index.html
+          grep -q 'function observeDynamicTranslations()' /tmp/apk-index.html
+          grep -q 'state.preferences.language=lang' /tmp/apk-index.html
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:

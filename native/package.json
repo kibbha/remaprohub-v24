@@ -3,9 +3,11 @@
   "private": true,
   "version": "26.0.1",
   "scripts": {
+    "test": "npm run test:i18n",
     "sync:android": "npx cap sync android",
     "build:android": "cd android && ./gradlew assembleDebug",
-    "test:i18n": "node ../tests/i18n-static.test.mjs && node ../tests/i18n-coverage.test.mjs && node ../tests/i18n-runtime.test.mjs && node ../tests/i18n-dom.test.mjs"
+    "test:i18n": "node ../tests/i18n-static.test.mjs && node ../tests/i18n-coverage.test.mjs && node ../tests/i18n-runtime.test.mjs && node ../tests/i18n-dom.test.mjs",
+    "test:android-assets": "node scripts/verify-android-web-assets.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",
