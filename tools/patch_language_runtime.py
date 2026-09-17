@@ -12,9 +12,7 @@ old="""function setAppLanguage(lang){
 new="""function setAppLanguage(lang){
   lang=I18N[lang]?lang:'fr';
   state.preferences=state.preferences||{};
-  state.user=state.user||{};
   state.preferences.language=lang;
-  state.user.language=lang;
   try{
     localStorage.setItem('remaprohub-language',lang);
     localStorage.setItem('remaprohub-data',JSON.stringify(state));
