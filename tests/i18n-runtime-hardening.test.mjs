@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const s=readFileSync(new URL('../app/language-runtime-fix.js',import.meta.url),'utf8');
+assert.match(s,/remaprohub-language/);
+assert.match(s,/state\.preferences\.language=l/);
+assert.match(s,/state\.user\.language=l/);
+assert.match(s,/appLanguage/);
+assert.match(s,/profileLanguage/);
+assert.doesNotMatch(s,/location\.(?:reload|replace)\s*\(/);
+console.log('I18N hardened runtime contract passed');
