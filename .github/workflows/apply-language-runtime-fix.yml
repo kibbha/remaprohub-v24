@@ -1,0 +1,38 @@
+name: Apply language runtime fix
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/language-system-clean
+    paths:
+      - '.github/workflows/apply-language-runtime-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/language-system-clean
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch language runtime
+        run: python3 tools/patch_language_runtime.py
+      - name: Verify language regression contract
+        run: node tests/i18n-language-cycle.test.mjs
+      - name: Commit repaired runtime
+        run: |
+          if git diff --quiet -- app/index.html; then
+            echo 'No runtime change required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/index.html
+          git commit -m 'fix(i18n): centralize language persistence and selectors'
+          git push origin HEAD:fix/language-system-clean
