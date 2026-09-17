@@ -9,6 +9,15 @@ jobs:
     steps:
       - name: Checkout canonical source
         uses: actions/checkout@v5
+      - name: Verify i18n patch inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/patch_language_runtime.py tools/i18n_release_extra.py tools/i18n_release_modules.py tools/i18n_release_dynamic.py
+          grep -q 'from i18n_release_extra import EXTRA_ROWS' tools/patch_language_runtime.py
+          grep -q 'from i18n_release_modules import MODULE_ROWS' tools/patch_language_runtime.py
+          grep -q 'from i18n_release_dynamic import DYNAMIC_ROWS' tools/patch_language_runtime.py
+          grep -q 'rows + EXTRA_ROWS + MODULE_ROWS + DYNAMIC_ROWS' tools/patch_language_runtime.py
       - name: Apply deterministic language runtime fix
         run: python3 tools/patch_language_runtime.py
       - name: Verify V26.0.1 source
@@ -18,6 +27,7 @@ jobs:
           test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json; test -f native/capacitor.config.ts
           grep -q "APP_VERSION='26.0.1'" app/index.html
           grep -q "localStorage.setItem('remaprohub-language',lang)" app/index.html
+          grep -q 'const RMP_RELEASE_UI=' app/index.html
           ! grep -q "state.user.language=lang" app/index.html
           ! grep -q 'window.location.replace' app/index.html
           ! grep -q 'rmp_lang' app/index.html
