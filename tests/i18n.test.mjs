@@ -1,0 +1,1 @@
+import assert from'node:assert/strict';import{readFileSync}from'node:fs';const s=readFileSync('src/i18n.js','utf8'),a=readFileSync('src/app.js','utf8');for(const l of ['fr','en','de','it','es','pt'])assert.match(s,new RegExp(`const ${l}=`));assert.match(a,/\$\{t\('dashboard'\)\}/);assert.equal(a.includes('Chiffre d’affaires'),false);console.log('clean i18n architecture OK');
