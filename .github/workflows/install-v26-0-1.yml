@@ -17,7 +17,7 @@ jobs:
           node-version: 24
       - name: Install Capacitor dependencies
         working-directory: native
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Test canonical i18n source
         working-directory: native
         run: npm run test:i18n

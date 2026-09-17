@@ -48,7 +48,7 @@ jobs:
           java-version: '21'
       - name: Install Capacitor dependencies
         working-directory: native
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Create fresh Android project
         working-directory: native
         run: rm -rf android && npx cap add android && test -f android/gradlew
