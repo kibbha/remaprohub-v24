@@ -45,11 +45,12 @@ for (const language of ['fr', 'en', 'de', 'it', 'es', 'pt', 'nl', 'zh']) {
   assert.equal(selectors.appLanguage.value, language);
   assert.equal(selectors.profileLanguage.value, language);
   assert.equal(JSON.parse(writes.get('remaprohub-data')).preferences.language, language);
+  assert.equal(writes.get('remaprohub-language'), language, 'local language mirror must follow canonical preference');
   assert.equal(events.at(-1).detail.language, language);
 }
 assert.equal(renders, 8, 'each language change must render exactly once');
 assert.equal(context.__translationCache.size, 0, 'translation cache must be invalidated');
-assert.equal(writes.has('remaprohub-language'), false, 'legacy language storage must not be written');
 context.setAppLanguage('unsupported');
 assert.equal(context.state.preferences.language, 'fr', 'unsupported languages must fall back to French');
+assert.equal(writes.get('remaprohub-language'), 'fr', 'fallback language must also be persisted');
 console.log('I18N runtime behavior checks passed.');
