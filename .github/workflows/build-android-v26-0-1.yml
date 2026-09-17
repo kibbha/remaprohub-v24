@@ -18,7 +18,7 @@ jobs:
           test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json; test -f native/capacitor.config.ts
           grep -q "APP_VERSION='26.0.1'" app/index.html
           grep -q "localStorage.setItem('remaprohub-language',lang)" app/index.html
-          grep -q "state.user.language=lang" app/index.html
+          ! grep -q "state.user.language=lang" app/index.html
           ! grep -q 'window.location.replace' app/index.html
           ! grep -q 'rmp_lang' app/index.html
           ! grep -Eq 'id="(appLanguage|profileLanguage)"[^>]*onchange=' app/index.html
