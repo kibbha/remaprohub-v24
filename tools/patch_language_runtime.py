@@ -38,5 +38,36 @@ if old_prefs not in s:
     raise SystemExit('savePreferences language writer not found')
 s=s.replace(old_prefs,new_prefs,1)
 
+old_boot="""  function bootstrapLanguage(){
+    const lang=state?.preferences?.language;
+    document.documentElement.lang=validLang(lang)?lang:'fr';
+  }"""
+new_boot="""  function bootstrapLanguage(){
+    let lang=null;
+    try{lang=localStorage.getItem('remaprohub-language')}catch(e){}
+    if(!validLang(lang))lang=state?.preferences?.language;
+    lang=validLang(lang)?lang:'fr';
+    state.preferences=state.preferences||{};
+    state.preferences.language=lang;
+    document.documentElement.lang=lang;
+    try{__translationCache.clear();__translationReverse=null;}catch(e){}
+    try{renderAll()}catch(e){console.error('language bootstrap renderAll',e)}
+    try{applyLanguage()}catch(e){console.error('language bootstrap applyLanguage',e)}
+    try{applyFullLanguage()}catch(e){console.error('language bootstrap applyFullLanguage',e)}
+  }"""
+if old_boot not in s:
+    raise SystemExit('bootstrapLanguage block not found')
+s=s.replace(old_boot,new_boot,1)
+
+old_listener="""    if(el&&(el.matches?.('[data-rmp-language-selector]')||el.id==='profileLanguage'))setAppLanguage(el.value);"""
+new_listener="""    if(el&&(el.matches?.('[data-rmp-language-selector]')||el.id==='profileLanguage')){
+      setAppLanguage(el.value);
+      try{applyLanguage()}catch(err){console.error('language change applyLanguage',err)}
+      try{applyFullLanguage()}catch(err){console.error('language change applyFullLanguage',err)}
+    }"""
+if old_listener not in s:
+    raise SystemExit('language change listener not found')
+s=s.replace(old_listener,new_listener,1)
+
 p.write_text(s,encoding='utf-8')
 print('Language runtime patched successfully')
