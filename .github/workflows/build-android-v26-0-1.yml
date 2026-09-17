@@ -9,12 +9,16 @@ jobs:
     steps:
       - name: Checkout canonical source
         uses: actions/checkout@v5
+      - name: Apply deterministic language runtime fix
+        run: python3 tools/patch_language_runtime.py
       - name: Verify V26.0.1 source
         shell: bash
         run: |
           set -euo pipefail
           test -f app/index.html; test -f app/manifest.json; test -f app/sw.js; test -f native/package.json; test -f native/capacitor.config.ts
           grep -q "APP_VERSION='26.0.1'" app/index.html
+          grep -q "localStorage.setItem('remaprohub-language',lang)" app/index.html
+          grep -q "state.user.language=lang" app/index.html
           ! grep -q 'window.location.replace' app/index.html
           ! grep -q 'rmp_lang' app/index.html
           ! grep -Eq 'id="(appLanguage|profileLanguage)"[^>]*onchange=' app/index.html
@@ -22,6 +26,7 @@ jobs:
           node tests/i18n-coverage.test.mjs
           node tests/i18n-runtime.test.mjs
           node tests/i18n-dom.test.mjs
+          node tests/i18n-language-cycle.test.mjs
           grep -q 'sw.js?v=26.0.1' app/index.html
           grep -q "const CACHE='remaprohub-v26-0-1'" app/sw.js
           grep -q '"version": "26.0.1"' app/manifest.json
