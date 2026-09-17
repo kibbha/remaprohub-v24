@@ -10,7 +10,8 @@ old="""function setAppLanguage(lang){
   try{localStorage.setItem('remaprohub-data',JSON.stringify(state));}catch(e){console.error('language persistence',e)}
   document.documentElement.lang=lang;"""
 new="""function setAppLanguage(lang){
-  lang=I18N[lang]?lang:'fr';
+  const supported=['fr','en','es','de','it','pt'];
+  lang=supported.includes(lang)&&I18N[lang]?lang:'fr';
   state.preferences=state.preferences||{};
   state.preferences.language=lang;
   try{
@@ -38,11 +39,17 @@ if old_prefs not in s:
     raise SystemExit('savePreferences language writer not found')
 s=s.replace(old_prefs,new_prefs,1)
 
-old_boot="""  function bootstrapLanguage(){
+old_boot="""  const supported=['fr','en','de','it','es','pt','nl','zh'];"""
+new_boot="""  const supported=['fr','en','es','de','it','pt'];"""
+if old_boot not in s:
+    raise SystemExit('runtime supported-language list not found')
+s=s.replace(old_boot,new_boot,1)
+
+old_boot_fn="""  function bootstrapLanguage(){
     const lang=state?.preferences?.language;
     document.documentElement.lang=validLang(lang)?lang:'fr';
   }"""
-new_boot="""  function bootstrapLanguage(){
+new_boot_fn="""  function bootstrapLanguage(){
     let lang=null;
     try{lang=localStorage.getItem('remaprohub-language')}catch(e){}
     if(!validLang(lang))lang=state?.preferences?.language;
@@ -55,9 +62,9 @@ new_boot="""  function bootstrapLanguage(){
     try{applyLanguage()}catch(e){console.error('language bootstrap applyLanguage',e)}
     try{applyFullLanguage()}catch(e){console.error('language bootstrap applyFullLanguage',e)}
   }"""
-if old_boot not in s:
+if old_boot_fn not in s:
     raise SystemExit('bootstrapLanguage block not found')
-s=s.replace(old_boot,new_boot,1)
+s=s.replace(old_boot_fn,new_boot_fn,1)
 
 old_listener="""    if(el&&(el.matches?.('[data-rmp-language-selector]')||el.id==='profileLanguage'))setAppLanguage(el.value);"""
 new_listener="""    if(el&&(el.matches?.('[data-rmp-language-selector]')||el.id==='profileLanguage')){
@@ -68,6 +75,10 @@ new_listener="""    if(el&&(el.matches?.('[data-rmp-language-selector]')||el.id=
 if old_listener not in s:
     raise SystemExit('language change listener not found')
 s=s.replace(old_listener,new_listener,1)
+
+# Hide Dutch and Chinese until their catalogues are complete enough for release.
+for value in ('nl','zh'):
+    s=s.replace(f'<option value="{value}">',f'<option value="{value}" disabled hidden>')
 
 p.write_text(s,encoding='utf-8')
 print('Language runtime patched successfully')
