@@ -105,6 +105,29 @@ export async function loadCloudIdentity(){
   return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const WORKSPACE_READ_BY_PERMISSION={
+  operations:['tasksDate','tasks'],
+  haccp:['temps'],
+  stock:['stock'],
+  deliveries:['deliveries','stock','suppliers'],
+  checklists:['checklists'],
+  planning:['shifts','team'],
+  reservations:['reservations','customers']
+};
+const WORKSPACE_WRITE_BY_PERMISSION={
+  operations:['tasksDate','tasks'],
+  haccp:['temps'],
+  stock:['stock'],
+  deliveries:['deliveries'],
+  checklists:['checklists'],
+  planning:['shifts'],
+  reservations:['reservations']
+};
+function cloudRestaurantContext(identity,restaurantId){const restaurant=(identity?.restaurants||[]).find(x=>x.id===restaurantId);if(!restaurant)return{restaurant:null,memberships:[],manager:false};const memberships=(identity?.memberships||[]).filter(m=>m.organization_id===restaurant.organization_id&&(!m.restaurant_id||m.restaurant_id===restaurantId));const manager=memberships.some(m=>['network_admin','network_manager'].includes(m.role)&&!m.restaurant_id)||memberships.some(m=>m.restaurant_id===restaurantId&&['restaurant_admin','director','manager'].includes(m.role));return{restaurant,memberships,manager}}
+function cloudWorkspaceKeys(identity,restaurantId,map){const ctx=cloudRestaurantContext(identity,restaurantId);if(!ctx.restaurant)return[];if(ctx.manager)return[...CLOUD_WORKSPACE_KEYS];const out=new Set();for(const membership of ctx.memberships)if(membership.restaurant_id===restaurantId)for(const permission of membership.permissions||[])for(const key of map[permission]||[])out.add(key);return[...out]}
+export function cloudWorkspaceReadKeys(identity,restaurantId){return cloudWorkspaceKeys(identity,restaurantId,WORKSPACE_READ_BY_PERMISSION)}
+export function cloudWorkspaceWriteKeys(identity,restaurantId){return cloudWorkspaceKeys(identity,restaurantId,WORKSPACE_WRITE_BY_PERMISSION)}
 export function cloudMultiAccess(identity,organizationId,now=new Date()){
   if(!identity||!organizationId)return false;
   const subscription=(identity.subscriptions||[]).find(x=>x.organization_id===organizationId);
@@ -146,6 +169,6 @@ export async function cloudFunction(path,payload){
     body:JSON.stringify(payload)
   });
   const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data?.error||'FUNCTION_REQUEST_FAILED');
+  if(!response.ok){const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;throw error}
   return data;
 }
