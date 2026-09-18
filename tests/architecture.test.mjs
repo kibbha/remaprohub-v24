@@ -33,3 +33,6 @@ const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>
 
 // Documents must use the printable/PDF-ready path, never regress to plain-text downloads.
 assert.equal(/\.download=`\$\{x\.type\}-\$\{x\.date\}\.txt`/.test(app),false,'documents must not export TXT');assert.match(app,/data-doc-download/);assert.match(app,/window\.open\('','_blank'\)/);assert.match(app,/window\.print\(\)/);assert.match(app,/t\('printPdf'\)/);
+
+// Destructive UI actions require explicit confirmation before mutation.
+assert.match(app,/\[data-remove\][\s\S]{0,260}confirm\(t\('deleteConfirm'\)\)/,'record deletion must require confirmation');assert.match(app,/resetData[\s\S]{0,300}confirm\(t\('resetConfirm'\)\)/,'full data reset must require confirmation');
