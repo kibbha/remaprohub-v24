@@ -57,3 +57,6 @@ const editableCollections=new Set([...app.matchAll(/editingRow\('([^']+)'/g)].ma
 
 // Any record collection exposing edit/delete actions must also render a real inline edit flow.
 const actionCollections=new Set([...app.matchAll(/actions\('([^']+)'/g)].map(x=>x[1]));const inlineCollections=new Set([...app.matchAll(/editingRow\('([^']+)'/g)].map(x=>x[1]));for(const collection of actionCollections)assert.ok(inlineCollections.has(collection),`actions shown without edit UI for ${collection}`);
+
+// Performance goals must support the same full edit/delete lifecycle as operational records.
+assert.match(app,/editingRow\('goals',i\)/);assert.match(app,/collection==='goals'[^;]+metric:d\.get\('metric'\)[^;]+period:d\.get\('period'\)/);assert.match(app,/actions\('goals',i\)/);
