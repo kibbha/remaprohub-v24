@@ -16,6 +16,7 @@ assert.match(launcher,/@drawable\/remaprohub_logo/);
 assert.match(launcher,/@color\/remaprohub_icon_bg/);
 assert.match(roundLauncher,/@drawable\/remaprohub_logo/);
 assert.match(launcherColors,/#F5EFE6/i);
+assert.match(activity,/WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/);
 assert.match(activity,/controller\.hide\(WindowInsetsCompat\.Type\.systemBars\(\)\)/);
 assert.match(activity,/BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE/);
 assert.match(activity,/onWindowFocusChanged\(boolean hasFocus\)/);
