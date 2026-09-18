@@ -1,30 +1,7 @@
 import {financeTotals,stockAvailable} from './store.js';
+import {cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,cloudFunction} from './cloud.js';
+export {cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud} from './cloud.js';
 
-const URL_KEY='remaprohub-sb-url';
-const KEY_KEY='remaprohub-sb-key';
-
-export function cloudConfig(){
-  return {
-    url:String(localStorage.getItem(URL_KEY)||'').trim(),
-    key:String(localStorage.getItem(KEY_KEY)||'').trim()
-  };
-}
-export function cloudConfigured(){
-  const {url,key}=cloudConfig();
-  return /^https:\/\//i.test(url)&&!!key;
-}
-export function saveCloudConfig(url,key){
-  const cleanUrl=String(url||'').trim().replace(/\/+$/,'');
-  const cleanKey=String(key||'').trim();
-  if(!/^https:\/\//i.test(cleanUrl)||!cleanKey)return false;
-  localStorage.setItem(URL_KEY,cleanUrl);
-  localStorage.setItem(KEY_KEY,cleanKey);
-  return true;
-}
-export function disconnectCloud(){
-  localStorage.removeItem(URL_KEY);
-  localStorage.removeItem(KEY_KEY);
-}
 export function aiEndpoint(){
   const {url}=cloudConfig();
   return url?url.replace(/\/+$/,'')+'/functions/v1/remapro-ai':'';
@@ -56,15 +33,7 @@ export function buildAiContext(state,now=new Date()){
 }
 export async function callRemaproAi(payload){
   if(!cloudConfigured())throw new Error('CLOUD_NOT_CONFIGURED');
-  const {key}=cloudConfig();
-  const response=await fetch(aiEndpoint(),{
-    method:'POST',
-    headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key},
-    body:JSON.stringify(payload)
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data?.error||'AI_REQUEST_FAILED');
-  return data;
+  return cloudFunction('remapro-ai',payload);
 }
 export function fileToDataUrl(file){
   return new Promise((resolve,reject)=>{
