@@ -10,7 +10,7 @@ Supabase Edge Function used by the ReMaPro Hub web/Android client.
    `supabase secrets set OPENAI_API_KEY=...`
 3. Optional model override:
    `supabase secrets set OPENAI_MODEL=gpt-5.6-luna`
-4. In ReMaPro Hub, configure the Supabase project URL and publishable/anon key under **Security & data**, then choose **IA Cloud** under **Settings → ReMaPro AI**.
+4. In ReMaPro Hub, configure the Supabase project URL and publishable key, then sign in with a Supabase Auth user account. ReMaPro AI calls require that user's JWT; the publishable key is sent only in the `apikey` header.
 
 Never put an OpenAI API key in `app/index.html`, Android assets, localStorage, or GitHub source.
 
@@ -21,3 +21,13 @@ The function accepts `{"action":"health"}` and returns whether `OPENAI_API_KEY` 
 ## Local demo
 
 The app also provides a local demo mode for testing the AI interface without a cloud key. It is clearly labeled as demo mode and is not a generative OpenAI response.
+
+
+## Authentication
+
+`supabase/config.toml` keeps `verify_jwt = true` for `remapro-ai`.
+The Android/PWA client sends:
+- the project publishable key in `apikey`;
+- the signed-in user's Supabase access token in `Authorization: Bearer <jwt>`.
+
+The OpenAI key remains server-side only. Never put a Supabase secret/service-role key or an OpenAI key in the client bundle.
