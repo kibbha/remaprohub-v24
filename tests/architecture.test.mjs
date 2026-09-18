@@ -42,3 +42,6 @@ const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/fun
 
 // Supplier invoices must expose both aggregate and row-level overdue signals.
 assert.match(app,/pendingRows\.filter\(x=>x\.date&&x\.date<today\(\)\)\.length/);assert.match(app,/x\.status!=='paid'&&x\.date&&x\.date<today\(\)/);assert.match(app,/t\('overdue'\)/);
+
+// New purchases and supplier invoices must select from the supplier registry instead of free-text supplier names.
+assert.match(app,/function purchases\(\)[\s\S]{0,900}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);assert.match(app,/function invoices\(\)[\s\S]{0,1200}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);
