@@ -15,3 +15,17 @@ assert.equal(financeTotals(state,'month',new Date('2026-10-02T12:00:00')).revenu
 assert.equal(financeTotals(state,'month',now).revenue,150);
 process.env.TZ='Europe/Zurich';assert.equal(localDate(new Date('2026-09-18T22:30:00Z')),'2026-09-19');
 console.log('Finance entries and date boundaries OK');
+// Removing a manual entry must preserve paid orders and purchases on that date.
+import {removeRecord} from '../src/store.js';
+assert.equal(removeRecord(state,'financeHistory',0),true);
+assert.equal(state.financeHistory.length,1);
+assert.equal(state.financeHistory[0].revenue,100);
+assert.equal(state.financeHistory[0].expenses,20);
+assert.equal(state.financeHistory[0].covers,0);
+assert.equal(removeRecord(state,'financeHistory',10),false);
+import {removeOrder,removePurchase} from '../src/store.js';
+assert.equal(removeOrder(state,0),true);
+assert.equal(state.financeHistory[0].expenses,20);
+assert.equal(removePurchase(state,0),true);
+assert.equal(state.financeHistory[0].revenue,0);
+assert.equal(state.financeHistory[0].expenses,0);

@@ -35,7 +35,7 @@ const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>
 assert.equal(/\.download=`\$\{x\.type\}-\$\{x\.date\}\.txt`/.test(app),false,'documents must not export TXT');assert.match(app,/data-doc-download/);assert.match(app,/window\.open\('','_blank'\)/);assert.match(app,/window\.print\(\)/);assert.match(app,/t\('printPdf'\)/);
 
 // Destructive UI actions require explicit confirmation before mutation.
-assert.match(app,/\[data-remove\][\s\S]{0,260}confirm\(t\('deleteConfirm'\)\)/,'record deletion must require confirmation');assert.match(app,/resetData[\s\S]{0,300}confirm\(t\('resetConfirm'\)\)/,'full data reset must require confirmation');
+assert.match(app,/\[data-remove\][\s\S]{0,320}confirm\(t\(b\.dataset\.remove==='financeHistory'\?'clearManualConfirm':'deleteConfirm'\)\)/,'record deletion must require confirmation');assert.match(app,/resetData[\s\S]{0,300}confirm\(t\('resetConfirm'\)\)/,'full data reset must require confirmation');
 
 // Secondary navigation must expose every non-primary dashboard module; primary nav owns core screens.
 const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\]\.map/);assert.ok(dashMatch&&moreMatch,'navigation lists must be discoverable');const list=x=>[...x.matchAll(/'([^']+)'/g)].map(m=>m[1]),dashModules=list(dashMatch[1]),moreModules=list(moreMatch[1]),primary=new Set(['operations','haccp','finance','documents','stock']);for(const m of dashModules)if(!primary.has(m))assert.ok(moreModules.includes(m),`More navigation missing ${m}`);for(const m of ['categories','settings'])assert.ok(moreModules.includes(m),`More navigation missing utility ${m}`);
