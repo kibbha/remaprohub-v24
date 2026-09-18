@@ -70,6 +70,15 @@ assert.match(app,/\[data-remove\][\s\S]{0,320}confirm\(t\(b\.dataset\.remove==='
 // Secondary navigation must retain every dashboard shortcut except those owned by fixed primary navigation.
 const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\](?:\.filter\(canPage\))?\.map/);assert.ok(dashMatch&&moreMatch,'navigation lists must be discoverable');const list=x=>[...x.matchAll(/'([^']+)'/g)].map(m=>m[1]),dashModules=list(dashMatch[1]),moreModules=list(moreMatch[1]),fixedPrimary=new Set(['operations','finance','documents']);for(const m of dashModules)if(!fixedPrimary.has(m))assert.ok(moreModules.includes(m),`More navigation missing ${m}`);for(const m of ['categories','settings','stock','haccp'])assert.ok(moreModules.includes(m),`More navigation missing utility ${m}`);
 
+// Dashboard summaries must not bypass cloud page permissions.
+assert.match(app,/financeAccess=canPage\('finance'\)/);
+assert.match(app,/taskAccess=canPage\('operations'\)\|\|canPage\('checklists'\)/);
+assert.match(app,/stockAccess=canPage\('stock'\)/);
+assert.match(app,/invoiceAccess=canPage\('invoices'\)/);
+assert.match(app,/orderAccess=canPage\('orders'\)/);
+assert.match(app,/financeBlock=financeAccess\?/);
+assert.match(app,/summaryCards=\[stockAccess\?/);
+
 // Cloud-authenticated sessions must filter navigation and protect direct page access.
 assert.match(app,/modules\.filter\(canPage\)/);
 assert.match(app,/\.filter\(canPage\)\.map/);
