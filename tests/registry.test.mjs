@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import {updateRecord,removeRecord} from '../src/store.js';
+import {recordRegistry,updateRecord,removeRecord} from '../src/store.js';
+
+const unique={categories:[],suppliers:[],team:[]};
+assert.ok(recordRegistry(unique,'categories',{name:'Boissons'}));
+assert.equal(recordRegistry(unique,'categories',{name:' boissons '}),false);
+assert.ok(recordRegistry(unique,'suppliers',{name:'Metro',contact:'A'}));
+assert.equal(recordRegistry(unique,'suppliers',{name:'METRO',contact:'B'}),false);
+assert.ok(recordRegistry(unique,'team',{name:'Alice',role:'Manager'}));
+assert.equal(recordRegistry(unique,'team',{name:'alice',role:'Server'}),false);
 
 const state={
   categories:[{name:'Boissons'}],
@@ -14,6 +22,15 @@ const state={
   stock:[],deliveries:[],waste:[]
 };
 
+state.categories.push({name:'Desserts'});
+assert.equal(updateRecord(state,'categories',0,{name:' desserts '}),false);
+state.categories.pop();
+state.suppliers.push({name:'Other'});
+assert.equal(updateRecord(state,'suppliers',0,{name:' other '}),false);
+state.suppliers.pop();
+state.team.push({name:'Bob'});
+assert.equal(updateRecord(state,'team',0,{name:' bob '}),false);
+state.team.pop();
 assert.equal(updateRecord(state,'categories',0,{name:'Bar'}),true);
 assert.equal(state.products[0].category,'Bar');
 assert.equal(removeRecord(state,'categories',0),false);
