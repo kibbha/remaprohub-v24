@@ -73,6 +73,9 @@ assert.match(app,/cloudRestaurantAllowed/);
 assert.match(app,/function cloudGate\(\)/);
 assert.match(app,/mergeCloudRestaurants\(state,cloudIdentity\?\.restaurants\|\|\[\]\)/);
 assert.match(app,/cloudMultiAccess\(cloudIdentity,cloudOrganizationId\(\)\)/);
+assert.match(app,/cloudSubscriptionReadOnly/);
+assert.match(app,/cloudSub=\(cloudIdentity\?\.subscriptions\|\|\[\]\)\.find/);
+assert.match(app,/session&&cloudIdentity\?/,'cloud session must show authoritative subscription instead of local selector');
 assert.match(app,/visibleStaff=orgAdmin\?state\.staffAccess:state\.staffAccess\.filter/);
 
 // Organization UI must use the isolated workspace/access store API.
