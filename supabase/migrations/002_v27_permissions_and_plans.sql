@@ -56,6 +56,25 @@ set name = excluded.name,
     active = excluded.active,
     features = excluded.features;
 
+create table if not exists public.restaurant_workspaces (
+  restaurant_id uuid primary key references public.restaurants(id) on delete cascade,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  revision bigint not null default 0 check (revision >= 0),
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists restaurant_workspaces_organization_idx
+  on public.restaurant_workspaces(organization_id);
+
+alter table public.restaurant_workspaces enable row level security;
+revoke all on table public.restaurant_workspaces from public, anon, authenticated;
+
+-- No client policies are created for restaurant_workspaces. Access is mediated
+-- by authenticated Edge Functions which validate membership/permissions first.
+
 create or replace function private.has_org_role(p_org uuid, p_roles text[])
 returns boolean
 language sql
