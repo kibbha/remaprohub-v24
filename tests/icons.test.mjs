@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const sprite=readFileSync('app/icons.svg','utf8'),app=readFileSync('src/app.js','utf8'),sw=readFileSync('app/sw.js','utf8');
+const ids=new Set([...sprite.matchAll(/<symbol id="([^"]+)"/g)].map(match=>match[1]));
+for(const name of ['layout-dashboard','clipboard-check','chart-bar','file-description','layout-grid','package','truck-delivery','settings','users','help'])assert.ok(ids.has(name),name);
+assert.equal((sprite.match(/<svg\b/g)||[]).length,1,'sprite must have only one outer SVG');
+assert.match(app,/icons\.svg#\$\{ICONS\[key\]/);
+assert.match(app,/class="module" data-page="\$\{k\}">\$\{icon\(k\)\}/);
+assert.match(sw,/'\.\/icons\.svg'/);
+console.log('Offline Tabler icon sprite and UI references OK');

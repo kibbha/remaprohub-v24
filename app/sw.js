@@ -1,5 +1,5 @@
 const CACHE='remaprohub-v27-shell-1';
-const ASSETS=['./','./index.html','./styles.css','./manifest.json','./assets-remaprohub-logo.png','./src/app.js','./src/i18n.js','./src/store.js'];
+const ASSETS=['./','./index.html','./styles.css','./icons.svg','./manifest.json','./assets-remaprohub-logo.png','./src/app.js','./src/i18n.js','./src/store.js'];
 const assetPaths=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(names=>Promise.all(names.filter(name=>name.startsWith('remaprohub-')&&name!==CACHE).map(name=>caches.delete(name)))).then(()=>self.clients.claim()))});
