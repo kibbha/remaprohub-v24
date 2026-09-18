@@ -29,6 +29,15 @@ jobs:
           install -m 644 android-native/MainActivity.java android/app/src/main/java/com/remaprohub/app/MainActivity.java
           grep -q 'WindowInsetsCompat.Type.systemBars()' android/app/src/main/java/com/remaprohub/app/MainActivity.java
       - run: npx cap sync android
+      - name: Enable camera capture
+        run: |
+          node scripts/patch-android-camera.mjs
+          grep -q 'android.permission.CAMERA' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse('android/app/src/main/AndroidManifest.xml')
+          print('AndroidManifest.xml valid')
+          PY
       - name: Apply ReMaPro Android branding
         run: |
           mkdir -p android/app/src/main/res/drawable-nodpi
