@@ -20,6 +20,9 @@ assert.match(admin,/ctx\.supabaseAdmin\.auth\.admin\.deleteUser/,'failed members
 assert.match(admin,/action===\"create-restaurant\"/);
 assert.match(admin,/action===\"archive-restaurant\"/);
 assert.match(admin,/action===\"revoke-member\"/);
+assert.match(admin,/targetHasManagerRole/);
+assert.match(admin,/kind===\"staff\"&&targetHasManagerRole/,'restaurant managers must not revoke manager memberships by relabeling them as staff');
+assert.match(admin,/kind===\"manager\"&&!targetHasManagerRole/);
 assert.match(admin,/\.update\(\{active:false/,'restaurant removal must archive cloud data instead of deleting it');
 assert.match(admin,/\.delete\(\)[\s\S]*?\.eq\(\"organization_id\",organizationId\)[\s\S]*?\.eq\(\"user_id\",targetUserId\)/,'membership revocation must be scoped to organization and target user');
 assert.ok(admin.indexOf('from("memberships")') < admin.indexOf('inviteUserByEmail'),'authorization must happen before privileged invite');
