@@ -15,4 +15,10 @@ globalThis.window={addEventListener:(type,fn)=>listeners.set(type,fn),dispatchEv
 globalThis.document={documentElement:{lang:'fr',dataset:{}},getElementById:id=>id==='app'?app:null,querySelector:()=>null,querySelectorAll:selector=>selector==='[data-page]'?[...pages].map(page=>({dataset:{page},addEventListener:(_type,fn)=>listeners.set(`page:${page}`,fn)})):selector==='[data-edit]'?[...app.innerHTML.matchAll(/data-edit="([^"]+)" data-index="(\d+)"/g)].map(([,collection,index])=>({dataset:{edit:collection,index},addEventListener:(_type,fn)=>listeners.set(`edit:${collection}:${index}`,fn)})):[]};
 await import('../src/app.js');
 for(const lang of LANGS){setLanguage(lang);for(const page of pages){listeners.get(`page:${page}`)();assert.match(app.innerHTML,/<section>/,`${lang}/${page} missing section`);const heading=source.match(new RegExp(`function ${page}\\(\\)\\{[\\s\\S]*?head\\(t\\('([^']+)'\\)\\)`))?.[1];assert.ok(heading,`${page} heading missing`);assert.ok(app.innerHTML.includes(catalogue(lang)[heading]),`${lang}/${page} untranslated heading`);const edit=app.innerHTML.match(/data-edit="([^"]+)" data-index="(\d+)"/);if(edit){listeners.get(`edit:${edit[1]}:${edit[2]}`)();assert.ok(app.innerHTML.includes(`data-edit-form="${edit[1]}"`),`${lang}/${page} edit form missing`) }}}
+let pushed;
+globalThis.history={pushState:state=>{pushed=state}};
+listeners.get('page:operations')();
+assert.deepEqual(pushed,{remaproPage:'operations'});
+window.dispatchEvent({type:'popstate',state:{remaproPage:'dashboard'}});
+assert.ok(app.innerHTML.includes(`<h1>${catalogue(LANGS.at(-1)).dashboard}</h1>`),'Android/browser back restores dashboard');
 console.log(`${pages.size} screens render in all ${LANGS.length} languages OK`);
