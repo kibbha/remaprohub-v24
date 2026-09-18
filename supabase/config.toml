@@ -1,2 +1,5 @@
 [functions.remapro-ai]
 verify_jwt = true
+
+[functions.remapro-admin]
+verify_jwt = true
