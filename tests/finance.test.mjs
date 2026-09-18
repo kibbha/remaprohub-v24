@@ -13,6 +13,10 @@ assert.equal(state.financeHistory[0].manualExpenses,5);
 assert.equal(financeTotals(state,'day',new Date('2026-09-19T12:00:00')).revenue,0);
 assert.equal(financeTotals(state,'month',new Date('2026-10-02T12:00:00')).revenue,0);
 assert.equal(financeTotals(state,'month',now).revenue,150);
+state.financeHistory.push({date:'2026-09-13',revenue:500,covers:2,expenses:10});
+assert.equal(financeTotals(state,'week',now).revenue,150);
+assert.equal(financeTotals(state,'week',new Date('2026-09-14T12:00:00')).revenue,0);
+state.financeHistory.pop();
 process.env.TZ='Europe/Zurich';assert.equal(localDate(new Date('2026-09-18T22:30:00Z')),'2026-09-19');
 console.log('Finance entries and date boundaries OK');
 // Removing a manual entry must preserve paid orders and purchases on that date.

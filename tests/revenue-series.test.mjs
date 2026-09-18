@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {revenueSeries} from '../src/store.js';
+import {financeTotals,revenueSeries} from '../src/store.js';
 
 const state={financeHistory:[
   {date:'2026-09-18',revenue:90},
@@ -8,6 +8,8 @@ const state={financeHistory:[
   {date:'2026-09-07',revenue:8},
   {date:'2026-08-31',revenue:5},
   {date:'2026-03-01',revenue:1000},
+  {date:'2026-09-20',revenue:999},
+  {date:'2026-09-31',revenue:999},
 ]};
 const now=new Date(2026,8,18);
 const day=revenueSeries(state,'day',now);
@@ -20,4 +22,6 @@ const month=revenueSeries(state,'month',now);
 assert.deepEqual(month.map(x=>x.key),['2026-04-01','2026-05-01','2026-06-01','2026-07-01','2026-08-01','2026-09-01']);
 assert.deepEqual(month.map(x=>x.revenue),[0,0,0,0,5,140]);
 assert.equal(revenueSeries({financeHistory:[]},'month',new Date(2027,0,5))[0].key,'2026-08-01');
+assert.equal(week.at(-1).revenue,financeTotals(state,'week',now).revenue);
+assert.equal(month.at(-1).revenue,financeTotals(state,'month',now).revenue);
 console.log('Revenue series: day, week, month and year boundary OK');
