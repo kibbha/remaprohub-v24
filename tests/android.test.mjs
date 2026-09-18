@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const workflow=readFileSync('.github/workflows/android.yml','utf8');
+const activity=readFileSync('android-native/MainActivity.java','utf8');
+const manifest=JSON.parse(readFileSync('app/manifest.json','utf8'));
+assert.equal(manifest.display,'fullscreen');
+assert.ok(workflow.indexOf('npx cap add android')<workflow.indexOf('install -m 644 android-native/MainActivity.java'));
+assert.ok(workflow.indexOf('install -m 644 android-native/MainActivity.java')<workflow.indexOf('npx cap sync android'));
+assert.match(activity,/controller\.hide\(WindowInsetsCompat\.Type\.systemBars\(\)\)/);
+assert.match(activity,/BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE/);
+assert.match(activity,/onWindowFocusChanged\(boolean hasFocus\)/);
+console.log('Android fullscreen packaging checks OK');

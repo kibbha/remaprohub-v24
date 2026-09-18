@@ -26,6 +26,10 @@ jobs:
           sed -i 's#../src/app.js#src/app.js#g' app/index.html
           grep -q 'src/app.js' app/index.html
       - run: npx cap add android
+      - name: Apply immersive Android activity
+        run: |
+          install -m 644 android-native/MainActivity.java android/app/src/main/java/com/remaprohub/app/MainActivity.java
+          grep -q 'WindowInsetsCompat.Type.systemBars()' android/app/src/main/java/com/remaprohub/app/MainActivity.java
       - run: npx cap sync android
       - name: Verify packaged runtime
         run: |
