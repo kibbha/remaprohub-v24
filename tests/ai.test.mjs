@@ -50,6 +50,8 @@ assert.match(edge,/Deno\.env\.get\("OPENAI_API_KEY"\)/);
 assert.match(edge,/https:\/\/api\.openai\.com\/v1\/responses/);
 assert.match(edge,/store:false/);
 for(const action of ['stock-photo','invoice-photo','health'])assert.match(edge,new RegExp(action));
+assert.match(edge,/role:"user",content:\[\{type:"input_text"/,'vision input must use a user message content array');
+assert.equal((edge.match(/role:"user",content:\[/g)||[]).length,2,'both vision actions must use documented Responses input shape');
 assert.match(app,/function ai\(\)/);
 assert.match(app,/id="stockPhotoInput"/);
 assert.match(app,/action:'stock-photo'/);
