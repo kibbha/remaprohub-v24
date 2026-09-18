@@ -54,3 +54,6 @@ assert.match(app,/function products\(\)[\s\S]{0,650}<select name="category">[\s\
 
 // Every collection rendered with an inline edit UI must have a patch serializer.
 const editableCollections=new Set([...app.matchAll(/editingRow\('([^']+)'/g)].map(x=>x[1]));const patchCollections=new Set([...app.matchAll(/collection==='([^']+)'/g)].map(x=>x[1]));for(const collection of editableCollections)assert.ok(patchCollections.has(collection),`missing patch serializer for ${collection}`);
+
+// Any record collection exposing edit/delete actions must also render a real inline edit flow.
+const actionCollections=new Set([...app.matchAll(/actions\('([^']+)'/g)].map(x=>x[1]));const inlineCollections=new Set([...app.matchAll(/editingRow\('([^']+)'/g)].map(x=>x[1]));for(const collection of actionCollections)assert.ok(inlineCollections.has(collection),`actions shown without edit UI for ${collection}`);
