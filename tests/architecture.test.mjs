@@ -32,7 +32,7 @@ global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory
 // Every rendered data-entry form must have either the shared helper or an explicit dedicated listener.
 const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);
 const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));
-const dedicatedForms=new Set(['settingsForm','subscriptionForm','cloudForm','aiForm','visionStockForm','invoiceReviewForm','restaurantForm','managerForm','staffAccessForm']);
+const dedicatedForms=new Set(['settingsForm','subscriptionForm','cloudForm','cloudLoginForm','aiForm','visionStockForm','invoiceReviewForm','restaurantForm','managerForm','staffAccessForm']);
 for(const id of renderedForms){
   if(dedicatedForms.has(id))
     assert.match(app,new RegExp(`getElementById\\('${id}'\\)\\?\\.addEventListener\\('submit'`),`missing dedicated submit binding for ${id}`);
@@ -59,6 +59,15 @@ assert.match(app,/\[data-remove\][\s\S]{0,320}confirm\(t\(b\.dataset\.remove==='
 
 // Secondary navigation must retain every dashboard shortcut except those owned by fixed primary navigation.
 const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\]\.map/);assert.ok(dashMatch&&moreMatch,'navigation lists must be discoverable');const list=x=>[...x.matchAll(/'([^']+)'/g)].map(m=>m[1]),dashModules=list(dashMatch[1]),moreModules=list(moreMatch[1]),fixedPrimary=new Set(['operations','finance','documents']);for(const m of dashModules)if(!fixedPrimary.has(m))assert.ok(moreModules.includes(m),`More navigation missing ${m}`);for(const m of ['categories','settings','stock','haccp'])assert.ok(moreModules.includes(m),`More navigation missing utility ${m}`);
+
+// Cloud-authenticated sessions must filter navigation and protect direct page access.
+assert.match(app,/modules\.filter\(canPage\)/);
+assert.match(app,/\.filter\(canPage\)\.map/);
+assert.match(app,/if\(!canPage\(page\)\)page='dashboard'/);
+assert.match(app,/id="cloudLoginForm"/);
+assert.match(app,/signInCloud\(/);
+assert.match(app,/loadCloudIdentity\(/);
+assert.match(app,/cloudPageAllowed/);
 
 // Organization UI must use the isolated workspace/access store API.
 assert.match(app,/id="restaurantSwitch"/);
