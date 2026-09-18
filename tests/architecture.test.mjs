@@ -45,3 +45,6 @@ assert.match(app,/pendingRows\.filter\(x=>x\.date&&x\.date<today\(\)\)\.length/)
 
 // New purchases and supplier invoices must select from the supplier registry instead of free-text supplier names.
 assert.match(app,/function purchases\(\)[\s\S]{0,900}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);assert.match(app,/function invoices\(\)[\s\S]{0,1200}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);
+
+// Customer-facing workflows must reuse CRM names while still allowing a new walk-in name.
+assert.match(app,/function reservations\(\)[\s\S]{0,500}list="customerNames"[\s\S]{0,300}state\.customers\.map/);assert.match(app,/function loyalty\(\)[\s\S]{0,500}list="loyaltyCustomerNames"[\s\S]{0,300}state\.customers\.map/);
