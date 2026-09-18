@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {load,recordOrder,recordPurchase,recordFinance,financeTotals,localDate} from '../src/store.js';
+globalThis.localStorage={getItem:()=>null,setItem(){}};
+const state=load(),date='2026-09-18',now=new Date('2026-09-18T12:00:00');
+recordOrder(state,{reference:'Table 1',amount:100,status:'paid',date});
+recordPurchase(state,{supplier:'Supplier',amount:20,date});
+recordFinance(state,{date,revenue:50,covers:3,expenses:5});
+assert.deepEqual([financeTotals(state,'day',now).revenue,financeTotals(state,'day',now).expenses],[150,25]);
+recordFinance(state,{date,revenue:50,covers:3,expenses:5});
+assert.deepEqual([financeTotals(state,'day',now).revenue,financeTotals(state,'day',now).expenses],[150,25]);
+assert.equal(state.financeHistory[0].manualRevenue,50);
+assert.equal(state.financeHistory[0].manualExpenses,5);
+assert.equal(financeTotals(state,'day',new Date('2026-09-19T12:00:00')).revenue,0);
+assert.equal(financeTotals(state,'month',new Date('2026-10-02T12:00:00')).revenue,0);
+assert.equal(financeTotals(state,'month',now).revenue,150);
+process.env.TZ='Europe/Zurich';assert.equal(localDate(new Date('2026-09-18T22:30:00Z')),'2026-09-19');
+console.log('Finance entries and date boundaries OK');
