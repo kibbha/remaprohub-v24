@@ -21,3 +21,6 @@ const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expense
 
 // Every restored operational screen must be reachable from the dashboard module launcher.
 for(const m of ['purchases','invoices','leave','training','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','help'])assert.match(app,new RegExp(`const modules=\\[[^;]*['\"]${m}['\"]`),`dashboard must expose ${m}`);
+
+// Existing V27 finance rows must be migrated into source-separated fields without changing totals.
+global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory:[{date:'2026-09-10',revenue:90,covers:6,expenses:25}]})},removeItem(){}};const migrated=(await import('../src/store.js?migration-guard')).load();assert.equal(migrated.financeHistory[0].manualRevenue,90);assert.equal(migrated.financeHistory[0].manualExpenses,25);assert.equal(migrated.financeHistory[0].orderRevenue,0);assert.equal(migrated.financeHistory[0].purchaseExpenses,0);assert.equal(migrated.financeHistory[0].revenue,90);assert.equal(migrated.financeHistory[0].expenses,25);
