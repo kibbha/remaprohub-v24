@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {load,save,recordRestaurant,switchRestaurant,activeRestaurant,recordManager,recordStaffAccess,staffCanAccess,removeRestaurant,ensureOrganizationState} from '../src/store.js';
+import {load,save,recordRestaurant,switchRestaurant,activeRestaurant,recordManager,recordStaffAccess,staffCanAccess,removeRestaurant,ensureOrganizationState,mergeCloudRestaurants} from '../src/store.js';
 
 const storage=new Map();
 globalThis.localStorage={
@@ -44,6 +44,23 @@ assert.equal(switchRestaurant(state,firstId,new Date()),false,'active Standard p
 
 state.subscription.plan='multi';
 assert.equal(switchRestaurant(state,firstId,new Date()),true,'active Multi plan must allow restaurant switching');
+
+const merged=mergeCloudRestaurants(state,[
+  {id:'cloud-beta',name:'Beta',country_code:'CH',canton:'GE',currency:'CHF',active:true},
+  {id:'cloud-gamma',name:'Gamma Cloud',country_code:'CH',canton:'GE',currency:'CHF',active:true}
+]);
+assert.ok(merged>=2,'cloud sync should link the matching restaurant and add authorized missing restaurants');
+assert.equal(state.restaurants.find(x=>x.name==='Beta').cloudId,'cloud-beta');
+const gamma=state.restaurants.find(x=>x.cloudId==='cloud-gamma');
+assert.ok(gamma);
+assert.equal(gamma.workspace.stock.length,0,'new cloud restaurant must get an isolated empty workspace');
+
+state.subscription.plan='standard';
+assert.equal(switchRestaurant(state,gamma.id,new Date()),false,'local Standard rules still block ordinary switching');
+assert.equal(switchRestaurant(state,gamma.id,new Date(),true),true,'validated cloud authorization may force the workspace switch');
+assert.equal(state.stock.length,0);
+assert.equal(removeRestaurant(state,gamma.id),true);
+state.subscription.plan='multi';
 
 const persisted=JSON.parse(storage.get('remaprohub.v27.state'));
 assert.equal(persisted.restaurants.length,2);
