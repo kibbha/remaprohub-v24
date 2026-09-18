@@ -32,3 +32,5 @@ html[data-theme="dark"] .ai-answer{background:#2c2722;border-color:#463c33;color
 .invoice-item small{grid-column:2/-1}
 html[data-theme="dark"] .invoice-item{background:#2c2722;border-color:#463c33}
 @media(max-width:620px){.invoice-item{grid-template-columns:1fr 1fr}.invoice-use,.invoice-item small{grid-column:1/-1}.invoice-item input[name^="item_name_"]{grid-column:1/-1}}
+.summary-link{width:100%;min-height:58px;border:0;background:transparent;color:inherit;text-align:left;padding:0;display:flex;align-items:center}
+.summary-link:active{transform:scale(.98)}
