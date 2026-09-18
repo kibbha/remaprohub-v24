@@ -72,9 +72,18 @@ export default {
         .maybeSingle();
       if(subscriptionError) return fail("Unable to verify subscription",403);
 
-      const status = String(subscription?.status || "trialing");
+      const status = String(subscription?.status || "");
       const planCode = String((subscription as any)?.plan?.code || "standard");
-      const trialActive = status === "trialing" && (!subscription?.trial_ends_at || new Date(subscription.trial_ends_at).getTime() > Date.now());
+      let trialActive = status === "trialing" && !!subscription?.trial_ends_at && new Date(subscription.trial_ends_at).getTime() > Date.now();
+      if(!subscription){
+        const {data: organization,error: organizationError} = await ctx.supabase
+          .from("organizations")
+          .select("created_at")
+          .eq("id",organizationId)
+          .single();
+        if(organizationError || !organization?.created_at) return fail("Unable to verify trial period",403);
+        trialActive = new Date(organization.created_at).getTime() + 7 * 86400000 > Date.now();
+      }
       const multiActive = status === "active" && planCode === "multi";
       if(kind === "staff" && !trialActive && !multiActive) return fail("Multi plan required",402);
 
@@ -108,7 +117,8 @@ export default {
 
       const {error: insertError} = await ctx.supabaseAdmin.from("memberships").insert(rows);
       if(insertError){
-        return fail("User invited but membership creation failed. Review the account before retrying.",500);
+        try{ await ctx.supabaseAdmin.auth.admin.deleteUser(invite.user.id); }catch{}
+        return fail("Membership creation failed; invitation was rolled back.",500);
       }
 
       return Response.json({
