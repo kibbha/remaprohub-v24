@@ -4,6 +4,21 @@
 
 begin;
 
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to authenticated;
+
+-- The helpers created by migration 001 are SECURITY DEFINER. Remove the
+-- implicit PUBLIC execute privilege and expose them only to signed-in users.
+revoke execute on function public.is_org_member(uuid) from public, anon;
+revoke execute on function public.is_restaurant_member(uuid) from public, anon;
+revoke execute on function public.is_org_admin(uuid) from public, anon;
+revoke execute on function public.is_restaurant_admin(uuid) from public, anon;
+grant execute on function public.is_org_member(uuid) to authenticated;
+grant execute on function public.is_restaurant_member(uuid) to authenticated;
+grant execute on function public.is_org_admin(uuid) to authenticated;
+grant execute on function public.is_restaurant_admin(uuid) to authenticated;
+
 alter table public.memberships
   add column if not exists permissions text[] not null default '{}'::text[];
 
@@ -41,7 +56,7 @@ set name = excluded.name,
     active = excluded.active,
     features = excluded.features;
 
-create or replace function public.has_org_role(p_org uuid, p_roles text[])
+create or replace function private.has_org_role(p_org uuid, p_roles text[])
 returns boolean
 language sql
 stable
@@ -58,7 +73,7 @@ as $$
   );
 $$;
 
-create or replace function public.has_restaurant_permission(p_restaurant uuid, p_permission text)
+create or replace function private.has_restaurant_permission(p_restaurant uuid, p_permission text)
 returns boolean
 language sql
 stable
@@ -86,6 +101,30 @@ as $$
   );
 $$;
 
+revoke all on function private.has_org_role(uuid,text[]) from public, anon;
+revoke all on function private.has_restaurant_permission(uuid,text) from public, anon;
+grant execute on function private.has_org_role(uuid,text[]) to authenticated;
+grant execute on function private.has_restaurant_permission(uuid,text) to authenticated;
+
+-- Explicit Data API grants: since 2026, new Supabase projects may not expose
+-- public-schema tables automatically. RLS remains the authorization layer.
+grant select, update on public.organizations to authenticated;
+grant select, insert, update, delete on public.restaurants to authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.memberships to authenticated;
+grant select on public.subscription_plans to authenticated;
+grant select on public.subscriptions to authenticated;
+grant select, insert, update, delete on public.advice_sheets to authenticated;
+grant select, insert, update, delete on public.temperature_logs to authenticated;
+grant select, insert, update, delete on public.ingredients to authenticated;
+grant select, insert, update, delete on public.recipes to authenticated;
+grant select, insert, update, delete on public.recipe_ingredients to authenticated;
+grant select, insert, update, delete on public.sales_daily to authenticated;
+grant select, insert, update, delete on public.employees to authenticated;
+grant select, insert, update, delete on public.payroll_records to authenticated;
+grant select, insert, update, delete on public.documents to authenticated;
+grant select, insert, update on public.migration_batches to authenticated;
+
 -- Recreate only the policies whose scope changes in V27.
 drop policy if exists restaurant_select on public.restaurants;
 create policy restaurant_select on public.restaurants
@@ -100,14 +139,14 @@ drop policy if exists temp_insert on public.temperature_logs;
 drop policy if exists temp_update on public.temperature_logs;
 create policy temp_select on public.temperature_logs
 for select to authenticated
-using (public.has_restaurant_permission(restaurant_id, 'haccp'));
+using (private.has_restaurant_permission(restaurant_id, 'haccp'));
 create policy temp_insert on public.temperature_logs
 for insert to authenticated
-with check (public.has_restaurant_permission(restaurant_id, 'haccp'));
+with check (private.has_restaurant_permission(restaurant_id, 'haccp'));
 create policy temp_update on public.temperature_logs
 for update to authenticated
-using (public.has_restaurant_permission(restaurant_id, 'haccp'))
-with check (public.has_restaurant_permission(restaurant_id, 'haccp'));
+using (private.has_restaurant_permission(restaurant_id, 'haccp'))
+with check (private.has_restaurant_permission(restaurant_id, 'haccp'));
 
 drop policy if exists sales_select on public.sales_daily;
 drop policy if exists sales_insert on public.sales_daily;
@@ -130,26 +169,26 @@ create policy employee_select on public.employees
 for select to authenticated
 using (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr']::text[])
+  or private.has_org_role(organization_id, array['hr']::text[])
   or (restaurant_id is not null and public.is_restaurant_admin(restaurant_id))
 );
 create policy employee_insert on public.employees
 for insert to authenticated
 with check (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr']::text[])
+  or private.has_org_role(organization_id, array['hr']::text[])
   or (restaurant_id is not null and public.is_restaurant_admin(restaurant_id))
 );
 create policy employee_update on public.employees
 for update to authenticated
 using (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr']::text[])
+  or private.has_org_role(organization_id, array['hr']::text[])
   or (restaurant_id is not null and public.is_restaurant_admin(restaurant_id))
 )
 with check (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr']::text[])
+  or private.has_org_role(organization_id, array['hr']::text[])
   or (restaurant_id is not null and public.is_restaurant_admin(restaurant_id))
 );
 
@@ -160,23 +199,23 @@ create policy payroll_select on public.payroll_records
 for select to authenticated
 using (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr','finance']::text[])
+  or private.has_org_role(organization_id, array['hr','finance']::text[])
 );
 create policy payroll_insert on public.payroll_records
 for insert to authenticated
 with check (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr','finance']::text[])
+  or private.has_org_role(organization_id, array['hr','finance']::text[])
 );
 create policy payroll_update on public.payroll_records
 for update to authenticated
 using (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr','finance']::text[])
+  or private.has_org_role(organization_id, array['hr','finance']::text[])
 )
 with check (
   public.is_org_admin(organization_id)
-  or public.has_org_role(organization_id, array['hr','finance']::text[])
+  or private.has_org_role(organization_id, array['hr','finance']::text[])
 );
 
 drop policy if exists documents_select on public.documents;
@@ -213,23 +252,23 @@ create policy advice_select on public.advice_sheets
 for select to authenticated
 using (
   public.is_org_admin(organization_id)
-  or (restaurant_id is not null and public.has_restaurant_permission(restaurant_id, 'operations'))
+  or (restaurant_id is not null and private.has_restaurant_permission(restaurant_id, 'operations'))
 );
 create policy advice_insert on public.advice_sheets
 for insert to authenticated
 with check (
   public.is_org_admin(organization_id)
-  or (restaurant_id is not null and public.has_restaurant_permission(restaurant_id, 'operations'))
+  or (restaurant_id is not null and private.has_restaurant_permission(restaurant_id, 'operations'))
 );
 create policy advice_update on public.advice_sheets
 for update to authenticated
 using (
   public.is_org_admin(organization_id)
-  or (restaurant_id is not null and public.has_restaurant_permission(restaurant_id, 'operations'))
+  or (restaurant_id is not null and private.has_restaurant_permission(restaurant_id, 'operations'))
 )
 with check (
   public.is_org_admin(organization_id)
-  or (restaurant_id is not null and public.has_restaurant_permission(restaurant_id, 'operations'))
+  or (restaurant_id is not null and private.has_restaurant_permission(restaurant_id, 'operations'))
 );
 
 -- Keep membership permissions constrained to the client-supported limited-access set.
