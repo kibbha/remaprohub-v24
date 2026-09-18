@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {saveDocument,updateDocument} from '../src/store.js';
+const app=readFileSync('src/app.js','utf8');
+globalThis.localStorage={setItem(){}};
+const state={documentEntries:[]};
+assert.equal(saveDocument(state,{type:'inventory',date:'2026-09-18',title:'Initial',details:'A\nB'}),true);
+const createdAt=state.documentEntries[0].createdAt;
+assert.equal(updateDocument(state,0,{type:'inventory',date:'2026-09-19',title:'Révisé',details:'A\nC'}),true);
+assert.equal(state.documentEntries.length,1);
+assert.equal(state.documentEntries[0].createdAt,createdAt);
+assert.equal(state.documentEntries[0].details,'A\nC');
+assert.equal(updateDocument(state,2,{title:'Invalide'}),false);
+assert.match(app,/data-doc-preview/);
+assert.match(app,/document-preview/);
+assert.match(app,/data-doc-edit/);
+assert.match(app,/updateDocument\(state,editing.index,record\)/);
+console.log('Document preview and edit lifecycle OK');
