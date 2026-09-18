@@ -48,6 +48,11 @@ assert.match(app,/\[data-remove\][\s\S]{0,320}confirm\(t\(b\.dataset\.remove==='
 // Secondary navigation must expose every non-primary dashboard module; primary nav owns core screens.
 const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\]\.map/);assert.ok(dashMatch&&moreMatch,'navigation lists must be discoverable');const list=x=>[...x.matchAll(/'([^']+)'/g)].map(m=>m[1]),dashModules=list(dashMatch[1]),moreModules=list(moreMatch[1]),primary=new Set(['operations','haccp','finance','documents','stock']);for(const m of dashModules)if(!primary.has(m))assert.ok(moreModules.includes(m),`More navigation missing ${m}`);for(const m of ['categories','settings'])assert.ok(moreModules.includes(m),`More navigation missing utility ${m}`);
 
+// Sales summary must count paid orders only, matching finance semantics.
+assert.match(app,/function orders\(\)\{const total=\(state\.orders\|\|\[\]\)\.filter\(x=>x\.status==='paid'\)\.reduce/);
+// Delivery creation must use the guarded store path instead of direct array mutation.
+assert.match(app,/form\('deliveryForm',f=>recordDelivery\(state,/);
+
 // Supplier invoices must expose both aggregate and row-level overdue signals.
 assert.match(app,/pendingRows\.filter\(x=>x\.date&&x\.date<today\(\)\)\.length/);assert.match(app,/x\.status!=='paid'&&x\.date&&x\.date<today\(\)/);assert.match(app,/t\('overdue'\)/);
 
