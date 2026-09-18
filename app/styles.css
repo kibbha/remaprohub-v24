@@ -7,3 +7,4 @@
 .operational-summary{margin-top:14px}.operational-summary .card{min-height:104px}.operational-summary .kpi.mini{font-size:28px}.operational-summary .card:first-child{background:var(--panel);color:var(--text)}.operational-summary .card:first-child:after{display:none}@media(max-width:620px){.operational-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.operational-summary .card{padding:13px;min-height:92px}.operational-summary .kpi.mini{font-size:24px}}
 .document-preview{padding:18px;border:1px solid var(--border,#d9cbbb);border-radius:14px;background:var(--card,#fffaf4)}
 .document-details{white-space:pre-wrap;overflow-wrap:anywhere}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
