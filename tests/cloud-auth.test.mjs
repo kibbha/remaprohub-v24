@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
   saveCloudConfig,cloudConfigured,cloudSession,signInCloud,refreshCloudSession,
-  loadCloudIdentity,cloudPageAllowed,signOutCloud
+  loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,signOutCloud
 } from '../src/cloud.js';
 
 const values=new Map();
@@ -44,6 +44,16 @@ globalThis.fetch=async (url,options={})=>{
       {id:'rest1',organization_id:'org1',name:'Bistro',city:'Geneva',canton:'GE',country_code:'CH',currency:'CHF',active:true}
     ]};
   }
+  if(url.includes('/rest/v1/organizations')){
+    return {ok:true,json:async()=>[
+      {id:'org1',created_at:'2026-09-15T00:00:00Z'}
+    ]};
+  }
+  if(url.includes('/rest/v1/subscriptions')){
+    return {ok:true,json:async()=>[
+      {organization_id:'org1',status:'active',trial_ends_at:null,created_at:'2026-09-15T00:00:00Z',plan:{code:'multi'}}
+    ]};
+  }
   if(url.endsWith('/auth/v1/logout'))return {ok:true,json:async()=>({})};
   throw new Error('Unexpected request '+url);
 };
@@ -60,14 +70,34 @@ assert.equal(identity.user.email,'manager@example.com');
 assert.equal(identity.memberships.length,1);
 assert.equal(identity.restaurants[0].name,'Bistro');
 assert.equal(cloudPageAllowed(identity,'finance','rest1'),true,'manager gets full assigned restaurant access');
+assert.equal(identity.organizations[0].id,'org1');
+assert.equal(identity.subscriptions[0].plan.code,'multi');
+assert.equal(cloudMultiAccess(identity,'org1',new Date('2026-09-18T12:00:00Z')),true);
 
-const staffIdentity={memberships:[
-  {restaurant_id:'rest1',role:'employee',permissions:['operations','stock']}
-]};
+const staffIdentity={
+  memberships:[{organization_id:'org1',restaurant_id:'rest1',role:'employee',permissions:['operations','stock']}],
+  restaurants:[
+    {id:'rest1',organization_id:'org1'},
+    {id:'rest2',organization_id:'org2'}
+  ]
+};
 assert.equal(cloudPageAllowed(staffIdentity,'stock','rest1'),true);
 assert.equal(cloudPageAllowed(staffIdentity,'finance','rest1'),false);
 assert.equal(cloudPageAllowed(staffIdentity,'stock','rest2'),false);
 assert.equal(cloudPageAllowed(staffIdentity,'help','rest2'),true);
+
+const crossOrgAdmin={
+  memberships:[{organization_id:'org1',restaurant_id:null,role:'network_admin',permissions:[]}],
+  restaurants:[{id:'rest2',organization_id:'org2'}]
+};
+assert.equal(cloudPageAllowed(crossOrgAdmin,'finance','rest2'),false,'org admin must not cross organization boundaries');
+
+const trialIdentity={
+  organizations:[{id:'orgTrial',created_at:'2026-09-15T00:00:00Z'}],
+  subscriptions:[]
+};
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-18T12:00:00Z')),true);
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-23T12:00:00Z')),false);
 
 values.set('remaprohub-sb-session',JSON.stringify({access_token:'expired',refresh_token:'refresh-1',expires_at:1}));
 const refreshed=await refreshCloudSession();
