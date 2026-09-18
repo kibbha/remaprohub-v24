@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {load,recordOrder,recordPurchase,recordFinance,financeTotals,localDate} from '../src/store.js';
+import {load,recordOrder,recordPurchase,recordFinance,financeTotals,financeDayTotals,localDate} from '../src/store.js';
 globalThis.localStorage={getItem:()=>null,setItem(){}};
 const state=load(),date='2026-09-18',now=new Date('2026-09-18T12:00:00');
 recordOrder(state,{reference:'Table 1',amount:100,status:'paid',date});
@@ -13,6 +13,11 @@ assert.equal(state.financeHistory[0].manualExpenses,5);
 assert.equal(financeTotals(state,'day',new Date('2026-09-19T12:00:00')).revenue,0);
 assert.equal(financeTotals(state,'month',new Date('2026-10-02T12:00:00')).revenue,0);
 assert.equal(financeTotals(state,'month',now).revenue,150);
+const selectedDay=load();
+recordFinance(selectedDay,{date:'2026-09-17',revenue:40,covers:2,expenses:3});
+recordFinance(selectedDay,{date:'2026-09-18',revenue:70,covers:4,expenses:5});
+assert.deepEqual([financeDayTotals(selectedDay,'2026-09-17').revenue,financeDayTotals(selectedDay,'2026-09-17').expenses,financeDayTotals(selectedDay,'2026-09-17').covers],[40,3,2]);
+assert.deepEqual([financeDayTotals(selectedDay,'2026-09-18').revenue,financeDayTotals(selectedDay,'2026-09-18').expenses,financeDayTotals(selectedDay,'2026-09-18').covers],[70,5,4]);
 state.financeHistory.push({date:'2026-09-13',revenue:500,covers:2,expenses:10});
 assert.equal(financeTotals(state,'week',now).revenue,150);
 assert.equal(financeTotals(state,'week',new Date('2026-09-14T12:00:00')).revenue,0);
