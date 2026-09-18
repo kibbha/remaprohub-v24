@@ -24,3 +24,6 @@ for(const m of ['purchases','invoices','leave','training','maintenance','equipme
 
 // Existing V27 finance rows must be migrated into source-separated fields without changing totals.
 global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory:[{date:'2026-09-10',revenue:90,covers:6,expenses:25}]})},removeItem(){}};const migrated=(await import('../src/store.js?migration-guard')).load();assert.equal(migrated.financeHistory[0].manualRevenue,90);assert.equal(migrated.financeHistory[0].manualExpenses,25);assert.equal(migrated.financeHistory[0].orderRevenue,0);assert.equal(migrated.financeHistory[0].purchaseExpenses,0);assert.equal(migrated.financeHistory[0].revenue,90);assert.equal(migrated.financeHistory[0].expenses,25);
+
+// Every rendered data-entry form must have a submit binding; settings has its dedicated listener.
+const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));for(const id of renderedForms){if(id==='settingsForm')assert.match(app,/getElementById\('settingsForm'\)\?\.addEventListener\('submit'/);else assert.ok(helperBindings.has(id),`missing submit binding for ${id}`)}
