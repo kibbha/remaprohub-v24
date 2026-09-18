@@ -43,6 +43,16 @@ for(const id of renderedForms){
 // Navigation targets must resolve to a screen and stock edits must retain alert thresholds.
 const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>x[1]));for(const m of ['dashboard','operations','finance','documents','more',...['orders','products','haccp','stock','suppliers','purchases','invoices','team','planning','leave','training','recipes','reservations','customers','loyalty','incidents','waste','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','organization','ai','help']])assert.ok(screenFns.has(m),`missing screen function ${m}`);assert.match(app,/collection==='stock'[^;]+min:\+d\.get\('min'\)/,'stock edit must preserve minimum threshold');
 
+// High-risk create paths must use the store validator, not direct array mutation.
+for(const formId of ['productForm','tempForm','stockForm','recipeForm','reservationForm','loyaltyForm','auditForm','goalForm']){
+  assert.match(app,new RegExp(`form\\('${formId}',f=>\\{if\\(!recordValidated`),`${formId} must use recordValidated`);
+}
+assert.match(app,/visionStockForm[\s\S]{0,900}recordValidated\(state,'stock'/);
+for(const collection of ['products','temps','stock','recipes','reservations','loyalty','audits','goals']){
+  assert.doesNotMatch(app,new RegExp(`form\\('[^']+',f=>state\\.${collection}\\.unshift`),`${collection} create path must not mutate directly`);
+}
+assert.match(store,/export function recordValidated/);
+
 // User-entered commercial quantities/prices must reject impossible negative values.
 assert.match(app,/id="reservationForm"[\s\S]{0,500}name="covers"[^>]*min="1"[^>]*step="1"/);
 for(const id of ['orderForm','purchaseForm','invoiceForm'])assert.match(app,new RegExp(`id="${id}"[\\s\\S]{0,700}name="amount"[^>]*min="0"`),`${id} must prevent negative amounts`);
