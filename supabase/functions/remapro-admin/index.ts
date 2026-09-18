@@ -121,6 +121,15 @@ export default {
       if(action==="revoke-member"){
         const targetUserId=String(body.userId||"");
         if(!targetUserId||targetUserId===callerUserId)return fail("Invalid revocation target",400);
+        const {data: targetMemberships,error: targetError}=await ctx.supabaseAdmin.from("memberships")
+          .select("id,role,restaurant_id")
+          .eq("organization_id",organizationId)
+          .eq("user_id",targetUserId)
+          .in("restaurant_id",restaurantIds);
+        if(targetError||!targetMemberships?.length)return fail("Membership target not found",404);
+        const targetHasManagerRole=targetMemberships.some((m:any)=>ORG_ADMIN_ROLES.has(String(m.role))||RESTAURANT_ADMIN_ROLES.has(String(m.role)));
+        if(kind==="staff"&&targetHasManagerRole)return fail("Organization admin required",403);
+        if(kind==="manager"&&!targetHasManagerRole)return fail("Invalid manager target",400);
         const {error: revokeError}=await ctx.supabaseAdmin.from("memberships")
           .delete()
           .eq("organization_id",organizationId)
