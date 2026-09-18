@@ -98,10 +98,24 @@ export async function loadCloudIdentity(){
   if(!userId)return null;
   const memberships=await dataRequest('/rest/v1/memberships?select=id,organization_id,restaurant_id,role,permissions&active=eq.true&user_id=eq.'+userId);
   const orgIds=[...new Set((memberships||[]).map(x=>x.organization_id).filter(Boolean))];
-  const restaurants=orgIds.length?await dataRequest('/rest/v1/restaurants?select=id,organization_id,name,city,canton,country_code,currency,active&active=eq.true&organization_id=in.('+orgIds.map(encodeURIComponent).join(',')+')'):[];
-  return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[]};
+  const orgFilter=orgIds.map(encodeURIComponent).join(',');
+  const restaurants=orgIds.length?await dataRequest('/rest/v1/restaurants?select=id,organization_id,name,city,canton,country_code,currency,active&active=eq.true&organization_id=in.('+orgFilter+')'):[];
+  const organizations=orgIds.length?await dataRequest('/rest/v1/organizations?select=id,created_at&id=in.('+orgFilter+')'):[];
+  const subscriptions=orgIds.length?await dataRequest('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,created_at,plan:subscription_plans(code)&organization_id=in.('+orgFilter+')&order=created_at.desc'):[];
+  return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
+export function cloudMultiAccess(identity,organizationId,now=new Date()){
+  if(!identity||!organizationId)return false;
+  const subscription=(identity.subscriptions||[]).find(x=>x.organization_id===organizationId);
+  if(subscription){
+    if(subscription.status==='active'&&subscription.plan?.code==='multi')return true;
+    if(subscription.status==='trialing'&&subscription.trial_ends_at&&new Date(subscription.trial_ends_at).getTime()>now.getTime())return true;
+    return false;
+  }
+  const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
+  return !!organization?.created_at&&new Date(organization.created_at).getTime()+7*86400000>now.getTime();
+}
 export function cloudPageAllowed(identity,page,restaurantId){
   if(!identity)return true;
   if(['dashboard','more','help'].includes(page))return true;
