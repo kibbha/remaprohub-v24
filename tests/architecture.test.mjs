@@ -51,3 +51,6 @@ assert.match(app,/function reservations\(\)[\s\S]{0,500}list="customerNames"[\s\
 
 // Product category selection must stay registry-linked on both create and edit flows.
 assert.match(app,/function products\(\)[\s\S]{0,650}<select name="category">[\s\S]{0,260}state\.categories\.map/);assert.match(app,/editingRow\('products',i\)[\s\S]{0,700}<select name="category">[\s\S]{0,320}k\.name===x\.category/);
+
+// Every collection rendered with an inline edit UI must have a patch serializer.
+const editableCollections=new Set([...app.matchAll(/editingRow\('([^']+)'/g)].map(x=>x[1]));const patchCollections=new Set([...app.matchAll(/collection==='([^']+)'/g)].map(x=>x[1]));for(const collection of editableCollections)assert.ok(patchCollections.has(collection),`missing patch serializer for ${collection}`);
