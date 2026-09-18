@@ -25,3 +25,10 @@ html[data-theme="dark"] .status-warning{background:#49361f;color:#ffd79a}
 html[data-theme="dark"] .status-urgent{background:#4b2d28;color:#ffc0b7}
 .ai-answer{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fffaf4;line-height:1.55;overflow-wrap:anywhere}
 html[data-theme="dark"] .ai-answer{background:#2c2722;border-color:#463c33;color:#f3eadf}
+.invoice-items{grid-column:1/-1;display:grid;gap:10px}
+.invoice-item{display:grid;grid-template-columns:auto minmax(150px,2fr) repeat(3,minmax(90px,1fr));gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:13px;background:#fffaf4}
+.invoice-item input{min-width:0}
+.invoice-use{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:750;white-space:nowrap}
+.invoice-item small{grid-column:2/-1}
+html[data-theme="dark"] .invoice-item{background:#2c2722;border-color:#463c33}
+@media(max-width:620px){.invoice-item{grid-template-columns:1fr 1fr}.invoice-use,.invoice-item small{grid-column:1/-1}.invoice-item input[name^="item_name_"]{grid-column:1/-1}}
