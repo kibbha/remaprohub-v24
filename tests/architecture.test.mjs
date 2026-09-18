@@ -48,3 +48,6 @@ assert.match(app,/function purchases\(\)[\s\S]{0,900}<select name="supplier" req
 
 // Customer-facing workflows must reuse CRM names while still allowing a new walk-in name.
 assert.match(app,/function reservations\(\)[\s\S]{0,500}list="customerNames"[\s\S]{0,300}state\.customers\.map/);assert.match(app,/function loyalty\(\)[\s\S]{0,500}list="loyaltyCustomerNames"[\s\S]{0,300}state\.customers\.map/);
+
+// Product category selection must stay registry-linked on both create and edit flows.
+assert.match(app,/function products\(\)[\s\S]{0,650}<select name="category">[\s\S]{0,260}state\.categories\.map/);assert.match(app,/editingRow\('products',i\)[\s\S]{0,700}<select name="category">[\s\S]{0,320}k\.name===x\.category/);
