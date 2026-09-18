@@ -1,6 +1,6 @@
 import { withSupabase } from "npm:@supabase/server@1.4.1";
 
-const MANAGER_ROLES = new Set(["network_admin","network_manager"]);
+const ORG_ADMIN_ROLES = new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES = new Set(["restaurant_admin","director","manager"]);
 const STAFF_PERMISSIONS = new Set(["operations","haccp","stock","deliveries","checklists","planning","reservations"]);
 
@@ -17,32 +17,28 @@ export default {
 
     try{
       const body = await req.json();
-      if(body.action !== "invite-member") return fail("Unsupported action",400);
+      const action = String(body.action || "");
+      if(!["invite-member","revoke-member"].includes(action)) return fail("Unsupported action",400);
 
-      const userId = String(ctx.userClaims?.id || "");
+      const callerUserId = String(ctx.userClaims?.id || "");
       const organizationId = String(body.organizationId || "");
       const kind = body.kind === "manager" ? "manager" : body.kind === "staff" ? "staff" : "";
-      const name = String(body.name || "").trim();
-      const email = String(body.email || "").trim().toLowerCase();
       const restaurantIds = [...new Set(Array.isArray(body.restaurantIds) ? body.restaurantIds.map(String) : [])];
-      const permissions = [...new Set(Array.isArray(body.permissions) ? body.permissions.map(String) : [])]
-        .filter((p) => STAFF_PERMISSIONS.has(p));
 
-      if(!userId || !organizationId || !kind || !name || !validEmail(email) || !restaurantIds.length){
-        return fail("Invalid invitation payload",400);
+      if(!callerUserId || !organizationId || !kind || !restaurantIds.length){
+        return fail("Invalid membership payload",400);
       }
-      if(kind === "staff" && !permissions.length) return fail("Staff permissions are required",400);
 
       const {data: callerMemberships,error: membershipError} = await ctx.supabase
         .from("memberships")
         .select("organization_id,restaurant_id,role,active")
         .eq("organization_id",organizationId)
-        .eq("user_id",userId)
+        .eq("user_id",callerUserId)
         .eq("active",true);
       if(membershipError) return fail("Unable to verify caller membership",403);
 
       const memberships = callerMemberships || [];
-      const orgAdmin = memberships.some((m:any) => MANAGER_ROLES.has(String(m.role)));
+      const orgAdmin = memberships.some((m:any) => ORG_ADMIN_ROLES.has(String(m.role)));
       const adminRestaurants = new Set(
         memberships
           .filter((m:any) => RESTAURANT_ADMIN_ROLES.has(String(m.role)) && m.restaurant_id)
@@ -62,6 +58,26 @@ export default {
       if(restaurantError || !restaurants || restaurants.length !== restaurantIds.length){
         return fail("Invalid restaurant assignment",403);
       }
+
+      if(action === "revoke-member"){
+        const targetUserId = String(body.userId || "");
+        if(!targetUserId || targetUserId === callerUserId) return fail("Invalid revocation target",400);
+        const {error: revokeError} = await ctx.supabaseAdmin
+          .from("memberships")
+          .delete()
+          .eq("organization_id",organizationId)
+          .eq("user_id",targetUserId)
+          .in("restaurant_id",restaurantIds);
+        if(revokeError) return fail("Unable to revoke memberships",500);
+        return Response.json({ok:true,userId:targetUserId,restaurantIds});
+      }
+
+      const name = String(body.name || "").trim();
+      const email = String(body.email || "").trim().toLowerCase();
+      const permissions = [...new Set(Array.isArray(body.permissions) ? body.permissions.map(String) : [])]
+        .filter((p) => STAFF_PERMISSIONS.has(p));
+      if(!name || !validEmail(email)) return fail("Invalid invitation payload",400);
+      if(kind === "staff" && !permissions.length) return fail("Staff permissions are required",400);
 
       const {data: subscription,error: subscriptionError} = await ctx.supabase
         .from("subscriptions")
