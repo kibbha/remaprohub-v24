@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {load,stockAvailable,updateRecord,removeRecord} from '../src/store.js';
+const app=readFileSync('src/app.js','utf8');
+globalThis.localStorage={getItem:()=>JSON.stringify({stock:[{name:'Rice',qty:5,min:3,price:2}]}),setItem(){}};
+const state=load(),item=state.stock[0];
+assert.ok(item.id,'legacy stock receives stable identifier');
+assert.equal(stockAvailable(state,item),5);
+state.deliveries.push({stockId:item.id,product:'Rice',qty:4,status:'accepted'});
+state.deliveries.push({stockId:item.id,product:'Rice',qty:8,status:'rejected'});
+assert.equal(stockAvailable(state,item),9);
+updateRecord(state,'deliveries',0,{status:'rejected'});assert.equal(stockAvailable(state,item),5);
+updateRecord(state,'deliveries',0,{status:'accepted',qty:2});assert.equal(stockAvailable(state,item),7);
+removeRecord(state,'deliveries',0);assert.equal(stockAvailable(state,item),5);
+assert.match(app,/name="stockId" required/);
+assert.match(app,/name="qty" type="number" min="0\.01"/);
+assert.match(app,/stockAvailable\(state,x\)/);
+console.log('Stock and delivery reconciliation OK');
