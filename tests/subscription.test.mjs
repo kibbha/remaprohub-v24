@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {PLAN_CONFIG,load,exportData,importData,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan} from '../src/store.js';
+import {PLAN_CONFIG,load,resetState,exportData,importData,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan} from '../src/store.js';
 
 const storage=new Map();
 globalThis.localStorage={
@@ -35,6 +35,14 @@ assert.equal(state.subscription.plan,'multi');
 assert.equal(state.subscription.billing,'yearly');
 assert.equal(subscriptionPrice(state),150);
 assert.equal(selectSubscriptionPlan(state,{plan:'invalid',billing:'monthly'}),false);
+const preservedStart=state.subscription.trialStart,preservedPlan=state.subscription.plan,preservedBilling=state.subscription.billing;
+state.stock=[{id:'x',name:'X',qty:1}];
+resetState(state);
+assert.equal(state.subscription.trialStart,preservedStart,'data reset must not restart trial');
+assert.equal(state.subscription.plan,preservedPlan);
+assert.equal(state.subscription.billing,preservedBilling);
+assert.equal(state.stock.length,0);
+
 
 const backup=JSON.parse(exportData(state));
 delete backup.state.subscription;
