@@ -16,8 +16,10 @@ export function saveCloudConfig(url,key){
   const cleanUrl=String(url||'').trim().replace(/\/+$/,'');
   const cleanKey=String(key||'').trim();
   if(!/^https:\/\//i.test(cleanUrl)||!cleanKey)return false;
+  const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
+  if(previous.url!==cleanUrl||previous.key!==cleanKey)localStorage.removeItem(SESSION_KEY);
   return true;
 }
 export function disconnectCloud(){
