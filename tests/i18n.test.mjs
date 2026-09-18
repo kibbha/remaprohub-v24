@@ -2,3 +2,6 @@ import assert from'node:assert/strict';import{readFileSync}from'node:fs';import{
 
 // Locale catalogues must not rely on another language through object spread.
 for(const l of ['en','de','it','es','pt']){const m=s.match(new RegExp(`const ${l}=\\{([\\s\\S]*?)(?=\\nconst |\\nexport function)`));assert.ok(m,`${l}: catalogue source missing`);assert.equal(/\.\.\.(fr|en|de|it|es|pt)\b/.test(m[1]),false,`${l}: catalogue must be explicit, no locale spread fallback`)}
+
+// Every literal translation key referenced by the runtime must exist explicitly in every locale.
+const runtimeKeys=new Set([...a.matchAll(/\bt\('([^']+)'\)/g)].map(x=>x[1]));for(const l of LANGS){const cat=catalogue(l);for(const k of runtimeKeys)assert.ok(Object.prototype.hasOwnProperty.call(cat,k),`${l}: runtime key missing ${k}`)}
