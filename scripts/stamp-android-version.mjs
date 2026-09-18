@@ -1,0 +1,13 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
+const {version}=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
+const major=Number(version.split('.')[0]),run=Number(process.env.GITHUB_RUN_NUMBER||1);
+if(!Number.isInteger(major)||!Number.isInteger(run)||run<1||run>=10000)throw Error('Invalid Android version inputs');
+const file=resolve(process.argv[2]||resolve(root,'android/app/build.gradle'));
+let gradle=await readFile(file,'utf8');
+if(!/^\s*versionCode\s+\d+\s*$/m.test(gradle)||!/^\s*versionName\s+"[^"]+"\s*$/m.test(gradle))throw Error('Capacitor version declarations not found');
+gradle=gradle.replace(/^(\s*versionCode\s+)\d+\s*$/m,(_match,prefix)=>`${prefix}${major*10000+run}`).replace(/^(\s*versionName\s+)"[^"]+"\s*$/m,(_match,prefix)=>`${prefix}"${version}"`);
+await writeFile(file,gradle);
+console.log(`Android version ${version} (${major*10000+run})`);
