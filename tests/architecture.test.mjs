@@ -27,3 +27,6 @@ global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory
 
 // Every rendered data-entry form must have a submit binding; settings has its dedicated listener.
 const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));for(const id of renderedForms){if(id==='settingsForm')assert.match(app,/getElementById\('settingsForm'\)\?\.addEventListener\('submit'/);else assert.ok(helperBindings.has(id),`missing submit binding for ${id}`)}
+
+// Navigation targets must resolve to a screen and stock edits must retain alert thresholds.
+const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>x[1]));for(const m of ['dashboard','operations','finance','documents','more',...['orders','products','haccp','stock','suppliers','purchases','invoices','team','planning','leave','training','recipes','reservations','customers','loyalty','incidents','waste','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','help']])assert.ok(screenFns.has(m),`missing screen function ${m}`);assert.match(app,/collection==='stock'[^;]+min:\+d\.get\('min'\)/,'stock edit must preserve minimum threshold');
