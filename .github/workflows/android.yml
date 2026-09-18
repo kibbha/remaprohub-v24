@@ -15,16 +15,12 @@ jobs:
           java-version: 21
       - run: npm install
       - run: npm test
-      - name: Package web runtime
+      - name: Verify packaged web runtime
         run: |
-          rm -rf app/src
-          mkdir -p app/src
-          cp src/*.js app/src/
+          test -s app/sw.js
           test -s app/src/app.js
           test -s app/src/i18n.js
           test -s app/src/store.js
-          sed -i 's#../src/app.js#src/app.js#g' app/index.html
-          grep -q 'src/app.js' app/index.html
       - run: npx cap add android
       - name: Apply immersive Android activity
         run: |

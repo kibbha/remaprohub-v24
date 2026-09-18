@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync,existsSync} from 'node:fs';
+const html=readFileSync('app/index.html','utf8');
+const sw=readFileSync('app/sw.js','utf8');
+assert.match(html,/src="src\/app\.js"/);
+assert.match(html,/serviceWorker\.register\('\.\/sw\.js'\)/);
+assert.doesNotMatch(html,/\.\.\/src\/app\.js/);
+const assets=[...sw.matchAll(/'\.\/(?:src\/[^']+|[^']+)'/g)].map(match=>match[0].slice(3,-1));
+for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
+for(const module of ['app.js','i18n.js','store.js'])assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'));
+console.log('PWA offline shell and packaged modules OK');
