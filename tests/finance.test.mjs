@@ -31,6 +31,13 @@ try{
   assert.equal(recordPurchase(undated,{supplier:'Night',amount:1}).date,'2026-09-19');
 }finally{globalThis.Date=OriginalDate}
 
+const invalidFinance=load();
+assert.equal(recordOrder(invalidFinance,{reference:'Bad',amount:-1,status:'paid',date}),false);
+assert.equal(recordPurchase(invalidFinance,{supplier:'Bad',amount:-1,date}),false);
+recordOrder(invalidFinance,{reference:'Good',amount:10,status:'paid',date});
+assert.equal(updateOrder(invalidFinance,0,{amount:-5}),false);
+recordPurchase(invalidFinance,{supplier:'Good',amount:10,date});
+assert.equal(updatePurchase(invalidFinance,0,{amount:-5}),false);
 console.log('Finance entries and date boundaries OK');
 // Removing a manual entry must preserve paid orders and purchases on that date.
 import {removeRecord} from '../src/store.js';

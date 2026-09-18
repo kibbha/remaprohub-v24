@@ -31,6 +31,14 @@ const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);cons
 // Navigation targets must resolve to a screen and stock edits must retain alert thresholds.
 const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>x[1]));for(const m of ['dashboard','operations','finance','documents','more',...['orders','products','haccp','stock','suppliers','purchases','invoices','team','planning','leave','training','recipes','reservations','customers','loyalty','incidents','waste','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','help']])assert.ok(screenFns.has(m),`missing screen function ${m}`);assert.match(app,/collection==='stock'[^;]+min:\+d\.get\('min'\)/,'stock edit must preserve minimum threshold');
 
+// User-entered commercial quantities/prices must reject impossible negative values.
+assert.match(app,/id="reservationForm"[\s\S]{0,500}name="covers"[^>]*min="1"[^>]*step="1"/);
+for(const id of ['orderForm','purchaseForm','invoiceForm'])assert.match(app,new RegExp(`id="${id}"[\\s\\S]{0,700}name="amount"[^>]*min="0"`),`${id} must prevent negative amounts`);
+assert.equal(updateRecord({reservations:[{covers:2}]},'reservations',0,{covers:0}),false);
+assert.equal(updateRecord({products:[{cost:2,price:5}]},'products',0,{cost:-1}),false);
+assert.equal(updateRecord({recipes:[{cost:2,price:5}]},'recipes',0,{price:-1}),false);
+assert.equal(updateRecord({invoices:[{amount:10}]},'invoices',0,{amount:-1}),false);
+
 // Documents must use the printable/PDF-ready path, never regress to plain-text downloads.
 assert.equal(/\.download=`\$\{x\.type\}-\$\{x\.date\}\.txt`/.test(app),false,'documents must not export TXT');assert.match(app,/data-doc-download/);assert.match(app,/window\.open\('','_blank'\)/);assert.match(app,/window\.print\(\)/);assert.match(app,/t\('printPdf'\)/);
 
