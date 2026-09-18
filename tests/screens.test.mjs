@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {catalogue,LANGS,setLanguage} from '../src/i18n.js';
+const source=readFileSync('src/app.js','utf8');
+const main=source.match(/const modules=\[([^\]]+)\]/)?.[1]||'';
+const more=source.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\]\.map/)?.[1]||'';
+const pages=new Set(['dashboard','operations','finance','documents','more','settings','categories',...[...main.matchAll(/'([^']+)'/g)].map(x=>x[1]),...[...more.matchAll(/'([^']+)'/g)].map(x=>x[1])]);
+const listeners=new Map(),app={innerHTML:''},values=new Map();
+const common={id:'item-1',stockId:'item-1',name:'Sample',reference:'R1',title:'Sample',product:'Sample',supplier:'Sample',employee:'Sample',date:'2026-09-18',start:'09:00',end:'17:00',time:'12:00',status:'open',level:'info',type:'opening',metric:'revenue',period:'day',amount:12,qty:2,min:1,value:4,price:5,cost:2,revenue:12,expenses:2,covers:3,details:'Details',note:'Note',phone:'123',email:'a@example.org',role:'Manager',lot:'L1',temperature:4,category:'Food',allergens:'Milk',area:'Kitchen',task:'Clean',frequency:'daily',responsible:'Manager',location:'Kitchen',score:80,actions:'Review',target:100,points:10,serviceDate:'2026-09-18',topic:'Safety',action:'Review',dish:'Meal',contact:'Office',customer:'Sample'};
+const collections=['orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','documentEntries'];
+values.set('remaprohub.v27.state',JSON.stringify(Object.fromEntries(collections.map(key=>[key,[{...common}]]))));
+globalThis.localStorage={getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+globalThis.Event=class{constructor(type){this.type=type}};
+globalThis.window={addEventListener:(type,fn)=>listeners.set(type,fn),dispatchEvent:event=>listeners.get(event.type)?.(event)};
+globalThis.document={documentElement:{lang:'fr',dataset:{}},getElementById:id=>id==='app'?app:null,querySelector:()=>null,querySelectorAll:selector=>selector==='[data-page]'?[...pages].map(page=>({dataset:{page},addEventListener:(_type,fn)=>listeners.set(`page:${page}`,fn)})):selector==='[data-edit]'?[...app.innerHTML.matchAll(/data-edit="([^"]+)" data-index="(\d+)"/g)].map(([,collection,index])=>({dataset:{edit:collection,index},addEventListener:(_type,fn)=>listeners.set(`edit:${collection}:${index}`,fn)})):[]};
+await import('../src/app.js');
+for(const lang of LANGS){setLanguage(lang);for(const page of pages){listeners.get(`page:${page}`)();assert.match(app.innerHTML,/<section>/,`${lang}/${page} missing section`);const heading=source.match(new RegExp(`function ${page}\\(\\)\\{[\\s\\S]*?head\\(t\\('([^']+)'\\)\\)`))?.[1];assert.ok(heading,`${page} heading missing`);assert.ok(app.innerHTML.includes(catalogue(lang)[heading]),`${lang}/${page} untranslated heading`);const edit=app.innerHTML.match(/data-edit="([^"]+)" data-index="(\d+)"/);if(edit){listeners.get(`edit:${edit[1]}:${edit[2]}`)();assert.ok(app.innerHTML.includes(`data-edit-form="${edit[1]}"`),`${lang}/${page} edit form missing`) }}}
+console.log(`${pages.size} screens render in all ${LANGS.length} languages OK`);
