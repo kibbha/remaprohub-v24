@@ -3,3 +3,6 @@ verify_jwt = true
 
 [functions.remapro-admin]
 verify_jwt = true
+
+[functions.remapro-sync]
+verify_jwt = true
