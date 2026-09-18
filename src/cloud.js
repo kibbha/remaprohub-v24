@@ -106,11 +106,16 @@ export function cloudPageAllowed(identity,page,restaurantId){
   if(!identity)return true;
   if(['dashboard','more','help'].includes(page))return true;
   const memberships=identity.memberships||[];
+  const targetRestaurant=(identity.restaurants||[]).find(x=>x.id===restaurantId);
+  const targetOrganizationId=targetRestaurant?.organization_id||'';
   for(const membership of memberships){
     if(!membership?.active&&membership?.active!==undefined)continue;
     const role=String(membership.role||'');
-    if(['network_admin','network_manager'].includes(role))return true;
-    if(membership.restaurant_id&&membership.restaurant_id!==restaurantId)continue;
+    if(['network_admin','network_manager'].includes(role)){
+      if(!targetOrganizationId||membership.organization_id===targetOrganizationId)return true;
+      continue;
+    }
+    if(membership.restaurant_id!==restaurantId)continue;
     if(ADMIN_ROLES.has(role))return true;
     if((membership.permissions||[]).includes(page))return true;
   }
