@@ -18,3 +18,6 @@ assert.match(app,/stockForm'[\s\S]{0,180}min:\+f\.get\('min'\)/,'stock creation 
 
 // Manual finance entry must not erase transactional order/purchase amounts.
 const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(mixed,{reference:'M1',amount:75,status:'paid',date:'2026-09-18'});recordPurchase(mixed,{supplier:'S',amount:20,date:'2026-09-18',note:''});recordFinance(mixed,{date:'2026-09-18',revenue:100,covers:8,expenses:30});assert.equal(mixed.financeHistory[0].revenue,175);assert.equal(mixed.financeHistory[0].expenses,50);recordFinance(mixed,{date:'2026-09-18',revenue:120,covers:9,expenses:35});assert.equal(mixed.financeHistory[0].revenue,195);assert.equal(mixed.financeHistory[0].expenses,55);
+
+// Every restored operational screen must be reachable from the dashboard module launcher.
+for(const m of ['purchases','invoices','leave','training','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','help'])assert.match(app,new RegExp(`const modules=\\[[^;]*['\"]${m}['\"]`),`dashboard must expose ${m}`);
