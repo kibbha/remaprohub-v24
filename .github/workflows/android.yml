@@ -29,6 +29,17 @@ jobs:
           install -m 644 android-native/MainActivity.java android/app/src/main/java/com/remaprohub/app/MainActivity.java
           grep -q 'WindowInsetsCompat.Type.systemBars()' android/app/src/main/java/com/remaprohub/app/MainActivity.java
       - run: npx cap sync android
+      - name: Apply ReMaPro Android branding
+        run: |
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p android/app/src/main/res/values
+          install -m 644 app/assets-remaprohub-logo.png android/app/src/main/res/drawable-nodpi/remaprohub_logo.png
+          install -m 644 android-native/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          install -m 644 android-native/remaprohub_colors.xml android/app/src/main/res/values/remaprohub_colors.xml
+          grep -q '@drawable/remaprohub_logo' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          grep -q '@color/remaprohub_icon_bg' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
       - name: Verify packaged runtime
         run: |
           test -s android/app/src/main/assets/public/src/app.js
