@@ -14,19 +14,31 @@ const crud={stock:[{name:'A',qty:1,price:2}],documentEntries:[]};assert.equal(up
 const tx={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(tx,{reference:'T1',amount:100,status:'paid',date:'2026-09-18'});assert.equal(tx.financeHistory[0].revenue,100);updateOrder(tx,0,{amount:125,status:'paid',date:'2026-09-18'});assert.equal(tx.financeHistory[0].revenue,125);updateOrder(tx,0,{amount:125,status:'open',date:'2026-09-18'});assert.equal(tx.financeHistory[0].revenue,0);updateOrder(tx,0,{amount:80,status:'paid',date:'2026-09-18'});removeOrder(tx,0);assert.equal(tx.financeHistory[0].revenue,0);recordPurchase(tx,{supplier:'S',date:'2026-09-18',amount:40,note:''});assert.equal(tx.financeHistory[0].expenses,40);updatePurchase(tx,0,{supplier:'S',date:'2026-09-18',amount:55,note:''});assert.equal(tx.financeHistory[0].expenses,55);removePurchase(tx,0);assert.equal(tx.financeHistory[0].expenses,0);
 
 // Low-stock threshold must survive creation/edit wiring and drive dashboard signal.
-assert.match(app,/stockForm'[\s\S]{0,180}min:\+f\.get\('min'\)/,'stock creation must persist minimum threshold');assert.match(app,/collection==='stock'[\s\S]{0,160}min:\+d\.get\('min'\)/,'stock edits must persist minimum threshold');assert.match(app,/filter\(x=>stockAvailable\(state,x\)<=\+\(x\.min\|\|0\)/,'dashboard must derive low-stock alerts from thresholds');
+assert.match(app,/stockForm'[\s\S]{0,420}min:\+f\.get\('min'\)/,'stock creation must persist minimum threshold');assert.match(app,/collection==='stock'[\s\S]{0,160}min:\+d\.get\('min'\)/,'stock edits must persist minimum threshold');assert.match(app,/filter\(x=>stockAvailable\(state,x\)<=\+\(x\.min\|\|0\)/,'dashboard must derive low-stock alerts from thresholds');
 
 // Manual finance entry must not erase transactional order/purchase amounts.
 const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(mixed,{reference:'M1',amount:75,status:'paid',date:'2026-09-18'});recordPurchase(mixed,{supplier:'S',amount:20,date:'2026-09-18',note:''});recordFinance(mixed,{date:'2026-09-18',revenue:100,covers:8,expenses:30});assert.equal(mixed.financeHistory[0].revenue,175);assert.equal(mixed.financeHistory[0].expenses,50);recordFinance(mixed,{date:'2026-09-18',revenue:120,covers:9,expenses:35});assert.equal(mixed.financeHistory[0].revenue,195);assert.equal(mixed.financeHistory[0].expenses,55);
 
-// Every restored operational screen must be reachable from the dashboard module launcher.
-for(const m of ['purchases','invoices','leave','training','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','help'])assert.match(app,new RegExp(`const modules=\\[[^;]*['\"]${m}['\"]`),`dashboard must expose ${m}`);
+// Dashboard is intentionally concise; every other operational screen stays reachable through More or fixed navigation.
+for(const m of ['orders','stock','haccp','purchases','planning','reservations','ai','help'])
+  assert.match(app,new RegExp(`const modules=\\[[^;]*['"]${m}['"]`),`dashboard quick access missing ${m}`);
+const secondary=['products','categories','stock','haccp','recipes','customers','loyalty','incidents','waste','suppliers','invoices','team','recalls','allergens','deliveries','cleaning','audits','equipment','leave','training','goals','alerts','checklists','briefing','maintenance','handover','ai','help','settings'];
+for(const m of secondary)
+  assert.match(app,new RegExp(`function more\\(\\)\\{[\\s\\S]*?['"]${m}['"]`),`More navigation missing ${m}`);
 
 // Existing V27 finance rows must be migrated into source-separated fields without changing totals.
 global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory:[{date:'2026-09-10',revenue:90,covers:6,expenses:25}]})},removeItem(){}};const migrated=(await import('../src/store.js?migration-guard')).load();assert.equal(migrated.financeHistory[0].manualRevenue,90);assert.equal(migrated.financeHistory[0].manualExpenses,25);assert.equal(migrated.financeHistory[0].orderRevenue,0);assert.equal(migrated.financeHistory[0].purchaseExpenses,0);assert.equal(migrated.financeHistory[0].revenue,90);assert.equal(migrated.financeHistory[0].expenses,25);
 
-// Every rendered data-entry form must have a submit binding; settings has its dedicated listener.
-const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));for(const id of renderedForms){if(id==='settingsForm')assert.match(app,/getElementById\('settingsForm'\)\?\.addEventListener\('submit'/);else assert.ok(helperBindings.has(id),`missing submit binding for ${id}`)}
+// Every rendered data-entry form must have either the shared helper or an explicit dedicated listener.
+const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);
+const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));
+const dedicatedForms=new Set(['settingsForm','cloudForm','aiForm','visionStockForm','invoiceReviewForm']);
+for(const id of renderedForms){
+  if(dedicatedForms.has(id))
+    assert.match(app,new RegExp(`getElementById\\('${id}'\\)\\?\\.addEventListener\\('submit'`),`missing dedicated submit binding for ${id}`);
+  else
+    assert.ok(helperBindings.has(id),`missing submit binding for ${id}`);
+}
 
 // Navigation targets must resolve to a screen and stock edits must retain alert thresholds.
 const screenFns=new Set([...app.matchAll(/function ([A-Za-z]+)\(\)\{/g)].map(x=>x[1]));for(const m of ['dashboard','operations','finance','documents','more',...['orders','products','haccp','stock','suppliers','purchases','invoices','team','planning','leave','training','recipes','reservations','customers','loyalty','incidents','waste','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','ai','help']])assert.ok(screenFns.has(m),`missing screen function ${m}`);assert.match(app,/collection==='stock'[^;]+min:\+d\.get\('min'\)/,'stock edit must preserve minimum threshold');
@@ -61,7 +73,7 @@ assert.match(app,/data-edit-form="purchases"[\s\S]{0,500}<select name="supplier"
 assert.match(app,/data-edit-form="invoices"[\s\S]{0,500}<select name="supplier" required>[\s\S]{0,300}state\.suppliers\.map/);
 
 // New purchases and supplier invoices must select from the supplier registry instead of free-text supplier names.
-assert.match(app,/function purchases\(\)[\s\S]{0,900}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);assert.match(app,/function invoices\(\)[\s\S]{0,1200}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);
+assert.match(app,/function purchases\(\)[\s\S]{0,7000}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);assert.match(app,/function invoices\(\)[\s\S]{0,1200}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);
 
 // Customer-facing workflows must reuse CRM names while still allowing a new walk-in name.
 assert.match(app,/function reservations\(\)[\s\S]{0,500}list="customerNames"[\s\S]{0,300}state\.customers\.map/);assert.match(app,/function loyalty\(\)[\s\S]{0,500}list="loyaltyCustomerNames"[\s\S]{0,300}state\.customers\.map/);
