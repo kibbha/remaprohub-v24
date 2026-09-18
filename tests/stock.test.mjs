@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {load,stockAvailable,updateRecord,removeRecord} from '../src/store.js';
+import {load,stockAvailable,recordWaste,updateWaste,updateRecord,removeRecord} from '../src/store.js';
 const app=readFileSync('src/app.js','utf8');
 globalThis.localStorage={getItem:()=>JSON.stringify({stock:[{name:'Rice',qty:5,min:3,price:2}]}),setItem(){}};
 const state=load(),item=state.stock[0];
@@ -23,3 +23,18 @@ updateRecord(state,'waste',0,{qty:3});assert.equal(stockAvailable(state,item),6)
 removeRecord(state,'waste',0);assert.equal(stockAvailable(state,item),9);
 state.waste.push({product:'Legacy rice',qty:5});assert.equal(stockAvailable(state,item),9);
 assert.match(app,/function waste\(\)[\s\S]{0,550}<select name="stockId" required>/);
+const movements={stock:[{id:'rice',name:'Rice',qty:5}],deliveries:[],waste:[]};
+assert.equal(recordWaste(movements,{stockId:'rice',qty:6}),false);
+assert.equal(movements.waste.length,0);
+assert.equal(recordWaste(movements,{stockId:'rice',qty:3}),true);
+assert.equal(stockAvailable(movements,movements.stock[0]),2);
+assert.equal(updateWaste(movements,0,{stockId:'rice',qty:6}),false);
+assert.equal(updateWaste(movements,0,{stockId:'rice',qty:4}),true);
+assert.equal(stockAvailable(movements,movements.stock[0]),1);
+assert.equal(updateWaste(movements,0,{stockId:'missing',qty:1}),false);
+assert.equal(movements.waste[0].qty,4);
+movements.stock.push({id:'flour',name:'Flour',qty:2});
+assert.equal(updateWaste(movements,0,{stockId:'flour',qty:3}),false);
+assert.equal(updateWaste(movements,0,{stockId:'flour',qty:2}),true);
+assert.equal(stockAvailable(movements,movements.stock[0]),5);
+assert.equal(stockAvailable(movements,movements.stock[1]),0);
