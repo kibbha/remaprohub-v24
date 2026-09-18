@@ -14,6 +14,7 @@ assert.equal(saveCloudConfig('https://project.supabase.co/','anon-test-key'),tru
 assert.equal(cloudConfigured(),true);
 assert.deepEqual(cloudConfig(),{url:'https://project.supabase.co',key:'anon-test-key'});
 assert.equal(aiEndpoint(),'https://project.supabase.co/functions/v1/remapro-ai');
+values.set('remaprohub-sb-session',JSON.stringify({access_token:'user-jwt',refresh_token:'refresh-token',expires_at:4102444800}));
 
 const state={
   preferences:{restaurant:'Bistro',currency:'CHF'},
@@ -40,12 +41,14 @@ const response=await callRemaproAi({action:'chat',question:'Status?',language:'f
 assert.equal(response.answer,'OK');
 assert.equal(requested.url,'https://project.supabase.co/functions/v1/remapro-ai');
 assert.equal(requested.options.headers.apikey,'anon-test-key');
-assert.equal(requested.options.headers.Authorization,'Bearer anon-test-key');
+assert.equal(requested.options.headers.Authorization,'Bearer user-jwt');
 
 const client=readFileSync('src/ai.js','utf8');
+const cloudClient=readFileSync('src/cloud.js','utf8');
 const app=readFileSync('src/app.js','utf8');
 const edge=readFileSync('supabase/functions/remapro-ai/index.ts','utf8');
 assert.doesNotMatch(client,/OPENAI_API_KEY|api\.openai\.com/,'OpenAI secret/API endpoint must never be shipped in client code');
+assert.doesNotMatch(cloudClient,/OPENAI_API_KEY|service_role|sb_secret_/,'privileged server secrets must never be shipped in cloud client code');
 assert.match(edge,/Deno\.env\.get\("OPENAI_API_KEY"\)/);
 assert.match(edge,/https:\/\/api\.openai\.com\/v1\/responses/);
 assert.match(edge,/store:false/);
