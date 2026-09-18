@@ -18,6 +18,14 @@ assert.equal(financeTotals(state,'week',now).revenue,150);
 assert.equal(financeTotals(state,'week',new Date('2026-09-14T12:00:00')).revenue,0);
 state.financeHistory.pop();
 process.env.TZ='Europe/Zurich';assert.equal(localDate(new Date('2026-09-18T22:30:00Z')),'2026-09-19');
+const OriginalDate=globalThis.Date;
+globalThis.Date=class extends OriginalDate{constructor(...args){super(...(args.length?args:['2026-09-18T22:30:00Z']))}};
+try{
+  const undated=load();
+  assert.equal(recordOrder(undated,{reference:'Night',amount:1,status:'paid'}).date,'2026-09-19');
+  assert.equal(recordPurchase(undated,{supplier:'Night',amount:1}).date,'2026-09-19');
+}finally{globalThis.Date=OriginalDate}
+
 console.log('Finance entries and date boundaries OK');
 // Removing a manual entry must preserve paid orders and purchases on that date.
 import {removeRecord} from '../src/store.js';
