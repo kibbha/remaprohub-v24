@@ -15,3 +15,6 @@ const tx={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0
 
 // Low-stock threshold must survive creation/edit wiring and drive dashboard signal.
 assert.match(app,/stockForm'[\s\S]{0,180}min:\+f\.get\('min'\)/,'stock creation must persist minimum threshold');assert.match(app,/collection==='stock'[\s\S]{0,160}min:\+d\.get\('min'\)/,'stock edits must persist minimum threshold');assert.match(app,/filter\(x=>\+x\.qty<=\+\(x\.min\|\|0\)/,'dashboard must derive low-stock alerts from thresholds');
+
+// Manual finance entry must not erase transactional order/purchase amounts.
+const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(mixed,{reference:'M1',amount:75,status:'paid',date:'2026-09-18'});recordPurchase(mixed,{supplier:'S',amount:20,date:'2026-09-18',note:''});recordFinance(mixed,{date:'2026-09-18',revenue:100,covers:8,expenses:30});assert.equal(mixed.financeHistory[0].revenue,175);assert.equal(mixed.financeHistory[0].expenses,50);recordFinance(mixed,{date:'2026-09-18',revenue:120,covers:9,expenses:35});assert.equal(mixed.financeHistory[0].revenue,195);assert.equal(mixed.financeHistory[0].expenses,55);
