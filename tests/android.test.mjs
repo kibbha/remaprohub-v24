@@ -21,7 +21,7 @@ assert.match(workflow,/app\/assets-remaprohub-logo\.png android\/app\/src\/main\
 assert.match(launcher,/@drawable\/remaprohub_logo/);
 assert.match(launcher,/@color\/remaprohub_icon_bg/);
 assert.match(roundLauncher,/@drawable\/remaprohub_logo/);
-assert.match(launcherColors,/#F5EFE6/i);
+assert.match(launcherColors,/#F4EADF/i);
 assert.match(activity,/WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/);
 assert.match(activity,/controller\.hide\(WindowInsetsCompat\.Type\.systemBars\(\)\)/);
 assert.match(activity,/BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE/);
