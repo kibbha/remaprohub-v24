@@ -105,9 +105,22 @@ const generic={
 export function legalPack(value='CH'){const code=legalCountryCode(value),base=packs[code]||generic;return{code,name:base.name,source:base.source,note:base.note,reviewedAt:LEGAL_REVIEW_DATE}}
 export function legalDocumentSchema(type,value='CH'){const code=legalCountryCode(value),base=packs[code]||generic;return base[type]||commonHr[type]||[]}
 export function isLegalHrDocument(type){return['payslip','employmentContract','extraContract','salaryCertificate','timesheet','leaveRequest','employmentCertificate','employmentTermination','onboardingChecklist','salaryChange','expenseReport','trainingRecord'].includes(type)}
+const jurisdictionFields={
+ CH:[f('employeeAhvNumber','employee'),f('employerAhvNumber','employer')],
+ FR:[f('siret','employer'),f('socialSecurityNumber','employee'),f('collectiveAgreement','employment')],
+ DE:[f('socialInsuranceNumber','employee'),f('taxId','tax')],
+ IT:[f('fiscalCode','employee'),f('ccnlCode','employment')],
+ ES:[f('nif','employee'),f('socialSecurityNumber','employee'),f('collectiveAgreement','employment')],
+ PT:[f('nif','employee'),f('niss','employee'),f('professionalCategory','employment')],
+ NL:[f('cao','employment')],
+ GB:[f('niNumber','employee'),f('taxCode','tax')]
+};
+function uniqueFields(fields){const seen=new Set();return fields.filter(x=>x?.key&&!seen.has(x.key)&&(seen.add(x.key),true))}
 export function legalFieldsFor(type,value='CH'){
+ const code=legalCountryCode(value),extra=jurisdictionFields[code]||[];
  if(type==='salaryCertificate'){
-   return[...identity,f('period','pay','text',true),f('grossSalary','totals','number',true,{min:0,step:'0.01'}),f('taxableNet','tax','number',false,{min:0,step:'0.01'}),f('socialContributions','deductions','number',false,{min:0,step:'0.01'}),f('netSalary','totals','number',false,{min:0,step:'0.01'}),f('certificateReference','notes'),f('employerSignature','signatures')];
+   return uniqueFields([...identity,...extra,f('period','pay','text',true),f('grossSalary','totals','number',true,{min:0,step:'0.01'}),f('taxableNet','tax','number',false,{min:0,step:'0.01'}),f('socialContributions','deductions','number',false,{min:0,step:'0.01'}),f('netSalary','totals','number',false,{min:0,step:'0.01'}),f('certificateReference','notes'),f('employerSignature','signatures')]);
  }
- return legalDocumentSchema(type,value);
+ const schema=legalDocumentSchema(type,code);
+ return isLegalHrDocument(type)?uniqueFields([...schema,...extra]):schema;
 }
