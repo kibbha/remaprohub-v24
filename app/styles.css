@@ -102,3 +102,7 @@ html[data-theme="dark"] .legal-pack,html[data-theme="dark"] .document-section,ht
 
 .legal-country-picker{display:flex;justify-content:flex-end;margin:-4px 0 14px}.legal-country-picker label{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:850;color:#744f37}.legal-country-picker select{min-width:170px}
 @media(max-width:620px){.legal-country-picker{justify-content:stretch}.legal-country-picker label{width:100%;justify-content:space-between}.legal-country-picker select{flex:1;max-width:65%}}
+
+.payroll-live-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:14px;border:1px solid #d8c5ae;border-radius:16px;background:linear-gradient(135deg,#e9f0e5,#fff8ef);grid-column:1/-1}.payroll-live-summary>div{display:grid;gap:4px;padding:10px;border-radius:12px;background:#fffaf5}.payroll-live-summary span{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:850}.payroll-live-summary strong{font-size:19px;color:#31563c}.payroll-live-summary .btn,.payroll-live-summary p{grid-column:1/-1}.payroll-live-summary p{margin:0}
+html[data-theme="dark"] .payroll-live-summary,html[data-theme="dark"] .payroll-live-summary>div{background:#2c2722;border-color:#514337;color:#f3eadf}
+@media(max-width:620px){.payroll-live-summary{grid-template-columns:1fr}.payroll-live-summary .btn,.payroll-live-summary p{grid-column:1}}
