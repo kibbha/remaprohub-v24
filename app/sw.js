@@ -1,4 +1,4 @@
-const CACHE='remaprohub-v27-shell-3d81b0f53e5e';
+const CACHE='remaprohub-v27-shell-d2e533ae0146';
 const ASSETS=['./','./index.html','./styles.css','./icons.svg','./manifest.json','./icon.svg','./assets-remaprohub-logo.png','./src/app.js','./src/i18n.js','./src/store.js','./src/ai.js','./src/cloud.js'];
 const assetPaths=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
