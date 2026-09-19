@@ -22,6 +22,6 @@ assert.deepEqual(structured.documentEntries[0].fields,{product:'Tomatoes',lot:'A
 updateDocument(structured,0,{type:'traceability',date:'2026-09-18',title:'Lot',details:'Note',fields:{product:'Carrots',lot:'B13'}});
 assert.equal(structured.documentEntries[0].fields.product,'Carrots');
 assert.match(app,/DOCUMENT_FIELDS=\{traceability:/);
-assert.match(app,/documentFieldsForm\(selected,entry\?\.fields\)/);
-assert.match(app,/documentFieldsView\(preview\)/);
+assert.match(app,/documentFieldsForm\(selected,entry\?\.fields,/);
+assert.match(app,/documentFieldsView\(preview\)/);\nassert.match(app,/legalPack\(/);\nassert.match(app,/legalCountry/);\nassert.match(app,/document-section/);
 assert.match(app,/documentFieldsView\(x\)/);
