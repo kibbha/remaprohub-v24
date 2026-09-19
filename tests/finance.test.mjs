@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {load,recordOrder,recordPurchase,recordFinance,financeTotals,financeDayTotals,localDate} from '../src/store.js';
+import {load,recordOrder,updateOrder,recordPurchase,updatePurchase,recordFinance,financeTotals,financeDayTotals,localDate} from '../src/store.js';
 globalThis.localStorage={getItem:()=>null,setItem(){}};
 const state=load(),date='2026-09-18',now=new Date('2026-09-18T12:00:00');
 recordOrder(state,{reference:'Table 1',amount:100,status:'paid',date});
