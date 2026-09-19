@@ -34,6 +34,8 @@ html[data-theme="dark"] .invoice-item{background:#2c2722;border-color:#463c33}
 @media(max-width:620px){.invoice-item{grid-template-columns:1fr 1fr}.invoice-use,.invoice-item small{grid-column:1/-1}.invoice-item input[name^="item_name_"]{grid-column:1/-1}}
 .summary-link{width:100%;min-height:58px;border:0;background:transparent;color:inherit;text-align:left;padding:0;display:flex;align-items:center}
 .summary-link:active{transform:scale(.98)}
+.ingredient-grid{grid-column:1/-1;display:grid;grid-template-columns:2fr 1fr;gap:8px}.pill.good{background:#e3f2e9;color:var(--good)}.pill.bad{background:#f8e3df;color:var(--bad)}.result-box{grid-column:1/-1;display:block;padding:16px;border-radius:13px;background:#f4eadf;color:var(--accent);font-size:24px;font-weight:900}.compact-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:4px 0}.compact-grid>div{padding:10px;border:1px solid var(--line);border-radius:12px}.kpi.mini{font-size:22px}.onboarding{max-width:680px;margin:5vh auto}.onboarding .card{padding:22px}html[data-theme="dark"] .result-box,html[data-theme="dark"] .compact-grid>div{background:#332b25;border-color:#514337}.shell:has(.onboarding)+.nav{display:none}
+.dashboard-compact .card{padding:11px}.dashboard-compact .grid,.dashboard-compact .modules{gap:7px;margin-top:10px}.dashboard-compact .module{min-height:82px;padding:11px}.dashboard-compact .chart{height:88px}
 .top-controls{display:flex;align-items:center;gap:8px;min-width:0}
 .top-controls #restaurantSwitch{max-width:210px}
 .check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:4px 0}
