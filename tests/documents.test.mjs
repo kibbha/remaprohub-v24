@@ -21,9 +21,14 @@ saveDocument(structured,{type:'traceability',date:'2026-09-18',title:'Lot',detai
 assert.deepEqual(structured.documentEntries[0].fields,{product:'Tomatoes',lot:'A12'});
 updateDocument(structured,0,{type:'traceability',date:'2026-09-18',title:'Lot',details:'Note',fields:{product:'Carrots',lot:'B13'}});
 assert.equal(structured.documentEntries[0].fields.product,'Carrots');
+const legalState={documentEntries:[]};
+saveDocument(legalState,{type:'payslip',date:'2026-09-19',title:'Paie septembre',details:'',fields:{employeeName:'Alice',grossSalary:'5000'},legal:{country:'CH',name:'Suisse',reviewedAt:'2026-09-19',source:'SECO / Fedlex',note:'Variable'}});
+assert.equal(legalState.documentEntries[0].legal.country,'CH');
+assert.equal(legalState.documentEntries[0].legal.reviewedAt,'2026-09-19');
 assert.match(app,/DOCUMENT_FIELDS=\{traceability:/);
 assert.match(app,/documentFieldsForm\(selected,entry\?\.fields,/);
-assert.match(app,/documentFieldsView\\(preview\\)/);
-assert.match(app,/legalPack\\(/);
+assert.match(app,/documentFieldsView\(preview\)/);
+assert.match(app,/legalPack\(/);
 assert.match(app,/legalCountry/);
 assert.match(app,/document-section/);
+console.log('Structured and country-aware document fields OK');
