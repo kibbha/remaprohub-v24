@@ -54,8 +54,8 @@ CH:{
 FR:{
  name:'France',source:'Code du travail · Service-Public (bulletin de paie / contrat)',note:'Les rubriques exactes dépendent de la convention collective, de la classification, des organismes et de la situation fiscale.',
  payslip:[...payCore,f('siret','employer','text',true),f('apeCode','employer'),f('collectiveAgreement','employment','text',true),f('classification','employment'),f('socialSecurityNumber','employee'),f('baseHours','pay','number',false,{min:0,step:'0.01'}),f('overtimeRate','earnings'),f('employeeContributions','deductions','number',false,{min:0,step:'0.01'}),f('employerContributions','employerCharges','number',false,{min:0,step:'0.01'}),f('taxableNet','tax','number',false,{min:0,step:'0.01'}),f('withholdingTaxRate','tax'),f('withholdingTax','tax','number',false,{min:0,step:'0.01'}),f('netSocial','totals','number',false,{min:0,step:'0.01'}),f('netBeforeTax','totals','number',false,{min:0,step:'0.01'}),f('paidLeaveBalance','leave')],
- employmentContract:[...contractCore,f('classification','employment'),f('collectiveAgreement','employment','text',true),f('paidLeaveBalance','leave')],
- extraContract:[...extraCore,f('classification','employment'),f('collectiveAgreement','employment','text',true)]
+ employmentContract:[...contractCore,f('classification','employment'),f('paidLeaveBalance','leave')],
+ extraContract:[...extraCore,f('classification','employment')]
 },
 DE:{
  name:'Allemagne',source:'Entgeltbescheinigungsverordnung §1 · Nachweisgesetz §2',note:'Les données fiscales et sociales doivent correspondre au dossier de paie et aux organismes compétents.',
@@ -72,12 +72,12 @@ IT:{
 ES:{
  name:'Espagne',source:'Orden 27/12/1994 (BOE) · RD 1659/1998; RD 723/2026 à partir du 05.10.2026',note:'Au 19.09.2026, le RD 1659/1998 reste applicable jusqu’au 04.10.2026; le pack signale aussi la transition vers le RD 723/2026.',
  payslip:[...payCore,f('nif','employee'),f('socialSecurityNumber','employee'),f('contributionGroup','employment'),f('seniority','employment'),f('salaryAccruals','earnings','number',false,{min:0,step:'0.01'}),f('nonSalaryAccruals','earnings','number',false,{min:0,step:'0.01'}),f('socialSecurityEmployee','deductions','number',false,{min:0,step:'0.01'}),f('irpf','tax','number',false,{min:0,step:'0.01'}),f('contributionBase','employerCharges','number',false,{min:0,step:'0.01'}),f('employerContributions','employerCharges','number',false,{min:0,step:'0.01'})],
- employmentContract:[...contractCore,f('professionalGroup','employment'),f('collectiveAgreement','employment','text',true),f('holidayDuration','leave'),f('scheduleDistribution','workingTime','textarea')],
- extraContract:[...extraCore,f('professionalGroup','employment'),f('collectiveAgreement','employment','text',true)]
+ employmentContract:[...contractCore,f('professionalGroup','employment'),f('holidayDuration','leave'),f('scheduleDistribution','workingTime','textarea')],
+ extraContract:[...extraCore,f('professionalGroup','employment')]
 },
 PT:{
  name:'Portugal',source:'Código do Trabalho art. 276 · Diário da República / gov.pt',note:'Le reçu doit détailler rémunération, période, retenues et net; le contrat doit reprendre les informations légales applicables.',
- payslip:[...payCore,f('nif','employee'),f('niss','employee'),f('professionalCategory','employment','text',true),f('socialSecurityEmployee','deductions','number',false,{min:0,step:'0.01'}),f('irs','tax','number',false,{min:0,step:'0.01'}),f('otherDeductions','deductions','number',false,{min:0,step:'0.01'}),f('employerContributions','employerCharges','number',false,{min:0,step:'0.01'})],
+ payslip:[...payCore,f('nif','employee'),f('niss','employee'),f('professionalCategory','employment','text',true),f('socialSecurityEmployee','deductions','number',false,{min:0,step:'0.01'}),f('irs','tax','number',false,{min:0,step:'0.01'}),f('employerContributions','employerCharges','number',false,{min:0,step:'0.01'})],
  employmentContract:[...contractCore,f('professionalCategory','employment','text',true),f('accidentInsurer','benefits'),f('accidentPolicy','benefits'),f('compensationFund','benefits')],
  extraContract:[...extraCore,f('professionalCategory','employment','text',true),f('accidentInsurer','benefits'),f('accidentPolicy','benefits')]
 },
