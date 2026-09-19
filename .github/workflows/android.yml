@@ -1,6 +1,11 @@
 name: Android ReMaPro Hub V27
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - rebuild/remaprohub-clean
+    paths:
+      - .github/build-v27-final.trigger
 jobs:
   build:
     runs-on: ubuntu-latest
