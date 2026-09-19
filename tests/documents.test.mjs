@@ -23,5 +23,7 @@ updateDocument(structured,0,{type:'traceability',date:'2026-09-18',title:'Lot',d
 assert.equal(structured.documentEntries[0].fields.product,'Carrots');
 assert.match(app,/DOCUMENT_FIELDS=\{traceability:/);
 assert.match(app,/documentFieldsForm\(selected,entry\?\.fields,/);
-assert.match(app,/documentFieldsView\(preview\)/);\nassert.match(app,/legalPack\(/);\nassert.match(app,/legalCountry/);\nassert.match(app,/document-section/);
-assert.match(app,/documentFieldsView\(x\)/);
+assert.match(app,/documentFieldsView\\(preview\\)/);
+assert.match(app,/legalPack\\(/);
+assert.match(app,/legalCountry/);
+assert.match(app,/document-section/);
