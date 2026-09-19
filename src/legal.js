@@ -70,7 +70,7 @@ IT:{
  extraContract:[...extraCore,f('ccnlCode','employment','text',true),f('classification','employment'),f('jobLevel','employment')]
 },
 ES:{
- name:'Espagne',source:'Orden 27/12/1994 (BOE) · RD 1659/1998; RD 723/2026 à partir du 05.10.2026',note:'Au 19.09.2026, le RD 1659/1998 reste applicable jusqu’au 04.10.2026; le pack signale aussi la transition vers le RD 723/2026.',
+ name:'Espagne',source:'Orden 27/12/1994 (BOE) · RD 1659/1998; RD 723/2026 à partir du 05.10.2026',note:'Au 19.09.2026, le RD 1659/1998 reste applicable jusqu’au 04.10.2026; le RD 723/2026 s’applique dès le 05.10.2026.',
  payslip:[...payCore,f('nif','employee'),f('socialSecurityNumber','employee'),f('contributionGroup','employment'),f('seniority','employment'),f('salaryAccruals','earnings','number',false,{min:0,step:'0.01'}),f('nonSalaryAccruals','earnings','number',false,{min:0,step:'0.01'}),f('socialSecurityEmployee','deductions','number',false,{min:0,step:'0.01'}),f('irpf','tax','number',false,{min:0,step:'0.01'}),f('contributionBase','employerCharges','number',false,{min:0,step:'0.01'}),f('employerContributions','employerCharges','number',false,{min:0,step:'0.01'})],
  employmentContract:[...contractCore,f('professionalGroup','employment'),f('holidayDuration','leave'),f('scheduleDistribution','workingTime','textarea')],
  extraContract:[...extraCore,f('professionalGroup','employment')]
