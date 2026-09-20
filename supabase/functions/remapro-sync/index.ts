@@ -7,7 +7,7 @@ const cors={
 };
 const ORG_ADMIN_ROLES=new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
-const ALL_KEYS=["revenue","covers","expenses","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
+const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
 const READ_BY_PERMISSION={
   operations:["tasksDate","tasks"],
   haccp:["temps","haccpAudit"],
@@ -26,7 +26,7 @@ const WRITE_BY_PERMISSION={
   planning:["shifts"],
   reservations:["reservations"]
 };
-const NUMERIC_KEYS=new Set(["revenue","covers","expenses"]);
+const NUMERIC_KEYS=new Set(["revenue","covers","expenses","recipeTarget","recipeWarning"]);
 const STRING_KEYS=new Set(["tasksDate"]);
 
 function json(data:unknown,status=200){

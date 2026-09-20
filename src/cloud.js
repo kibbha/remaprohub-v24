@@ -105,7 +105,7 @@ export async function loadCloudIdentity(){
   return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
-const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
 const WORKSPACE_READ_BY_PERMISSION={
   operations:['tasksDate','tasks'],
   haccp:['temps','haccpAudit'],
