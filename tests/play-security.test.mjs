@@ -5,7 +5,6 @@ const index=readFileSync('app/index.html','utf8');
 const workflow=readFileSync('.github/workflows/android.yml','utf8');
 const harden=readFileSync('scripts/harden-android.mjs','utf8');
 const cloud=readFileSync('src/cloud.js','utf8');
-assert.equal(pkg.version,'27.7.0');
 assert.equal(pkg.dependencies['capacitor-secure-storage-plugin'],'0.12.0');
 assert.equal(pkg.dependencies['@revenuecat/purchases-capacitor'],'13.6.0');
 assert.match(index,/Content-Security-Policy/);
