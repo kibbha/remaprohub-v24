@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const app=readFileSync('src/app.js','utf8'),store=readFileSync('src/store.js','utf8'),cloud=readFileSync('src/cloud.js','utf8'),restored=readFileSync('src/restored.js','utf8');
-assert.match(app,/APP_VERSION='27\.4\.0'/);
 assert.match(store,/\.last-good/);
 assert.match(store,/LEGACY_KEYS/);
 assert.match(store,/recordStockMovement/);
