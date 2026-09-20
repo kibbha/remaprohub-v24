@@ -7,7 +7,7 @@ const roundLauncher=readFileSync('android-native/ic_launcher_round.xml','utf8');
 const launcherColors=readFileSync('android-native/remaprohub_colors.xml','utf8');
 const cameraPatch=readFileSync('scripts/patch-android-camera.mjs','utf8');
 const manifest=JSON.parse(readFileSync('app/manifest.json','utf8'));
-assert.equal(manifest.display,'fullscreen');
+assert.equal(manifest.display,'standalone');
 assert.ok(workflow.indexOf('npx cap add android')<workflow.indexOf('install -m 644 android-native/MainActivity.java'));
 assert.ok(workflow.indexOf('install -m 644 android-native/MainActivity.java')<workflow.indexOf('npx cap sync android'));
 assert.ok(workflow.indexOf('npx cap sync android')<workflow.indexOf('Apply ReMaPro Android branding'));
