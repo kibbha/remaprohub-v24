@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 
 const base=readFileSync('supabase/migrations/001_initial_schema.sql','utf8');
 const v27=readFileSync('supabase/migrations/002_v27_permissions_and_plans.sql','utf8');
+const play=readFileSync('supabase/migrations/003_v27_7_play_security_billing.sql','utf8');
 
 assert.match(base,/create table if not exists public\.organizations/);
 assert.match(base,/create table if not exists public\.restaurants/);
@@ -43,3 +44,9 @@ const temperature=v27.match(/create policy temp_select[\s\S]*?;\n/)?.[0]||'';
 assert.match(temperature,/has_restaurant_permission\(restaurant_id, 'haccp'\)/);
 
 console.log('Supabase tenancy, pricing and RLS hardening guards OK');
+
+assert.match(play,/revoke update, delete on public\.temperature_logs from authenticated/);
+assert.match(play,/drop policy if exists temp_update/);
+assert.match(play,/revoke insert, update, delete on public\.subscriptions from authenticated/);
+assert.match(play,/subscriptions_organization_unique/);
+assert.match(play,/revenuecat_event_id/);
