@@ -6,3 +6,9 @@ verify_jwt = true
 
 [functions.remapro-sync]
 verify_jwt = true
+
+[functions.remapro-account]
+verify_jwt = true
+
+[functions.remapro-revenuecat-webhook]
+verify_jwt = false
