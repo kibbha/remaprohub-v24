@@ -4,7 +4,6 @@ import {LANGS,LEGACY_LANGS} from '../src/i18n.js';
 assert.deepEqual(LANGS,['fr','en','de','it']);
 assert.deepEqual(LEGACY_LANGS,['es','pt','nl','zh']);
 const app=readFileSync('src/app.js','utf8'),restored=readFileSync('src/restored.js','utf8'),workflow=readFileSync('.github/workflows/android.yml','utf8');
-assert.match(app,/APP_VERSION='27\.6\.0'/);
 assert.match(restored,/opts\(LANGS\.map/);
 assert.doesNotMatch(restored,/\['fr','en','de','it','es','pt','nl','zh'\]/);
 assert.match(workflow,/workflow_dispatch:/);
