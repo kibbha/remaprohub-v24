@@ -7,10 +7,10 @@ const cors={
 };
 const ORG_ADMIN_ROLES=new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
-const ALL_KEYS=["revenue","covers","expenses","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
+const ALL_KEYS=["revenue","covers","expenses","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
 const READ_BY_PERMISSION={
   operations:["tasksDate","tasks"],
-  haccp:["temps"],
+  haccp:["temps","haccpAudit"],
   stock:["stock"],
   deliveries:["deliveries","stock","suppliers"],
   checklists:["checklists"],
@@ -19,7 +19,7 @@ const READ_BY_PERMISSION={
 };
 const WRITE_BY_PERMISSION={
   operations:["tasksDate","tasks"],
-  haccp:["temps"],
+  haccp:["temps","haccpAudit"],
   stock:["stock"],
   deliveries:["deliveries"],
   checklists:["checklists"],
