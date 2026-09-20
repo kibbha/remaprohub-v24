@@ -27,6 +27,7 @@ jobs:
           test -s app/src/i18n.js
           test -s app/src/store.js
           test -s app/src/legal.js
+          test -s app/src/billing.js
       - run: npx cap add android
       - name: Stamp Android version
         run: node scripts/stamp-android-version.mjs
@@ -67,6 +68,7 @@ jobs:
           test -s android/app/src/main/assets/public/src/i18n.js
           test -s android/app/src/main/assets/public/src/store.js
           test -s android/app/src/main/assets/public/src/legal.js
+          test -s android/app/src/main/assets/public/src/billing.js
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - name: Verify 16 KB zip alignment
