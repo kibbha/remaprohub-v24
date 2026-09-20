@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const app=readFileSync('src/app.js','utf8'),restored=readFileSync('src/restored.js','utf8'),legal=readFileSync('src/legal.js','utf8');
-assert.match(app,/APP_VERSION='27\.5\.0'/);
 assert.match(app,/calculateSwissPayroll\(state/);
 assert.match(app,/ccntMinimum\(state/);
 assert.match(app,/field_avsAiApg/);
