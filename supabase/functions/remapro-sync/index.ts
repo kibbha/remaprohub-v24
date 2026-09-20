@@ -7,7 +7,7 @@ const cors={
 };
 const ORG_ADMIN_ROLES=new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
-const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
+const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","payrollSettings","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
 const READ_BY_PERMISSION={
   operations:["tasksDate","tasks"],
   haccp:["temps","haccpAudit"],
@@ -28,6 +28,7 @@ const WRITE_BY_PERMISSION={
 };
 const NUMERIC_KEYS=new Set(["revenue","covers","expenses","recipeTarget","recipeWarning"]);
 const STRING_KEYS=new Set(["tasksDate"]);
+const OBJECT_KEYS=new Set(["payrollSettings"]);
 
 function json(data:unknown,status=200){
   return new Response(JSON.stringify(data),{status,headers:{...cors,"Content-Type":"application/json"}});
@@ -46,6 +47,7 @@ function filterWorkspace(data:any,keys:string[]){
 function validWorkspaceValue(key:string,value:any){
   if(NUMERIC_KEYS.has(key))return typeof value==="number"&&Number.isFinite(value);
   if(STRING_KEYS.has(key))return typeof value==="string";
+  if(OBJECT_KEYS.has(key))return !!value&&typeof value==="object"&&!Array.isArray(value);
   return Array.isArray(value);
 }
 function sanitizeWorkspace(data:any,keys:string[]){
