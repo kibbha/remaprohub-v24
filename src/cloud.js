@@ -158,17 +158,26 @@ export function cloudPageAllowed(identity,page,restaurantId){
   }
   return false;
 }
-export async function cloudFunction(path,payload){
+const RETRYABLE_FUNCTION_STATUS=new Set([429,502,503,504]);
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+export async function cloudFunction(path,payload,{attempts=3}={}){
   const {url,key}=cloudConfig();
-  const session=await ensureFreshCloudSession();
   if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
-  if(!session?.access_token)throw new Error('AUTH_REQUIRED');
-  const response=await fetch(url+'/functions/v1/'+path,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},
-    body:JSON.stringify(payload)
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok){const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;throw error}
-  return data;
+  const tries=Math.max(1,Math.min(5,Math.trunc(+attempts||3)));
+  let lastError=null;
+  for(let attempt=0;attempt<tries;attempt++){
+    let session=await ensureFreshCloudSession();
+    if(!session?.access_token)throw new Error('AUTH_REQUIRED');
+    let response;
+    try{
+      response=await fetch(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+    }catch(error){lastError=error;if(attempt+1<tries){await sleep(250*(2**attempt));continue}throw error}
+    const data=await response.json().catch(()=>({}));
+    if(response.ok)return data;
+    if(response.status===401&&attempt+1<tries){try{await refreshCloudSession()}catch{}await sleep(100);continue}
+    const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;lastError=error;
+    if(RETRYABLE_FUNCTION_STATUS.has(response.status)&&attempt+1<tries){await sleep(250*(2**attempt));continue}
+    throw error;
+  }
+  throw lastError||new Error('FUNCTION_REQUEST_FAILED');
 }

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const app=readFileSync('src/app.js','utf8'),store=readFileSync('src/store.js','utf8'),cloud=readFileSync('src/cloud.js','utf8'),restored=readFileSync('src/restored.js','utf8');
+assert.match(app,/APP_VERSION='27\.4\.0'/);
+assert.match(store,/\.last-good/);
+assert.match(store,/LEGACY_KEYS/);
+assert.match(store,/recordStockMovement/);
+assert.match(restored,/recordStockMovement\(s/);
+assert.doesNotMatch(restored,/type==='exit'\?Math\.max\(0,before-Math\.abs\(q\)\)/);
+assert.match(cloud,/RETRYABLE_FUNCTION_STATUS/);
+assert.match(cloud,/250\*\(2\*\*attempt\)/);
+console.log('P0 UI/static safety guards OK');
