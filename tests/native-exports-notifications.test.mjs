@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const restored=readFileSync('src/restored.js','utf8'),pkg=JSON.parse(readFileSync('package.json','utf8')),workflow=readFileSync('.github/workflows/android.yml','utf8');
+assert.ok(pkg.dependencies['@capacitor/share']);
+assert.ok(pkg.dependencies['@capacitor/filesystem']);
+assert.ok(pkg.dependencies['@capacitor/local-notifications']);
+assert.match(restored,/nativePlugin\('LocalNotifications'\)/);
+assert.match(restored,/requestPermissions\(\)/);
+assert.match(restored,/plugin\.schedule\(\{notifications\}\)/);
+assert.match(restored,/exportManagementPdf/);
+assert.match(restored,/application\/pdf/);
+assert.match(restored,/nativePlugin\('Share'\)/);
+assert.match(restored,/nativePlugin\('Filesystem'\)/);
+assert.match(workflow,/workflow_dispatch:/);
+assert.doesNotMatch(workflow,/\n\s*push:/);
+console.log('Native exports, PDF sharing and real notification wiring OK');
