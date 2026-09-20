@@ -46,6 +46,6 @@ assert.equal(recordValidated(state,'temps',{equipment:'',value:4}),false);
 assert.equal(updateRecord(state,'audits',0,{score:120}),false);
 assert.equal(updateRecord(state,'goals',0,{target:-1}),false);
 assert.equal(updateRecord(state,'loyalty',0,{points:-1}),false);
-assert.equal(updateRecord(state,'temps',0,{value:'oops'}),false);
+assert.equal(updateRecord(state,'temps',0,{value:'oops'}),false);\nassert.equal(updateRecord(state,'temps',0,{value:4}),false);
 
 console.log('Validated creation and edit constraints OK');

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {recordHaccpTemperature,verifyHaccpChain,updateRecord,removeRecord} from '../src/store.js';
+const state={temps:[]};
+const first=recordHaccpTemperature(state,{zone:'Cold room',equipment:'Fridge 1',value:3,min:0,max:5,responsible:'Alice'});
+assert.ok(first?.integrity);
+assert.equal(first.conforming,true);
+assert.equal(recordHaccpTemperature(state,{zone:'Cold room',equipment:'Fridge 1',value:9,min:0,max:5,responsible:'Alice',action:''}),false);
+const second=recordHaccpTemperature(state,{zone:'Cold room',equipment:'Fridge 1',value:9,min:0,max:5,responsible:'Alice',action:'Move products and inspect unit'});
+assert.equal(second.conforming,false);
+assert.equal(second.prevIntegrity,first.integrity);
+assert.equal(verifyHaccpChain(state),true);
+assert.equal(updateRecord(state,'temps',0,{value:4}),false);
+assert.equal(removeRecord(state,'temps',0),false);
+state.temps[0].value=4;
+assert.equal(verifyHaccpChain(state),false);
+console.log('HACCP append-only traceability and integrity chain OK');
