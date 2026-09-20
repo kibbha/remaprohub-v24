@@ -14,11 +14,11 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm install
-      - run: npm test
       - name: Inject RevenueCat runtime config
         env:
           REVENUECAT_ANDROID_API_KEY: ${{ secrets.REVENUECAT_ANDROID_API_KEY }}
         run: node scripts/inject-runtime-config.mjs
+      - run: npm test
       - name: Verify packaged web runtime
         run: |
           test -s app/sw.js
