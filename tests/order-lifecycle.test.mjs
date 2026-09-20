@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {recordOrder,updateOrder,financeDayTotals} from '../src/store.js';
+const state={orders:[],financeHistory:[]};
+const date='2026-09-20';
+assert.ok(recordOrder(state,{reference:'T1',amount:80,status:'open',date}));
+assert.equal(financeDayTotals(state,date).revenue,0);
+assert.equal(updateOrder(state,0,{status:'served'}),false);
+assert.equal(updateOrder(state,0,{status:'preparing'}),true);
+assert.equal(updateOrder(state,0,{status:'served'}),true);
+assert.equal(financeDayTotals(state,date).revenue,0);
+assert.equal(updateOrder(state,0,{status:'paid'}),true);
+assert.equal(financeDayTotals(state,date).revenue,80);
+assert.equal(updateOrder(state,0,{status:'cancelled'}),false);
+assert.ok(recordOrder(state,{reference:'T2',amount:25,status:'open',date}));
+assert.equal(updateOrder(state,0,{status:'cancelled'}),true);
+assert.equal(financeDayTotals(state,date).revenue,80);
+assert.equal(state.orders.filter(x=>!['paid','cancelled'].includes(x.status)).length,0);
+console.log('Order lifecycle and paid-only revenue OK');
