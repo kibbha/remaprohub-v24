@@ -105,14 +105,14 @@ export async function loadCloudIdentity(){
   return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
-const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
 const WORKSPACE_READ_BY_PERMISSION={
   operations:['tasksDate','tasks'],
   haccp:['temps','haccpAudit'],
   stock:['stock'],
   deliveries:['deliveries','stock','suppliers'],
   checklists:['checklists'],
-  planning:['shifts','team'],
+  planning:['shifts','team','leave','leaveHolidays'],
   reservations:['reservations','customers']
 };
 const WORKSPACE_WRITE_BY_PERMISSION={
@@ -121,7 +121,7 @@ const WORKSPACE_WRITE_BY_PERMISSION={
   stock:['stock'],
   deliveries:['deliveries'],
   checklists:['checklists'],
-  planning:['shifts'],
+  planning:['shifts','leave','leaveHolidays'],
   reservations:['reservations']
 };
 function cloudRestaurantContext(identity,restaurantId){const restaurant=(identity?.restaurants||[]).find(x=>x.id===restaurantId);if(!restaurant)return{restaurant:null,memberships:[],manager:false};const memberships=(identity?.memberships||[]).filter(m=>m.organization_id===restaurant.organization_id&&(!m.restaurant_id||m.restaurant_id===restaurantId));const manager=memberships.some(m=>['network_admin','network_manager'].includes(m.role)&&!m.restaurant_id)||memberships.some(m=>m.restaurant_id===restaurantId&&['restaurant_admin','director','manager'].includes(m.role));return{restaurant,memberships,manager}}

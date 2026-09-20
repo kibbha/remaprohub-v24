@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {businessDaysBetween,leaveBusinessDays,recordLeaveHoliday,operationalRiskCounts,recordHaccpTemperature,resolveHaccpReading} from '../src/store.js';
+const holidays=[{date:'2026-09-10',name:'Jeûne genevois'}];
+assert.equal(businessDaysBetween('2026-09-07','2026-09-11',holidays),4);
+assert.equal(businessDaysBetween('2026-09-12','2026-09-13',holidays),0);
+const state={leaveHolidays:[...holidays],stock:[{id:'a',name:'A',qty:0,min:0},{id:'b',name:'B',qty:2,min:3}],deliveries:[],waste:[],stockMoves:[],temps:[],haccpAudit:[],managerTasks:[{priority:'urgent',status:'todo'}]};
+assert.equal(leaveBusinessDays(state,'2026-09-07','2026-09-11'),4);
+assert.ok(recordLeaveHoliday(state,{date:'2026-12-25',name:'Noël'}));
+assert.equal(recordLeaveHoliday(state,{date:'2026-12-25',name:'Duplicate'}),false);
+let risk=operationalRiskCounts(state);assert.deepEqual(risk,{lowStock:1,haccp:0,urgent:1,total:2});
+recordHaccpTemperature(state,{equipment:'Cold room',value:9,max:5,responsible:'A',action:'Fix'});risk=operationalRiskCounts(state);assert.equal(risk.haccp,1);
+resolveHaccpReading(state,0,{reason:'Fixed',responsible:'A'});risk=operationalRiskCounts(state);assert.equal(risk.haccp,0);
+console.log('Operational risks and business-day leave calculations OK');
