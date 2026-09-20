@@ -1,6 +1,12 @@
 const URL_KEY='remaprohub-sb-url';
 const KEY_KEY='remaprohub-sb-key';
 const SESSION_KEY='remaprohub-sb-session';
+let SESSION_CACHE=null,SESSION_READY=false;
+const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
+function parseSession(raw){try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}}
+async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)try{await plugin.remove({key:SESSION_KEY})}catch{}}
+async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY=true;const plugin=secureStorage();if(plugin){await plugin.set({key:SESSION_KEY,value:JSON.stringify(session)});localStorage.removeItem(SESSION_KEY)}else localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session}
+export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
 export function cloudConfig(){
   return {
@@ -19,27 +25,16 @@ export function saveCloudConfig(url,key){
   const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
-  if(previous.url!==cleanUrl||previous.key!==cleanKey)localStorage.removeItem(SESSION_KEY);
+  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)plugin.remove({key:SESSION_KEY}).catch(()=>{})}
   return true;
 }
 export function disconnectCloud(){
   localStorage.removeItem(URL_KEY);
   localStorage.removeItem(KEY_KEY);
-  localStorage.removeItem(SESSION_KEY);
+  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)plugin.remove({key:SESSION_KEY}).catch(()=>{});
 }
-export function cloudSession(){
-  try{
-    const value=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
-    return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null;
-  }catch{return null}
-}
-function saveSession(data){
-  if(!data?.access_token||!data?.refresh_token)return false;
-  const expiresAt=Number(data.expires_at)||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);
-  const session={...data,expires_at:expiresAt};
-  localStorage.setItem(SESSION_KEY,JSON.stringify(session));
-  return session;
-}
+export function cloudSession(){return SESSION_READY?SESSION_CACHE:parseSession(localStorage.getItem(SESSION_KEY))}
+async function saveSession(data){if(!data?.access_token||!data?.refresh_token)return false;const expiresAt=Number(data.expires_at)||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);return persistStoredSession({...data,expires_at:expiresAt})}
 async function authRequest(path,{body,token}={}){
   const {url,key}=cloudConfig();
   if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
@@ -53,12 +48,12 @@ async function authRequest(path,{body,token}={}){
 export async function signInCloud(email,password){
   const mail=String(email||'').trim().toLowerCase(),secret=String(password||'');
   if(!mail||!secret)throw new Error('AUTH_REQUIRED');
-  return saveSession(await authRequest('/auth/v1/token?grant_type=password',{body:{email:mail,password:secret}}));
+  return await saveSession(await authRequest('/auth/v1/token?grant_type=password',{body:{email:mail,password:secret}}));
 }
 export async function refreshCloudSession(){
   const current=cloudSession();
   if(!current?.refresh_token)throw new Error('NO_REFRESH_TOKEN');
-  return saveSession(await authRequest('/auth/v1/token?grant_type=refresh_token',{body:{refresh_token:current.refresh_token}}));
+  return await saveSession(await authRequest('/auth/v1/token?grant_type=refresh_token',{body:{refresh_token:current.refresh_token}}));
 }
 export async function ensureFreshCloudSession(){
   let session=cloudSession();
@@ -72,7 +67,7 @@ export async function signOutCloud(){
   const session=cloudSession(),{url,key}=cloudConfig();
   try{
     if(session?.access_token&&url&&key)await fetch(url+'/auth/v1/logout',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+session.access_token}});
-  }finally{localStorage.removeItem(SESSION_KEY)}
+  }finally{await removeStoredSession()}
 }
 async function dataRequest(path,{method='GET',body,retry=true}={}){
   const {url,key}=cloudConfig();
