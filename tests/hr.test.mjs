@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {recordShift,recordLeave,recordTraining,updateRecord} from '../src/store.js';
+import {recordShift,copyPreviousWeekSchedule,recordLeave,recordTraining,updateRecord} from '../src/store.js';
 
 const state={
   team:[{name:'Alice',role:'Manager'},{name:'Bob',role:'Server'}],
@@ -13,6 +13,8 @@ assert.equal(state.shifts.length,1);
 assert.equal(updateRecord(state,'shifts',0,{employee:'Unknown'}),false);
 assert.equal(updateRecord(state,'shifts',0,{employee:'Bob',date:'2026-09-19',start:'18:00',end:'02:00'}),true);
 assert.equal(state.shifts[0].employee,'Bob');
+const weekly={team:[{name:'Alice',role:'Manager'}],shifts:[{employee:'Alice',date:'2026-09-14',start:'09:00',end:'17:00'}]};assert.equal(copyPreviousWeekSchedule(weekly,new Date('2026-09-21T12:00:00')),1);assert.equal(weekly.shifts.some(x=>x.date==='2026-09-21'&&x.employee==='Alice'),true);assert.equal(copyPreviousWeekSchedule(weekly,new Date('2026-09-21T12:00:00')),0);
+
 
 assert.equal(recordLeave(state,{employee:'Alice',start:'2026-09-20',end:'2026-09-19',status:'requested'}),false);
 assert.ok(recordLeave(state,{employee:'Alice',start:'2026-09-20',end:'2026-09-22',status:'approved'}));
