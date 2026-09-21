@@ -109,24 +109,57 @@ export async function loadCloudIdentity(){
   const identity={user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};await persistCloudIdentity(identity);return identity;
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
-const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','expenseEntries','cashChecks','weeklyKpis','managerTasks','stockMoves','complianceItems','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
 const WORKSPACE_READ_BY_PERMISSION={
-  operations:['tasksDate','tasks'],
-  haccp:['temps','haccpAudit'],
-  stock:['stock'],
+  operations:['tasksDate','tasks','briefings','handover','maintenance','equipment'],
+  finance:['revenue','covers','expenses','sales','financeHistory','expenseEntries','cashChecks','weeklyKpis','goals','alerts'],
+  haccp:['temps','haccpAudit','cleaning','allergens','recalls','incidents','waste','complianceItems','audits'],
+  stock:['stock','stockMoves','products','categories'],
   deliveries:['deliveries','stock','suppliers'],
   checklists:['checklists'],
-  planning:['shifts','team','leave','leaveHolidays'],
-  reservations:['reservations','customers']
+  planning:['shifts','team','leave','leaveHolidays','training','managerTasks'],
+  reservations:['reservations'],
+  recipes:['recipes','stock','products','categories','recipeTarget','recipeWarning'],
+  documents:['documentEntries'],
+  hr:['team','shifts','leave','leaveHolidays','training','documentEntries','payrollSettings'],
+  team:['team','shifts','leave','training','tasks','managerTasks'],
+  orders:['orders','sales'],
+  suppliers:['suppliers'],
+  purchases:['purchases','suppliers','stock'],
+  invoices:['invoices','suppliers','purchases'],
+  customers:['customers','reservations'],
+  loyalty:['loyalty','customers'],
+  ai:[]
 };
 const WORKSPACE_WRITE_BY_PERMISSION={
-  operations:['tasksDate','tasks'],
-  haccp:['temps','haccpAudit'],
-  stock:['stock'],
-  deliveries:['deliveries'],
+  operations:['tasksDate','tasks','briefings','handover','maintenance','equipment'],
+  finance:['revenue','covers','expenses','sales','financeHistory','expenseEntries','cashChecks','weeklyKpis','goals','alerts'],
+  haccp:['temps','haccpAudit','cleaning','allergens','recalls','incidents','waste','complianceItems','audits'],
+  stock:['stock','stockMoves','products','categories'],
+  deliveries:['deliveries','stock'],
   checklists:['checklists'],
-  planning:['shifts','leave','leaveHolidays'],
-  reservations:['reservations']
+  planning:['shifts','leave','leaveHolidays','training','tasks','managerTasks'],
+  reservations:['reservations'],
+  recipes:['recipes','recipeTarget','recipeWarning'],
+  documents:['documentEntries'],
+  hr:['team','shifts','leave','leaveHolidays','training','documentEntries','payrollSettings'],
+  team:['team','shifts','leave','training','tasks','managerTasks'],
+  orders:['orders','sales'],
+  suppliers:['suppliers'],
+  purchases:['purchases','stock'],
+  invoices:['invoices','purchases'],
+  customers:['customers','reservations'],
+  loyalty:['loyalty'],
+  ai:[]
+};
+const PAGE_PERMISSION={
+  operations:'operations',maintenance:'operations',equipment:'operations',briefing:'operations',handover:'operations',taskManager:'operations',
+  finance:'finance',cashRegister:'finance',weeklyKpi:'finance',goals:'finance',alerts:'finance',
+  stock:'stock',stockMoves:'stock',products:'stock',categories:'stock',
+  deliveries:'deliveries',haccp:'haccp',compliance:'haccp',incidents:'haccp',waste:'haccp',recalls:'haccp',allergens:'haccp',cleaning:'haccp',audits:'haccp',
+  checklists:'checklists',planning:'planning',leave:'planning',training:'planning',
+  reservations:'reservations',recipes:'recipes',documents:'documents',hrTools:'hr',team:'team',
+  orders:'orders',suppliers:'suppliers',purchases:'purchases',invoices:'invoices',customers:'customers',loyalty:'loyalty',ai:'ai'
 };
 function cloudRestaurantContext(identity,restaurantId){const restaurant=(identity?.restaurants||[]).find(x=>x.id===restaurantId);if(!restaurant)return{restaurant:null,memberships:[],manager:false};const memberships=(identity?.memberships||[]).filter(m=>m.organization_id===restaurant.organization_id&&(!m.restaurant_id||m.restaurant_id===restaurantId));const manager=memberships.some(m=>['network_admin','network_manager'].includes(m.role)&&!m.restaurant_id)||memberships.some(m=>m.restaurant_id===restaurantId&&['restaurant_admin','director','manager'].includes(m.role));return{restaurant,memberships,manager}}
 function cloudWorkspaceKeys(identity,restaurantId,map){const ctx=cloudRestaurantContext(identity,restaurantId);if(!ctx.restaurant)return[];if(ctx.manager)return[...CLOUD_WORKSPACE_KEYS];const out=new Set();for(const membership of ctx.memberships)if(membership.restaurant_id===restaurantId)for(const permission of membership.permissions||[])for(const key of map[permission]||[])out.add(key);return[...out]}
@@ -158,7 +191,7 @@ export function cloudPageAllowed(identity,page,restaurantId){
     }
     if(membership.restaurant_id!==restaurantId)continue;
     if(ADMIN_ROLES.has(role))return true;
-    if((membership.permissions||[]).includes(page))return true;
+    const permission=PAGE_PERMISSION[page]||page;if((membership.permissions||[]).includes(permission))return true;
   }
   return false;
 }
