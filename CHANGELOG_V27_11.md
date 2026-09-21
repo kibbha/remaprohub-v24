@@ -24,3 +24,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 ## Validation
 - Suite complète `npm test` validée sur V27.11.0 après le dernier enrichissement planning/menu.
 - Validation GitHub Actions finale : succès.
+
+## Automatisation gestion – lot 2
+- Plan d’achats automatique groupé par fournisseur à partir des seuils de stock.
+- Budget de réassort estimé et détection des articles sans fournisseur attribué.
+- Détection des recettes touchées par les variations de prix fournisseurs.
+- Vue Finance enrichie avec engagements planifiés indicatifs (réassort + planning salarial).
+- Nouveau raccourci IA dédié à la préparation des achats.

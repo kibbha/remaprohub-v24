@@ -30,12 +30,47 @@ export function supplierPriceAlerts(state,threshold=.08){
   return alerts.sort((a,b)=>Math.abs(b.changePct)-Math.abs(a.changePct));
 }
 
+function latestSupplierForStock(state,stockId){
+  const id=String(stockId||'');
+  const prices=(state?.priceHistory||[]).filter(x=>String(x?.stockId||'')===id&&String(x?.supplier||'').trim()).sort((a,b)=>String(b?.recordedAt||b?.date||'').localeCompare(String(a?.recordedAt||a?.date||'')));
+  if(prices[0])return String(prices[0].supplier).trim();
+  const deliveries=(state?.deliveries||[]).filter(x=>String(x?.stockId||'')===id&&String(x?.supplier||'').trim()).sort((a,b)=>String(b?.date||'').localeCompare(String(a?.date||'')));
+  return deliveries[0]?String(deliveries[0].supplier).trim():'';
+}
+
+export function purchasePlan(state){
+  const groups=new Map(),items=reorderSuggestions(state);
+  for(const item of items){
+    const supplier=latestSupplierForStock(state,item.stockId),key=supplier||'__unassigned__',row={...item,supplier};
+    const group=groups.get(key)||{supplier,unassigned:!supplier,items:[],estimatedCost:0};
+    group.items.push(row);group.estimatedCost+=n(item.estimatedCost);groups.set(key,group);
+  }
+  const list=[...groups.values()].map(group=>({...group,estimatedCost:round(group.estimatedCost,2)})).sort((a,b)=>Number(a.unassigned)-Number(b.unassigned)||b.estimatedCost-a.estimatedCost);
+  return{items,totalItems:items.length,estimatedCost:round(items.reduce((sum,x)=>sum+n(x.estimatedCost),0),2),unassignedItems:items.filter(x=>!latestSupplierForStock(state,x.stockId)).length,groups:list};
+}
+
+export function recipeSupplierImpacts(state){
+  const alerts=supplierPriceAlerts(state),byStock=new Map(alerts.map(x=>[String(x.stockId||''),x])),out=[];
+  for(const recipe of state?.recipes||[]){
+    const ingredients=Array.isArray(recipe?.ingredients)?recipe.ingredients:[],matches=ingredients.map(x=>byStock.get(String(x?.stockId||''))).filter(Boolean);
+    if(!matches.length)continue;
+    const rises=matches.filter(x=>x.changePct>0),maxChange=matches.reduce((max,x)=>Math.max(max,Math.abs(n(x.changePct))),0),metrics=calculateRecipeCost(state,recipe);
+    out.push({recipe:String(recipe?.name||''),affectedIngredients:matches.length,risingIngredients:rises.length,maxChangePct:round(maxChange,1),foodCostPercent:round(metrics?.foodCostPercent||0,1),suppliers:[...new Set(matches.map(x=>x.supplier).filter(Boolean))]});
+  }
+  return out.sort((a,b)=>b.maxChangePct-a.maxChangePct);
+}
+
+export function managementOutlook(state,now=new Date()){
+  const finance=financeTotals(state,'week',now),labor=plannedLabor(state,now,7),purchases=purchasePlan(state),currentResult=finance.revenue-finance.expenses,plannedCommitments=labor.cost+purchases.estimatedCost;
+  return{weekRevenue:round(finance.revenue,2),weekExpenses:round(finance.expenses,2),currentResult:round(currentResult,2),plannedLaborCost:round(labor.cost,2),reorderBudget:round(purchases.estimatedCost,2),plannedCommitments:round(plannedCommitments,2),commitmentsToRevenuePct:finance.revenue?round(plannedCommitments/finance.revenue*100,1):0};
+}
+
 export function openHaccpIssues(state){return(state?.temps||[]).map((reading,index)=>{if(reading?.conforming!==false)return null;const status=haccpReadingStatus(state,reading.id);if(status.cancelled||status.resolved)return null;return{index,id:String(reading.id||''),zone:String(reading.zone||''),equipment:String(reading.equipment||''),value:n(reading.value),min:reading.min,max:reading.max,action:String(reading.action||''),responsible:String(reading.responsible||''),recordedAt:String(reading.recordedAt||reading.date||'')}}).filter(Boolean)}
 
 export function onboardingHealth(state){const checks=[{key:'restaurant',done:!!String(state?.preferences?.restaurant||'').trim()},{key:'team',done:(state?.team||[]).length>0},{key:'stock',done:(state?.stock||[]).length>0},{key:'recipes',done:(state?.recipes||[]).length>0},{key:'haccp',done:(state?.temps||[]).length>0},{key:'finance',done:(state?.financeHistory||[]).length>0}],done=checks.filter(x=>x.done).length;return{score:Math.round(done/checks.length*100),done,total:checks.length,missing:checks.filter(x=>!x.done).map(x=>x.key)}}
 
 export function managerSnapshot(state,now=new Date()){
-  const finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
+  const finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
   if(haccp.length)priorities.push({code:'haccp',severity:'urgent',count:haccp.length});if(overdueInvoices.length)priorities.push({code:'overdueInvoices',severity:'warning',count:overdueInvoices.length});if(reorder.length)priorities.push({code:'stock',severity:'warning',count:reorder.length,value:round(reorder.reduce((sum,x)=>sum+x.estimatedCost,0),2)});const rising=priceAlerts.filter(x=>x.changePct>0);if(rising.length)priorities.push({code:'supplierPrice',severity:'warning',count:rising.length,value:rising[0]?.changePct||0});if(recipes.critical)priorities.push({code:'foodCost',severity:'warning',count:recipes.critical,value:recipes.averageFoodCost});const urgentManager=managerTasks.filter(x=>x.priority==='urgent').length;if(urgentManager)priorities.push({code:'managerTasks',severity:'urgent',count:urgentManager});if(tasks.length)priorities.push({code:'dailyTasks',severity:'info',count:tasks.length});if(labor.missingRates.length)priorities.push({code:'laborRate',severity:'info',count:labor.missingRates.length});if(setup.score<100)priorities.push({code:'setup',severity:'info',count:setup.score});
-  return{generatedAt:now.toISOString(),finance,reorder,priceAlerts,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
+  return{generatedAt:now.toISOString(),finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
 }
