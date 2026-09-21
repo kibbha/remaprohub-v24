@@ -174,3 +174,21 @@ html[data-theme="dark"] .sync-badge.bad{background:#4b2d28;color:#ffc0b7;border-
 .btn.primary,.nav button:active,.nav button.active{background:linear-gradient(135deg,var(--accent),color-mix(in srgb,var(--accent),#fff 20%))}
 .form input:focus,.form select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent),transparent 84%)}
 .module:after,.document-preview-section h5{color:var(--accent)}
+
+
+/* V27.10 — app security and account administration */
+.security-shell{min-height:100dvh;display:grid;place-items:center;padding:24px;background:linear-gradient(180deg,#fbf7f1,#efe2d5)}
+.security-card{width:min(440px,100%);background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:24px;box-shadow:var(--shadow);text-align:center}
+.security-card>img{width:96px;height:96px;object-fit:contain;margin:0 auto 8px}
+.security-card h1{margin:8px 0 4px}
+.security-form{text-align:left;margin-top:16px}
+.biometric-btn{width:100%;margin-top:14px;background:var(--accent);color:white;border-color:transparent}
+.link-btn{width:100%;background:transparent;border-color:transparent;box-shadow:none;color:var(--accent)}
+.security-separator{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--muted);font-size:12px}
+.security-separator:before,.security-separator:after{content:"";height:1px;background:var(--line);flex:1}
+.security-note{display:block;margin-top:14px}
+.account-editor{padding:14px;border:1px solid var(--line);border-radius:var(--radius);background:color-mix(in srgb,var(--panel) 88%,var(--accent) 12%);margin-bottom:14px}
+.account-row{align-items:flex-start}
+.account-row .row-actions{max-width:48%;justify-content:flex-end}
+#securitySettingsForm .actions{margin-top:6px}
+@media(max-width:620px){.security-shell{padding:14px}.security-card{padding:20px 16px}.account-row{display:block}.account-row .row-actions{max-width:none;margin-top:10px;justify-content:flex-start}}
