@@ -55,3 +55,8 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - L’assistant indique lorsqu’une action confirmable existe dans l’app sans prétendre l’avoir exécutée.
 - Ajout d’une alerte Android optionnelle « Actions manager », désactivée par défaut pour éviter le bruit.
 - L’écran IA affiche maintenant le nombre total d’actions prêtes.
+
+## Réassort précis – lot 7
+- Chaque article peut maintenant définir un stock cible distinct du stock minimum.
+- Les suggestions de commande utilisent ce stock cible lorsqu’il est renseigné, sinon conservent le calcul automatique.
+- La comparaison des fournisseurs refuse désormais les comparaisons de prix entre unités différentes afin d’éviter de faux gains (par exemple carton vs kg).
