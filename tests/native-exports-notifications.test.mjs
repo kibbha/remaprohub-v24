@@ -6,7 +6,7 @@ assert.ok(pkg.dependencies['@capacitor/filesystem']);
 assert.ok(pkg.dependencies['@capacitor/local-notifications']);
 assert.match(restored,/nativePlugin\('LocalNotifications'\)/);
 assert.match(restored,/requestPermissions\(\)/);
-assert.match(restored,/plugin\.schedule\(\{notifications\}\)/);
+assert.match(restored,/plugin\.schedule\(\{notifications\}\)/);assert.match(restored,/managerActions/);assert.match(restored,/id:7405/);assert.match(restored,/managerReadyActions\(s\)/);
 assert.match(restored,/exportManagementPdf/);
 assert.match(restored,/application\/pdf/);
 assert.match(restored,/nativePlugin\('Share'\)/);
