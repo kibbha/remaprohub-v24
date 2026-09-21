@@ -28,7 +28,7 @@ export function saveCloudConfig(url,key){
   const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
-  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)plugin.remove({key:SESSION_KEY}).catch(()=>{})}
+  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}}
   return true;
 }
 export function disconnectCloud(){
@@ -68,7 +68,7 @@ export async function ensureFreshCloudSession(){
   let session=cloudSession();
   if(!session)return null;
   if(Number(session.expires_at||0)*1000-Date.now()<60_000){
-    try{session=await refreshCloudSession()}catch{localStorage.removeItem(SESSION_KEY);return null}
+    try{session=await refreshCloudSession()}catch{await removeStoredSession();return null}
   }
   return session;
 }
