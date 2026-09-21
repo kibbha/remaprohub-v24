@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,aiEndpoint,buildAiContext,callRemaproAi} from '../src/ai.js';
+import {signInCloud} from '../src/cloud.js';
 
 const values=new Map();
 globalThis.localStorage={
@@ -14,7 +15,18 @@ assert.equal(saveCloudConfig('https://project.supabase.co/','anon-test-key'),tru
 assert.equal(cloudConfigured(),true);
 assert.deepEqual(cloudConfig(),{url:'https://project.supabase.co',key:'anon-test-key'});
 assert.equal(aiEndpoint(),'https://project.supabase.co/functions/v1/remapro-ai');
-values.set('remaprohub-sb-session',JSON.stringify({access_token:'user-jwt',refresh_token:'refresh-token',expires_at:4102444800}));
+let requested;
+globalThis.fetch=async (url,options={})=>{
+  if(url.includes('/auth/v1/token?grant_type=password')){
+    const body=JSON.parse(options.body);
+    assert.equal(body.email,'ai@example.com');
+    assert.equal(body.password,'test-password');
+    return {ok:true,json:async()=>({access_token:'user-jwt',refresh_token:'refresh-token',expires_at:4102444800})};
+  }
+  requested={url,options};
+  return {ok:true,json:async()=>({answer:'OK'})};
+};
+await signInCloud('ai@example.com','test-password');
 
 const state={
   preferences:{restaurant:'Bistro',currency:'CHF'},
@@ -32,11 +44,6 @@ assert.equal(ctx.finance.day.revenue,120);
 assert.equal(ctx.operations.openTasks.length,1);
 assert.equal(ctx.stock.low[0].name,'Rice');
 
-let requested;
-globalThis.fetch=async (url,options)=>{
-  requested={url,options};
-  return {ok:true,json:async()=>({answer:'OK'})};
-};
 const response=await callRemaproAi({action:'chat',question:'Status?',language:'fr',context:ctx});
 assert.equal(response.answer,'OK');
 assert.equal(requested.url,'https://project.supabase.co/functions/v1/remapro-ai');
