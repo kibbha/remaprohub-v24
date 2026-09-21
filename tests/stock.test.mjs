@@ -16,6 +16,7 @@ assert.match(app,/name="stockId" required/);
 assert.match(app,/name="qty" type="number" min="0\.01"/);
 assert.match(app,/stockAvailable\(state,x\)/);
 assert.match(app,/name="reorderTarget"/);
+assert.match(app,/id="deliverySupplier"/);assert.match(app,/id="deliveryStock"/);assert.match(app,/suggestedSupplierForStock\(state,deliveryStock\.value\)/);
 const targetState={stock:[],deliveries:[],waste:[],stockMoves:[]};const targetItem=recordValidated(targetState,'stock',{name:'Beans',unit:'kg',qty:2,price:4,min:1,reorderTarget:6});assert.ok(targetItem);assert.equal(targetItem.reorderTarget,6);
 
 console.log('Stock and delivery reconciliation OK');
