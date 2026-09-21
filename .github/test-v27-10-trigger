@@ -2,3 +2,4 @@ ReMaPro Hub V27.10 tests-only validation
 Retry after unlock separator i18n fix
 Retry after Supabase runtime bootstrap
 Final validation after active Supabase backend and owner onboarding
+Final auth onboarding + live Supabase backend validation
