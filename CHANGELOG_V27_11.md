@@ -37,3 +37,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Génération en un clic des tâches correctives HACCP pour les non-conformités ouvertes, sans doublons.
 - Application confirmée du prix conseillé sur une recette pour revenir à l’objectif de food cost.
 - Les actions automatiques restent proposées et nécessitent une validation humaine avant toute écriture métier.
+
+## Simplicité et positionnement – lot 4
+- Le cockpit manager regroupe maintenant les actions immédiatement exécutables et les prochaines étapes de configuration.
+- Les actions prêtes renvoient directement vers HACCP, achats ou recettes selon le besoin.
+- Les éléments manquants de mise en route sont accessibles depuis le tableau de bord.
+- L’écran de ventes/commandes est explicitement présenté comme un suivi opérationnel : ReMaPro Hub ne devient pas un système de caisse et n’encaisse aucun paiement.
