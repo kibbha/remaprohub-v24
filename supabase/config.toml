@@ -12,3 +12,6 @@ verify_jwt = true
 
 [functions.remapro-revenuecat-webhook]
 verify_jwt = false
+
+[functions.remapro-bootstrap]
+verify_jwt = true
