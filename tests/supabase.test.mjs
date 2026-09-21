@@ -5,6 +5,9 @@ const base=readFileSync('supabase/migrations/001_initial_schema.sql','utf8');
 const v27=readFileSync('supabase/migrations/002_v27_permissions_and_plans.sql','utf8');
 const play=readFileSync('supabase/migrations/003_v27_7_play_security_billing.sql','utf8');
 const security=readFileSync('supabase/migrations/004_v27_10_security_accounts_audit.sql','utf8');
+const alignment=readFileSync('supabase/migrations/005_v27_10_permission_alignment.sql','utf8');
+const privateHelpers=readFileSync('supabase/migrations/006_v27_10_private_auth_helpers.sql','utf8');
+const config=readFileSync('supabase/config.toml','utf8');
 
 assert.match(base,/create table if not exists public\.organizations/);
 assert.match(base,/create table if not exists public\.restaurants/);
@@ -57,3 +60,12 @@ assert.match(security,/alter table public\.audit_logs enable row level security/
 assert.match(security,/revoke insert, update, delete on public\.memberships from authenticated/);
 assert.match(security,/grant select on public\.memberships to authenticated/);
 assert.match(security,/restaurant_admin','director','manager/);
+
+for(const permission of ['finance','documents','hr','team','orders','suppliers','purchases','invoices','customers','loyalty','ai'])
+  assert.match(alignment,new RegExp(`'${permission}'`));
+assert.match(alignment,/has_restaurant_permission\(restaurant_id,'finance'\)/);
+assert.match(alignment,/has_restaurant_permission\(restaurant_id,'documents'\)/);
+assert.match(privateHelpers,/create or replace function private\.is_org_member/);
+assert.match(privateHelpers,/create or replace function public\.is_org_member[\s\S]*?security invoker/);
+assert.match(privateHelpers,/drop function if exists public\.handle_new_user/);
+assert.match(config,/\[functions\.remapro-bootstrap\][\s\S]*?verify_jwt\s*=\s*true/);
