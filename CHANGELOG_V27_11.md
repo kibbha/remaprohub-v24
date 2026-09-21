@@ -43,3 +43,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Les actions prêtes renvoient directement vers HACCP, achats ou recettes selon le besoin.
 - Les éléments manquants de mise en route sont accessibles depuis le tableau de bord.
 - L’écran de ventes/commandes est explicitement présenté comme un suivi opérationnel : ReMaPro Hub ne devient pas un système de caisse et n’encaisse aucun paiement.
+
+## Optimisation fournisseurs – lot 5
+- Comparaison automatique des derniers prix connus par fournisseur pour un même article.
+- Détection du fournisseur actuellement le moins cher à partir de l’historique des factures scannées.
+- Estimation de l’économie potentielle sur le prochain réassort lorsque plusieurs fournisseurs sont connus.
+- Affichage des opportunités directement dans Achats, sans changer automatiquement de fournisseur.
