@@ -211,3 +211,10 @@ html[data-theme="dark"] .sync-badge.bad{background:#4b2d28;color:#ffc0b7;border-
 .quick-prompts{display:flex;flex-wrap:wrap;gap:8px}
 .page-actions{margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 @media(max-width:640px){.manager-focus-head{align-items:flex-start}.intelligence-grid{grid-template-columns:1fr}.quick-prompts .btn{white-space:normal;text-align:left}}
+
+/* V27.11 action center */
+.manager-subsection{margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#ded6cc)}
+.manager-subsection>.artisan-eyebrow{display:block;margin-bottom:4px}
+.manager-setup{margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#ded6cc);display:grid;gap:8px}
+.manager-setup>span{font-size:.9rem;font-weight:700}
+.purchase-plan-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
