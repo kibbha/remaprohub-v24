@@ -12,5 +12,7 @@ assert.match(restored,/application\/pdf/);
 assert.match(restored,/nativePlugin\('Share'\)/);
 assert.match(restored,/nativePlugin\('Filesystem'\)/);
 assert.match(workflow,/workflow_dispatch:/);
-assert.doesNotMatch(workflow,/\n\s*push:/);
+const controlledPushTrigger="  push:\n    branches: [rebuild/remaprohub-clean]\n    paths:\n      - '.github/final-build-trigger'\n";
+assert.ok(workflow.includes(controlledPushTrigger),'Android build push trigger must stay restricted to the final-build sentinel');
+assert.equal((workflow.match(/\n  push:/g)||[]).length,1,'Only one controlled push trigger is allowed');
 console.log('Native exports, PDF sharing and real notification wiring OK');
