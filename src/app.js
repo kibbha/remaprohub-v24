@@ -91,12 +91,14 @@ function help(){return `<section>${head(t('help'))}<div class="modules">${['help
 function securityGate(){
   const cfg=securitySettings(),session=cloudSession(),email=rememberedSecurityEmail()||cloudIdentity?.user?.email||session?.user?.email||'';
   if(securityBooting)return `<main class="security-shell"><section class="security-card"><img src="assets-remaprohub-logo.png" alt="ReMaPro Hub"><h1>ReMaPro Hub</h1><p class="muted">${t('securityInitializing')}</p></section></main>`;
-  const signup=!session&&securityAuthMode==='signup';
+  const signup=!session&&securityAuthMode==='signup',developer=!session&&securityAuthMode==='developer'&&developerAccess?.enabled;
   const authForm=signup
     ?`<form id="securitySignupForm" class="form security-form"><input name="name" required autocomplete="name" placeholder="${t('ownerName')}"><input name="restaurantName" required placeholder="${t('establishmentName')}"><input name="email" type="email" required autocomplete="username" value="${esc(email)}" placeholder="${t('email')}"><input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="${t('password')}"><input name="passwordConfirm" type="password" required minlength="8" autocomplete="new-password" placeholder="${t('confirmPassword')}"><button class="btn primary">${t('createOwnerAccount')}</button></form><button id="securityShowSignin" class="btn link-btn">${t('alreadyHaveAccount')}</button>`
-    :`<form id="securityLoginForm" class="form security-form"><input name="email" type="email" required autocomplete="username" value="${esc(email)}" placeholder="${t('email')}"><input name="password" type="password" required autocomplete="current-password" placeholder="${t('password')}"><button class="btn primary">${session?t('unlockWithPassword'):t('signIn')}</button></form>${session?'':`<button id="securityShowSignup" class="btn link-btn">${t('createAccount')}</button>`}<button id="securityForgotPassword" class="btn link-btn">${t('forgotPassword')}</button>`;
+    :developer
+      ?`<form id="developerLoginForm" class="form security-form"><input name="developerId" required autocomplete="username" value="${esc(developerAccess.alias)}" placeholder="${t('developerId')}"><input name="password" type="password" required autocomplete="current-password" placeholder="${t('password')}"><button class="btn primary">${t('developerSignIn')}</button></form><button id="securityShowSignin" class="btn link-btn">${t('standardSignIn')}</button>`
+      :`<form id="securityLoginForm" class="form security-form"><input name="email" type="email" required autocomplete="username" value="${esc(email)}" placeholder="${t('email')}"><input name="password" type="password" required autocomplete="current-password" placeholder="${t('password')}"><button class="btn primary">${session?t('unlockWithPassword'):t('signIn')}</button></form>${session?'':`<button id="securityShowSignup" class="btn link-btn">${t('createAccount')}</button>${developerAccess?.enabled?`<button id="securityShowDeveloper" class="btn developer-entry-btn">${t('developerSignIn')}</button>`:''}`}<button id="securityForgotPassword" class="btn link-btn">${t('forgotPassword')}</button>`;
   const biometric=session&&cfg.biometricEnabled?`<button id="securityBiometric" class="btn biometric-btn">${t('unlockWithBiometrics')}</button><div class="security-separator"><span>${t('orUsePassword')}</span></div>`:'';
-  return `<main class="security-shell"><section class="security-card"><img src="assets-remaprohub-logo.png" alt="ReMaPro Hub"><h1>${session?t('appLocked'):signup?t('createOwnerAccount'):t('secureSignIn')}</h1><p class="muted">${session?t('unlockToContinue'):signup?t('ownerSignupHint'):t('individualAccountRequired')}</p>${biometric}${authForm}<small class="muted security-note">${t('securityNoPasswordStored')}</small></section></main>`;
+  return `<main class="security-shell"><section class="security-card"><img src="assets-remaprohub-logo.png" alt="ReMaPro Hub"><h1>${session?t('appLocked'):signup?t('createOwnerAccount'):developer?t('developerAccess'):t('secureSignIn')}</h1><p class="muted">${session?t('unlockToContinue'):signup?t('ownerSignupHint'):developer?t('developerAccessHint'):t('individualAccountRequired')}</p>${biometric}${authForm}<small class="muted security-note">${t('securityNoPasswordStored')}</small></section></main>`;
 }
 
 async function refreshCloudAdminData(){
@@ -125,22 +127,24 @@ function bindSecurityGate(){
   document.getElementById('securityBiometric')?.addEventListener('click',()=>tryBiometricUnlock(true));
   document.getElementById('securityShowSignup')?.addEventListener('click',()=>{securityAuthMode='signup';render()});
   document.getElementById('securityShowSignin')?.addEventListener('click',()=>{securityAuthMode='signin';render()});
+  document.getElementById('securityShowDeveloper')?.addEventListener('click',()=>{securityAuthMode='developer';render()});
+  document.getElementById('developerLoginForm')?.addEventListener('submit',async e=>{
+    e.preventDefault();const d=new FormData(e.target),developerId=String(d.get('developerId')||''),password=String(d.get('password')||''),button=e.target.querySelector('button');
+    if(!developerAliasMatches(developerId,developerAccess)){alert(t('developerIdInvalid'));return}
+    if(button)button.disabled=true;
+    try{await signInCloud(developerAccess.email,password);rememberSecurityEmail(developerAccess.email);securityAuthMode='signin';appUnlocked=true;cloudIdentity=await loadCachedCloudIdentity();await hydrateCloudIdentity(true)}
+    catch{alert(t('cloudLoginFailed'));if(button)button.disabled=false}
+  });
   document.getElementById('securitySignupForm')?.addEventListener('submit',async e=>{
     e.preventDefault();
     const d=new FormData(e.target),email=String(d.get('email')||'').trim().toLowerCase(),password=String(d.get('password')||''),confirmation=String(d.get('passwordConfirm')||''),name=String(d.get('name')||'').trim(),restaurantName=String(d.get('restaurantName')||'').trim(),button=e.target.querySelector('button');
     if(password!==confirmation){alert(t('passwordMismatch'));return}
     if(button)button.disabled=true;
     try{
-      const result=await signUpCloud(email,password,name,restaurantName);
-      rememberSecurityEmail(email);
-      if(result?.session){
-        appUnlocked=true;securityAuthMode='signin';await hydrateCloudIdentity(true);
-      }else{
-        securityAuthMode='signin';alert(t('confirmationEmailSent'));render();
-      }
-    }catch{
-      alert(t('signupFailed'));if(button)button.disabled=false;
-    }
+      const result=await signUpCloud(email,password,name,restaurantName);rememberSecurityEmail(email);
+      if(result?.session){appUnlocked=true;securityAuthMode='signin';await hydrateCloudIdentity(true)}
+      else{securityAuthMode='signin';alert(t('confirmationEmailSent'));render()}
+    }catch{alert(t('signupFailed'));if(button)button.disabled=false}
   });
   document.getElementById('securityLoginForm')?.addEventListener('submit',async e=>{
     e.preventDefault();const d=new FormData(e.target),email=String(d.get('email')||'').trim().toLowerCase(),password=String(d.get('password')||''),button=e.target.querySelector('button');
