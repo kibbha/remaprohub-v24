@@ -1,4 +1,4 @@
-import{financeTotals,stockAvailable,calculateRecipeCost,haccpReadingStatus,localDate}from'./store.js';
+import{financeTotals,stockAvailable,calculateRecipeCost,haccpReadingStatus,localDate,dailyRoutineStatus}from'./store.js';
 
 const n=value=>Number.isFinite(+value)?+value:0;
 const round=(value,digits=2)=>{const p=10**digits;return Math.round((n(value)+Number.EPSILON)*p)/p};
@@ -146,8 +146,8 @@ export function haccpCorrectiveTaskDrafts(state,now=new Date()){
 }
 
 export function serviceBriefingData(state,now=new Date()){
-  const day=localDate(now),shifts=(state?.shifts||[]).filter(x=>String(x?.date||'')===day).map(x=>({employee:String(x.employee||''),start:String(x.start||''),end:String(x.end||'')})),reservations=(state?.reservations||[]).filter(x=>String(x?.time||'').slice(0,10)===day),covers=reservations.reduce((sum,x)=>sum+n(x?.covers),0),haccpIssues=openHaccpIssues(state).length,lowStock=reorderSuggestions(state).length,openTasks=(state?.tasks||[]).filter(x=>Array.isArray(x)&&x[1]===false).length,urgentTasks=(state?.managerTasks||[]).filter(x=>x?.status!=='done'&&x?.priority==='urgent').length;
-  return{day,shifts,reservations:reservations.length,covers:round(covers,0),haccpIssues,lowStock,openTasks,urgentTasks,meaningful:!!(shifts.length||reservations.length||haccpIssues||lowStock||openTasks||urgentTasks)};
+  const day=localDate(now),shifts=(state?.shifts||[]).filter(x=>String(x?.date||'')===day).map(x=>({employee:String(x.employee||''),start:String(x.start||''),end:String(x.end||'')})),reservations=(state?.reservations||[]).filter(x=>String(x?.time||'').slice(0,10)===day),covers=reservations.reduce((sum,x)=>sum+n(x?.covers),0),haccpIssues=openHaccpIssues(state).length,lowStock=reorderSuggestions(state).length,routines=dailyRoutineStatus(state,now),openTasks=routines.pending,urgentTasks=(state?.managerTasks||[]).filter(x=>x?.status!=='done'&&x?.priority==='urgent').length;
+  return{day,shifts,reservations:reservations.length,covers:round(covers,0),haccpIssues,lowStock,openTasks,urgentTasks,routines,meaningful:!!(shifts.length||reservations.length||haccpIssues||lowStock||openTasks||urgentTasks)};
 }
 
 export function equipmentAttention(state,now=new Date(),windowDays=30){
@@ -173,7 +173,7 @@ export function maintenanceTaskDrafts(state,now=new Date()){
 
 export function dailyManagerReportData(state,now=new Date()){
   const day=localDate(now),finance=(state?.financeHistory||[]).find(x=>String(x?.date||'')===day)||{},service=serviceBriefingData(state,now),trend=financeTrend(state,now),supplierSavings=supplierPriceOpportunities(state),recipes=recipePortfolio(state),openOrders=(state?.orders||[]).filter(x=>String(x?.date||x?.dateTime||'').slice(0,10)===day&&!['paid','cancelled'].includes(String(x?.status||''))).length,pendingInvoices=(state?.invoices||[]).filter(x=>x?.status!=='paid').length,revenue=n(finance.revenue),expenses=n(finance.expenses),covers=n(finance.covers),result=revenue-expenses;
-  const equipment=equipmentAttention(state,now);return{day,revenue:round(revenue,2),expenses:round(expenses,2),result:round(result,2),covers:round(covers,0),avgTicket:round(covers?revenue/covers:0,2),service,trend,openOrders,pendingInvoices,haccpIssues:openHaccpIssues(state).length,lowStock:reorderSuggestions(state).length,urgentTasks:(state?.managerTasks||[]).filter(x=>x?.status!=='done'&&x?.priority==='urgent').length,supplierSavings:supplierSavings.length,equipmentAttention:equipment.length,outOfService:equipment.filter(x=>x.reason==='outOfService').length,foodCostAverage:recipes.averageFoodCost,meaningful:!!(revenue||expenses||covers||service.meaningful||openOrders||pendingInvoices||equipment.length)};
+  const equipment=equipmentAttention(state,now),routines=dailyRoutineStatus(state,now);return{day,revenue:round(revenue,2),expenses:round(expenses,2),result:round(result,2),covers:round(covers,0),avgTicket:round(covers?revenue/covers:0,2),service,trend,routines,openOrders,pendingInvoices,haccpIssues:openHaccpIssues(state).length,lowStock:reorderSuggestions(state).length,urgentTasks:(state?.managerTasks||[]).filter(x=>x?.status!=='done'&&x?.priority==='urgent').length,supplierSavings:supplierSavings.length,equipmentAttention:equipment.length,outOfService:equipment.filter(x=>x.reason==='outOfService').length,foodCostAverage:recipes.averageFoodCost,meaningful:!!(revenue||expenses||covers||service.meaningful||openOrders||pendingInvoices||equipment.length)};
 }
 
 export function managerReadyActions(state,now=new Date()){
