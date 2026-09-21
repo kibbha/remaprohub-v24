@@ -55,6 +55,16 @@ export async function signInCloud(email,password){
   if(!mail||!secret)throw new Error('AUTH_REQUIRED');
   return await saveSession(await authRequest('/auth/v1/token?grant_type=password',{body:{email:mail,password:secret}}));
 }
+export async function signUpCloud(email,password,name,restaurantName){
+  const mail=String(email||'').trim().toLowerCase(),secret=String(password||''),display=String(name||'').trim(),restaurant=String(restaurantName||'').trim();
+  if(!mail||!secret||!display||!restaurant)throw new Error('SIGNUP_REQUIRED');
+  const data=await authRequest('/auth/v1/signup',{body:{
+    email:mail,password:secret,
+    data:{name:display,first_name:display,remapro_signup:true,organization_name:restaurant,restaurant_name:restaurant}
+  }});
+  const session=data?.access_token&&data?.refresh_token?await saveSession(data):null;
+  return {user:data?.user||null,session,confirmationRequired:!session};
+}
 export async function requestPasswordReset(email,redirectTo=''){
   const mail=String(email||'').trim().toLowerCase();
   if(!mail)throw new Error('EMAIL_REQUIRED');
