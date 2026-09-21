@@ -35,6 +35,10 @@ assert.equal(pkg.version,'27.11.0');
 assert.match(pkg.dependencies['@capgo/capacitor-native-biometric'],/^\^?7\./);
 assert.match(app,/APP_VERSION='27\.11\.0'/);
 assert.match(app,/function securityGate\(\)/);
+assert.match(app,/snapshot\.priorities\.filter\(item=>canPage\(priorityPage\(item\)\)\)/);
+assert.match(app,/canPage\('finance'\)&&trend\.comparable/);
+assert.match(app,/aiButton=canPage\('ai'\)/);
+
 assert.match(app,/id="securityLoginForm"/);
 assert.match(app,/id="securitySignupForm"/);
 assert.match(app,/signUpCloud/);

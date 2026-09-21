@@ -66,3 +66,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Tous les autres modules restent accessibles dans des groupes repliés pour éviter l’effet « usine à gaz ».
 - Ajout d’une recherche instantanée des fonctions, respectant les droits d’accès de l’utilisateur.
 - Aucun module n’est supprimé : la simplification concerne uniquement la navigation.
+
+## Cockpit selon les droits – lot 9
+- Le cockpit « À surveiller aujourd’hui » respecte désormais strictement les droits d’accès de chaque compte.
+- Les tendances financières ne sont affichées qu’aux utilisateurs autorisés à consulter Finance.
+- Les priorités, actions prêtes et raccourcis de configuration sont filtrés par module autorisé.
+- Le bouton ReMaPro AI disparaît pour les profils sans droit IA.
