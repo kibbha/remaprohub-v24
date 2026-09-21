@@ -60,3 +60,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Chaque article peut maintenant définir un stock cible distinct du stock minimum.
 - Les suggestions de commande utilisent ce stock cible lorsqu’il est renseigné, sinon conservent le calcul automatique.
 - La comparaison des fournisseurs refuse désormais les comparaisons de prix entre unités différentes afin d’éviter de faux gains (par exemple carton vs kg).
+
+## Navigation simplifiée – lot 8
+- L’écran « Plus » met désormais en avant six fonctions essentielles avant les outils avancés.
+- Tous les autres modules restent accessibles dans des groupes repliés pour éviter l’effet « usine à gaz ».
+- Ajout d’une recherche instantanée des fonctions, respectant les droits d’accès de l’utilisateur.
+- Aucun module n’est supprimé : la simplification concerne uniquement la navigation.

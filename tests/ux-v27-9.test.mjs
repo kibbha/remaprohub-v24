@@ -31,6 +31,11 @@ assert.ok(pageListener.indexOf("b.classList?.contains('back')")<pageListener.ind
 for(const name of ['accentColor','density','moduleColumns','navStyle','fontScale','radiusStyle','dashboardCompact'])assert.ok(app.includes(name),name+' missing from app');
 for(const attr of ['dataset.density','dataset.columns','dataset.navStyle','dataset.fontScale','dataset.radiusStyle'])assert.ok(app.includes(attr),attr+' not applied');
 assert.match(app,/style\?\.setProperty\?\.\('--accent'/);
+assert.match(app,/id="moduleSearch"/);
+assert.match(app,/data-module-search/);
+assert.match(app,/data-module-group/);
+for(const key of ['essentials','allTools','findTool','noMatchingTool'])for(const lang of LANGS)assert.ok(catalogue(lang)[key],`${lang}/${key} missing`);
+
 for(const key of ['accentColor','density','moduleColumns','navStyle','fontScale','radiusStyle'])assert.ok(store.includes(key),key+' missing from defaults');
 assert.match(store,/sanitizePreferences/);
 assert.match(store,/validAccent/);

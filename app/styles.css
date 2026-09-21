@@ -228,3 +228,14 @@ html[data-theme="dark"] .sync-badge.bad{background:#4b2d28;color:#ffc0b7;border-
 .trend-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .trend-card>div{display:grid;gap:4px;padding:10px;border:1px solid var(--line,#ded6cc);border-radius:12px}
 @media(max-width:640px){.manager-trends,.trend-card{grid-template-columns:1fr}}
+
+/* V27.11 simplified tool finder */
+.more-essential-card,.more-search-card{margin-bottom:14px}
+.more-essential-card .quick-actions{margin-top:10px}
+.more-search-card{display:grid;gap:8px}
+.more-search-label{font-weight:800}
+.more-search-input{width:100%;min-height:48px;border:1px solid var(--line,#ded6cc);border-radius:14px;background:var(--card,#fff);color:inherit;padding:0 14px;font:inherit}
+.more-section-heading{margin:18px 2px 8px}
+.more-search-empty{padding:16px 4px;text-align:center}
+.more-row[hidden],.more-group[hidden]{display:none!important}
+@media(max-width:640px){.more-essential-card .quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
