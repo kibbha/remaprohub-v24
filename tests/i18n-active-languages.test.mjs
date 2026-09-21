@@ -7,5 +7,7 @@ const app=readFileSync('src/app.js','utf8'),restored=readFileSync('src/restored.
 assert.match(restored,/opts\(LANGS\.map/);
 assert.doesNotMatch(restored,/\['fr','en','de','it','es','pt','nl','zh'\]/);
 assert.match(workflow,/workflow_dispatch:/);
-assert.doesNotMatch(workflow,/\n\s*push:/);
-console.log('Active language gate FR/EN/DE/IT and manual-only build OK');
+const controlledPushTrigger="  push:\n    branches: [rebuild/remaprohub-clean]\n    paths:\n      - '.github/final-build-trigger'\n";
+assert.ok(workflow.includes(controlledPushTrigger),'Android build push trigger must stay restricted to the final-build sentinel');
+assert.equal((workflow.match(/\n  push:/g)||[]).length,1,'Only one controlled push trigger is allowed');
+console.log('Active language gate FR/EN/DE/IT and controlled final-build trigger OK');
