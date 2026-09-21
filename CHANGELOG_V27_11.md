@@ -31,3 +31,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Détection des recettes touchées par les variations de prix fournisseurs.
 - Vue Finance enrichie avec engagements planifiés indicatifs (réassort + planning salarial).
 - Nouveau raccourci IA dédié à la préparation des achats.
+
+## Actions prêtes à exécuter – lot 3
+- Création d’un bon de commande prérempli depuis chaque suggestion d’achat associée à un fournisseur, après confirmation du manager.
+- Génération en un clic des tâches correctives HACCP pour les non-conformités ouvertes, sans doublons.
+- Application confirmée du prix conseillé sur une recette pour revenir à l’objectif de food cost.
+- Les actions automatiques restent proposées et nécessitent une validation humaine avant toute écriture métier.
