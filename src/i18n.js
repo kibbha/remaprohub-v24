@@ -148,6 +148,11 @@ const v2711dEn={readyActions:"Ready actions",salesTrackingOnly:"Operational trac
 const v2711dDe={readyActions:"Bereitstehende Aktionen",salesTrackingOnly:"Nur operative Nachverfolgung: ReMaPro Hub nimmt keine Zahlungen an und ersetzt kein Kassensystem.",pos:"Verkäufe / Bestellungen (Nachverfolgung)"};
 const v2711dIt={readyActions:"Azioni pronte",salesTrackingOnly:"Solo monitoraggio operativo: ReMaPro Hub non incassa pagamenti e non sostituisce il sistema di cassa.",pos:"Vendite / ordini (monitoraggio)"};
 Object.assign(fr,v2711dFr);Object.assign(en,v2711dEn);Object.assign(de,v2711dDe);Object.assign(it,v2711dIt);
+const v2711eFr={supplierSavings:"Économies fournisseurs potentielles",potentialSaving:"Économie potentielle",comparedSuppliers:"fournisseurs comparés"};
+const v2711eEn={supplierSavings:"Potential supplier savings",potentialSaving:"Potential saving",comparedSuppliers:"suppliers compared"};
+const v2711eDe={supplierSavings:"Potenzielle Lieferanteneinsparungen",potentialSaving:"Mögliche Einsparung",comparedSuppliers:"verglichene Lieferanten"};
+const v2711eIt={supplierSavings:"Risparmi potenziali sui fornitori",potentialSaving:"Risparmio potenziale",comparedSuppliers:"fornitori confrontati"};
+Object.assign(fr,v2711eFr);Object.assign(en,v2711eEn);Object.assign(de,v2711eDe);Object.assign(it,v2711eIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
