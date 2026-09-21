@@ -11,7 +11,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      SUPABASE_PROJECT_REF: ohhsytkcpiwcprerunry
+      SUPABASE_PROJECT_REF: gkbzawjlmwjweuqckuxm
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "SUPABASE_ACCESS_TOKEN is not configured"; exit 2; }
           test -n "$SUPABASE_DB_PASSWORD" || { echo "SUPABASE_DB_PASSWORD is not configured"; exit 2; }
-          test "$SUPABASE_PROJECT_REF" = "ohhsytkcpiwcprerunry"
+          test "$SUPABASE_PROJECT_REF" = "gkbzawjlmwjweuqckuxm"
       - name: Link exact ReMaPro Hub project
         run: npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
       - name: Apply database migrations
