@@ -36,6 +36,9 @@ jobs:
           grep -q "APP_VERSION='27.10.0'" /tmp/remapro-ready/src/app.js
           test -f /tmp/remapro-ready/src/security.js
           test -f /tmp/remapro-ready/supabase/migrations/004_v27_10_security_accounts_audit.sql
+          test -f /tmp/remapro-ready/supabase/migrations/005_v27_10_permission_alignment.sql
+          test -f /tmp/remapro-ready/supabase/migrations/006_v27_10_private_auth_helpers.sql
+          test -f /tmp/remapro-ready/supabase/functions/remapro-bootstrap/index.ts
           rsync -a /tmp/remapro-ready/ ./
       - name: Validate restored source
         run: |
