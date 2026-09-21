@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {saveDocument,updateDocument} from '../src/store.js';
 const app=readFileSync('src/app.js','utf8');
-globalThis.localStorage={setItem(){}};
+globalThis.localStorage={getItem(){return null},setItem(){},removeItem(){}};
 const state={documentEntries:[]};
 assert.equal(saveDocument(state,{type:'inventory',date:'2026-09-18',title:'Initial',details:'A\nB'}),true);
 const createdAt=state.documentEntries[0].createdAt;
