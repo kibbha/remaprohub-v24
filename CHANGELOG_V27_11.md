@@ -121,3 +121,11 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - L’écran Opérations affiche maintenant l’avancement global, les points d’ouverture restants et les points de fermeture restants.
 - Lorsque toutes les tâches de fermeture sont validées, ReMaPro affiche clairement « Fermeture prête ».
 - Le rapport manager quotidien inclut le taux de réalisation des routines et les tâches de fermeture encore ouvertes.
+
+## Fermeture assistée – lot 17
+- Ajout d’un contrôle de fermeture dans Opérations.
+- ReMaPro croise les tâches de fermeture restantes et les non-conformités HACCP ouvertes avant d’afficher « Fermeture prête ».
+- Les commandes opérationnelles encore ouvertes restent visibles comme avertissement sans bloquer automatiquement la fermeture.
+- Le contrôle propose un accès direct à la transmission de service.
+- Le rapport manager quotidien reprend désormais l’état de fermeture et le nombre de points bloquants.
+- ReMaPro AI inspecte aussi cet état avant de formuler ses recommandations de fin de service.
