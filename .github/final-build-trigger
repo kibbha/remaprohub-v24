@@ -1,3 +1,4 @@
 ReMaPro Hub V27.8.0 final Android validation - attempt 2 (Capacitor 7 billing compatibility)
 V27.8 validation after sentinel-test fix
 V27.8 validation after billing form architecture guard fix
+V27.8 validation after RevenueCat architecture assertion fix
