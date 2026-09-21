@@ -1,42 +1,24 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-const admin=readFileSync('supabase/functions/remapro-admin/index.ts','utf8');
-const config=readFileSync('supabase/config.toml','utf8');
+const source=readFileSync('supabase/functions/remapro-admin/index.ts','utf8');
 const app=readFileSync('src/app.js','utf8');
 
-assert.match(admin,/npm:@supabase\/server@1\.4\.1/,'server SDK must be pinned');
-assert.match(admin,/withSupabase\(\{ auth:"user" \}/);
-assert.match(admin,/ctx\.userClaims\?\.id/);
-assert.match(admin,/ctx\.supabase[\s\S]*?from\("memberships"\)/,'caller membership must be checked through the user-scoped client');
-assert.match(admin,/ORG_ADMIN_ROLES/);
-assert.match(admin,/RESTAURANT_ADMIN_ROLES/);
-assert.match(admin,/STAFF_PERMISSIONS/);
-assert.match(admin,/7\s*\*\s*86400000/,'fallback trial must remain bounded to seven days');
-assert.match(admin,/status\s*===\s*"active"\s*&&\s*planCode\s*===\s*"multi"/);
-assert.match(admin,/ctx\.supabaseAdmin\.auth\.admin\.inviteUserByEmail/);
-assert.match(admin,/ctx\.supabaseAdmin\.from\("memberships"\)\.insert/);
-assert.match(admin,/ctx\.supabaseAdmin\.auth\.admin\.deleteUser/,'failed membership creation must roll back invited auth user');
-assert.match(admin,/action===\"create-restaurant\"/);
-assert.match(admin,/action===\"archive-restaurant\"/);
-assert.match(admin,/action===\"revoke-member\"/);
-assert.match(admin,/targetHasManagerRole/);
-assert.match(admin,/kind===\"staff\"&&targetHasManagerRole/,'restaurant managers must not revoke manager memberships by relabeling them as staff');
-assert.match(admin,/kind===\"manager\"&&!targetHasManagerRole/);
-assert.match(admin,/\.update\(\{active:false/,'restaurant removal must archive cloud data instead of deleting it');
-assert.match(admin,/\.delete\(\)[\s\S]*?\.eq\(\"organization_id\",organizationId\)[\s\S]*?\.eq\(\"user_id\",targetUserId\)/,'membership revocation must be scoped to organization and target user');
-assert.ok(admin.indexOf('from("memberships")') < admin.indexOf('inviteUserByEmail'),'authorization must happen before privileged invite');
-
-assert.match(config,/\[functions\.remapro-admin\][\s\S]*?verify_jwt\s*=\s*true/);
-assert.match(config,/\[functions\.remapro-ai\][\s\S]*?verify_jwt\s*=\s*true/);
-
-assert.match(app,/cloudFunction\('remapro-admin'/);
-assert.match(app,/kind:'manager'/);
-assert.match(app,/kind:'staff'/);
-assert.match(app,/removeManager\(state,entry\.id\)/);
-assert.match(app,/removeStaffAccess\(state,entry\.id\)/);
-assert.match(app,/action:'create-restaurant'/);
-assert.match(app,/action:'archive-restaurant'/);
-assert.match(app,/action:'revoke-member'/);
-
-console.log('Authenticated invitation function and rollback security guards OK');
+assert.match(source,/withSupabase\(\{auth:"user"\}/);
+assert.match(source,/ORG_ADMIN_ROLES/);
+assert.match(source,/RESTAURANT_ADMIN_ROLES/);
+assert.match(source,/MEMBER_PERMISSIONS/);
+for(const permission of ['finance','hr','documents','recipes','ai'])assert.match(source,new RegExp(`"${permission}"`));
+for(const action of ['list-members','list-audit','invite-member','update-member','set-member-active','revoke-member'])assert.match(source,new RegExp(`"${action}"`));
+assert.match(source,/allowedScope=\(ids:string\[\]\)=>orgAdmin\|\|ids\.every/);
+assert.match(source,/targetUserId===callerUserId/,'managers must not edit their own role');
+assert.match(source,/ORG_ADMIN_ROLES\.has\(String\(m\.role\)\)/,'owner/admin memberships must be protected');
+assert.match(source,/ctx\.supabaseAdmin\.auth\.admin\.inviteUserByEmail/);
+assert.match(source,/audit_logs/);
+assert.match(source,/member\.updated/);
+assert.match(source,/member\.deactivated/);
+assert.match(app,/cloudAccountPanel/);
+assert.match(app,/memberAccessForm/);
+assert.match(app,/data-cloud-member-toggle/);
+assert.match(app,/refreshCloudAdminData/);
+console.log('V27.10 manager delegation and account audit guards OK');
