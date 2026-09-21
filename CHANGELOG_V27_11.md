@@ -72,3 +72,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Les tendances financières ne sont affichées qu’aux utilisateurs autorisés à consulter Finance.
 - Les priorités, actions prêtes et raccourcis de configuration sont filtrés par module autorisé.
 - Le bouton ReMaPro AI disparaît pour les profils sans droit IA.
+
+## Démarrage express – lot 10
+- Le cockpit propose maintenant au maximum trois prochaines étapes de configuration, dans l’ordre le plus rapide pour rendre ReMaPro utile.
+- Pour initialiser le stock, ReMaPro privilégie le scan d’une facture fournisseur : une seule action peut créer fournisseur, stock, prix, livraison, achat et historique de prix.
+- Le premier fournisseur détecté par facture devient automatiquement le fournisseur préféré d’un nouvel article, sans écraser un choix déjà défini par le manager.
+- À la réception d’une livraison, le fournisseur est prérempli automatiquement depuis le fournisseur préféré ou l’historique connu du produit.
+- La configuration Finance n’est considérée terminée qu’après une vraie saisie de CA/couverts, et non après une simple dépense fournisseur.
