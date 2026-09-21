@@ -103,10 +103,11 @@ export function haccpCorrectiveTaskDrafts(state,now=new Date()){
 }
 
 export function managerReadyActions(state,now=new Date()){
-  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),recipes=recipePortfolio(state);
+  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),recipes=recipePortfolio(state),supplierSavings=supplierPriceOpportunities(state);
   return{
     purchaseOrders:purchases.groups.filter(x=>x.supplier).map(x=>({supplier:x.supplier,items:x.items.length,estimatedCost:x.estimatedCost})),
     haccpTasks,
+    supplierSavings,
     recipePriceUpdates:recipes.items.filter(x=>x.status==='bad'&&x.suggestedPrice>0).map(x=>({name:x.name,suggestedPrice:x.suggestedPrice,foodCostPercent:x.foodCostPercent}))
   };
 }
