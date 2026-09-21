@@ -123,6 +123,12 @@ export function managementOutlook(state,now=new Date()){
   return{weekRevenue:round(finance.revenue,2),weekExpenses:round(finance.expenses,2),currentResult:round(currentResult,2),plannedLaborCost:round(labor.cost,2),reorderBudget:round(purchases.estimatedCost,2),plannedCommitments:round(plannedCommitments,2),commitmentsToRevenuePct:finance.revenue?round(plannedCommitments/finance.revenue*100,1):0};
 }
 
+export function haccpRoutinePresets(state,limit=8){
+  const rows=[...(state?.temps||[])].sort((a,b)=>String(b?.recordedAt||b?.date||'').localeCompare(String(a?.recordedAt||a?.date||''))),seen=new Set(),out=[];
+  for(const row of rows){const equipment=String(row?.equipment||'').trim(),zone=String(row?.zone||'').trim(),key=(zone+'|'+equipment).toLocaleLowerCase();if(!equipment||seen.has(key))continue;seen.add(key);out.push({zone,equipment,min:row?.min??'',max:row?.max??'',responsible:String(row?.responsible||''),lastValue:n(row?.value),lastRecordedAt:String(row?.recordedAt||row?.date||'')});if(out.length>=Math.max(1,Math.trunc(limit)))break}
+  return out;
+}
+
 export function openHaccpIssues(state){return(state?.temps||[]).map((reading,index)=>{if(reading?.conforming!==false)return null;const status=haccpReadingStatus(state,reading.id);if(status.cancelled||status.resolved)return null;return{index,id:String(reading.id||''),zone:String(reading.zone||''),equipment:String(reading.equipment||''),value:n(reading.value),min:reading.min,max:reading.max,action:String(reading.action||''),responsible:String(reading.responsible||''),recordedAt:String(reading.recordedAt||reading.date||'')}}).filter(Boolean)}
 
 export function haccpCorrectiveTaskDrafts(state,now=new Date()){
