@@ -19,9 +19,9 @@ assert.match(sw,/'\.\/icon\.svg'/);
 assert.doesNotMatch(html,/\.\.\/src\/app\.js/);
 const assets=[...sw.matchAll(/'\.\/(?:src\/[^']+|[^']+)'/g)].map(match=>match[0].slice(3,-1));
 for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
-for(const module of ['app.js','restored.js','i18n.js','store.js','ai.js','cloud.js','legal.js','billing.js','security.js'])assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'));
+for(const module of ['app.js','restored.js','i18n.js','store.js','ai.js','cloud.js','legal.js','billing.js','security.js','intelligence.js'])assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'));
 const hash=createHash('sha256');
-for(const asset of ['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','styles.css','icons.svg','manifest.json','icon.svg','assets-remaprohub-logo.png','src/app.js','src/restored.js','src/i18n.js','src/store.js','src/ai.js','src/cloud.js','src/legal.js','src/billing.js','src/security.js']){
+for(const asset of ['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','styles.css','icons.svg','manifest.json','icon.svg','assets-remaprohub-logo.png','src/app.js','src/restored.js','src/i18n.js','src/store.js','src/ai.js','src/cloud.js','src/legal.js','src/billing.js','src/security.js','src/intelligence.js']){
   hash.update(asset);
   hash.update(readFileSync(`app/${asset}`));
 }
