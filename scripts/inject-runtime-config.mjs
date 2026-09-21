@@ -1,7 +1,7 @@
 import {writeFile} from 'node:fs/promises';
 const revenueCat=String(process.env.REVENUECAT_ANDROID_API_KEY||'');
-const supabaseUrl=String(process.env.SUPABASE_URL||'https://ohhsytkcpiwcprerunry.supabase.co').trim().replace(/\/+$/,'');
-const supabaseKey=String(process.env.SUPABASE_PUBLISHABLE_KEY||'').trim();
+const supabaseUrl=String(process.env.SUPABASE_URL||'https://gkbzawjlmwjweuqckuxm.supabase.co').trim().replace(/\/+$/,'');
+const supabaseKey=String(process.env.SUPABASE_PUBLISHABLE_KEY||'sb_publishable_-2UfflP8xdiwoISpcipEUg_vWKu3YuK').trim();
 await writeFile('app/runtime-config.js',
   `globalThis.REMAPRO_REVENUECAT_ANDROID_API_KEY=${JSON.stringify(revenueCat)};\n`+
   `globalThis.REMAPRO_SUPABASE_URL=${JSON.stringify(supabaseUrl)};\n`+
