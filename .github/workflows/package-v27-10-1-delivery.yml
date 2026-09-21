@@ -15,8 +15,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '"version":"27.10.0"' package.json
-          grep -q "APP_VERSION='27.10.0'" src/app.js
+          grep -q '"version":"27.10.1"' package.json
+          grep -q "APP_VERSION='27.10.1'" src/app.js
           test -f src/security.js
           test -f supabase/migrations/004_v27_10_security_accounts_audit.sql
           test -f supabase/migrations/005_v27_10_permission_alignment.sql
@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          zip -r ReMaPro_Hub_V27_10_1_READY.zip .             -x '.git/*'                'node_modules/*'                'android/*'                'ReMaPro_Hub_V27_10_1_READY.zip'                '.github/final-build-trigger'                '.github/test-v27-10-1-trigger'                '.github/delivery-v27-10-1-trigger'                '.github/deploy-v27-10-1-trigger'                '.github/workflows/package-v27-10-1-delivery.yml'
+          zip -r ReMaPro_Hub_V27_10_1_READY.zip .             -x '.git/*'                'node_modules/*'                'android/*'                'ReMaPro_Hub_V27_10_1_READY.zip'                '.github/final-build-trigger'                '.github/test-v27-10-trigger'                '.github/delivery-v27-10-1-trigger'                '.github/deploy-v27-10-trigger'                '.github/workflows/package-v27-10-1-delivery.yml'
           test -s ReMaPro_Hub_V27_10_1_READY.zip
           unzip -t ReMaPro_Hub_V27_10_1_READY.zip
           sha256sum ReMaPro_Hub_V27_10_1_READY.zip
