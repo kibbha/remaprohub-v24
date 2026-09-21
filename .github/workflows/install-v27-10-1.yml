@@ -1,4 +1,4 @@
-name: Install ReMaPro Hub V27.10.1.1
+name: Install ReMaPro Hub V27.10.1
 on:
   workflow_dispatch:
 permissions:
@@ -32,8 +32,8 @@ jobs:
                       raise SystemExit(f'Unsafe ZIP path: {info.filename}')
               archive.extractall(dst)
           PY
-          grep -q '"version":"27.10.0"' /tmp/remapro-ready/package.json
-          grep -q "APP_VERSION='27.10.0'" /tmp/remapro-ready/src/app.js
+          grep -q '"version":"27.10.1"' /tmp/remapro-ready/package.json
+          grep -q "APP_VERSION='27.10.1'" /tmp/remapro-ready/src/app.js
           test -f /tmp/remapro-ready/src/security.js
           test -f /tmp/remapro-ready/supabase/migrations/004_v27_10_security_accounts_audit.sql
           test -f /tmp/remapro-ready/supabase/migrations/005_v27_10_permission_alignment.sql
@@ -51,7 +51,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
-          git reset -- .github/final-build-trigger .github/test-v27-10-1-trigger .github/delivery-v27-10-1-trigger .github/deploy-v27-10-1-trigger 2>/dev/null || true
+          git reset -- .github/final-build-trigger .github/test-v27-10-trigger .github/delivery-v27-10-1-trigger .github/deploy-v27-10-trigger 2>/dev/null || true
           if git diff --cached --quiet; then
             echo 'V27.10.1 source already installed.'
           else
