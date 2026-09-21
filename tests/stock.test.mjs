@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {load,stockAvailable,recordWaste,updateWaste,recordDelivery,updateRecord,removeRecord} from '../src/store.js';
+import {load,stockAvailable,recordWaste,updateWaste,recordDelivery,recordValidated,updateRecord,removeRecord} from '../src/store.js';
 const app=readFileSync('src/app.js','utf8');
 globalThis.localStorage={getItem:()=>JSON.stringify({stock:[{name:'Rice',qty:5,min:3,price:2}]}),setItem(){}};
 const state=load(),item=state.stock[0];
@@ -15,6 +15,9 @@ removeRecord(state,'deliveries',0);assert.equal(stockAvailable(state,item),5);
 assert.match(app,/name="stockId" required/);
 assert.match(app,/name="qty" type="number" min="0\.01"/);
 assert.match(app,/stockAvailable\(state,x\)/);
+assert.match(app,/name="reorderTarget"/);
+const targetState={stock:[],deliveries:[],waste:[],stockMoves:[]};const targetItem=recordValidated(targetState,'stock',{name:'Beans',unit:'kg',qty:2,price:4,min:1,reorderTarget:6});assert.ok(targetItem);assert.equal(targetItem.reorderTarget,6);
+
 console.log('Stock and delivery reconciliation OK');
 state.deliveries[0].status='accepted';state.deliveries[0].qty=4;
 state.waste.push({stockId:item.id,product:'Rice',qty:2});
