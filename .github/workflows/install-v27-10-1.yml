@@ -1,0 +1,60 @@
+name: Install ReMaPro Hub V27.10.1.1
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rebuild/remaprohub-clean
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Restore V27.10.1 READY source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ReMaPro_Hub_V27_10_1_READY.zip
+          rm -rf /tmp/remapro-ready && mkdir -p /tmp/remapro-ready
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          z=Path('ReMaPro_Hub_V27_10_1_READY.zip')
+          dst=Path('/tmp/remapro-ready').resolve()
+          with ZipFile(z) as archive:
+              for info in archive.infolist():
+                  target=(dst/info.filename).resolve()
+                  if dst not in target.parents and target != dst:
+                      raise SystemExit(f'Unsafe ZIP path: {info.filename}')
+              archive.extractall(dst)
+          PY
+          grep -q '"version":"27.10.0"' /tmp/remapro-ready/package.json
+          grep -q "APP_VERSION='27.10.0'" /tmp/remapro-ready/src/app.js
+          test -f /tmp/remapro-ready/src/security.js
+          test -f /tmp/remapro-ready/supabase/migrations/004_v27_10_security_accounts_audit.sql
+          test -f /tmp/remapro-ready/supabase/migrations/005_v27_10_permission_alignment.sql
+          test -f /tmp/remapro-ready/supabase/migrations/006_v27_10_private_auth_helpers.sql
+          test -f /tmp/remapro-ready/supabase/functions/remapro-bootstrap/index.ts
+          rsync -a /tmp/remapro-ready/ ./
+      - name: Validate restored source
+        run: |
+          npm install
+          npm test
+      - name: Commit restored V27.10.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git reset -- .github/final-build-trigger .github/test-v27-10-1-trigger .github/delivery-v27-10-1-trigger .github/deploy-v27-10-1-trigger 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo 'V27.10.1 source already installed.'
+          else
+            git commit -m 'install(v27.10): restore READY source'
+            git push origin HEAD:rebuild/remaprohub-clean
+          fi
