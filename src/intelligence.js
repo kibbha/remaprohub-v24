@@ -60,10 +60,12 @@ export function supplierPriceOpportunities(state){
   }
   const out=[];
   for(const [stockId,bucket] of byStock){
-    const offers=[...bucket.values()].map(x=>({supplier:String(x.supplier),price:n(x.unitPrice),date:String(x.date||''),recordedAt:String(x.recordedAt||''),unit:String(x.unit||'')})).sort((a,b)=>a.price-b.price);
+    const all=[...bucket.values()].sort((a,b)=>String(b?.recordedAt||b?.date||'').localeCompare(String(a?.recordedAt||a?.date||''))),current=all[0];
+    if(!current)continue;
+    const currentUnit=String(current.unit||'').trim().toLocaleLowerCase(),offers=[...bucket.values()].map(x=>({supplier:String(x.supplier),price:n(x.unitPrice),date:String(x.date||''),recordedAt:String(x.recordedAt||''),unit:String(x.unit||'')})).filter(x=>String(x.unit||'').trim().toLocaleLowerCase()===currentUnit).sort((a,b)=>a.price-b.price);
     if(offers.length<2)continue;
-    const all=[...bucket.values()].sort((a,b)=>String(b?.recordedAt||b?.date||'').localeCompare(String(a?.recordedAt||a?.date||''))),current=all[0],best=offers[0];
-    if(!current||!best||String(current.supplier)===best.supplier||n(current.unitPrice)<=best.price)continue;
+    const best=offers[0];
+    if(!best||String(current.supplier)===best.supplier||n(current.unitPrice)<=best.price)continue;
     const item=(state?.stock||[]).find(x=>String(x.id)===stockId),currentPrice=n(current.unitPrice),savingPct=(currentPrice-best.price)/currentPrice*100,reorder=reorders.get(stockId),quantity=n(reorder?.quantity),potentialSaving=quantity>0?quantity*(currentPrice-best.price):0;
     out.push({stockId,product:String(item?.name||current.product||''),unit:String(current.unit||best.unit||item?.unit||''),currentSupplier:String(current.supplier||''),currentPrice:round(currentPrice,4),bestSupplier:best.supplier,bestPrice:round(best.price,4),savingPct:round(savingPct,1),reorderQuantity:round(quantity,3),potentialSaving:round(potentialSaving,2),offers:offers.length});
   }
