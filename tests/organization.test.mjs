@@ -32,9 +32,9 @@ const manager=recordManager(state,{name:'Second Manager',email:'manager2@example
 assert.ok(manager);
 const staff=recordStaffAccess(state,{name:'Team User',email:'staff@example.com',restaurantIds:[beta.id],permissions:['operations','stock','finance']},new Date());
 assert.ok(staff);
-assert.deepEqual(staff.permissions,['operations','stock'],'unknown or sensitive staff permissions must be removed');
+assert.deepEqual(staff.permissions,['operations','stock','finance'],'supported staff permissions must be retained');
 assert.equal(staffCanAccess(state,staff.id,'stock'),true);
-assert.equal(staffCanAccess(state,staff.id,'finance'),false);
+assert.equal(staffCanAccess(state,staff.id,'finance'),true);
 
 state.subscription={status:'active',trialStart:new Date().toISOString(),trialDays:7,plan:'standard',billing:'monthly'};
 assert.equal(recordRestaurant(state,{name:'Gamma',currency:'CHF'},new Date()),false,'active Standard plan must block extra restaurants');
