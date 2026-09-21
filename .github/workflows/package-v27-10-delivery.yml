@@ -19,6 +19,9 @@ jobs:
           grep -q "APP_VERSION='27.10.0'" src/app.js
           test -f src/security.js
           test -f supabase/migrations/004_v27_10_security_accounts_audit.sql
+          test -f supabase/migrations/005_v27_10_permission_alignment.sql
+          test -f supabase/migrations/006_v27_10_private_auth_helpers.sql
+          test -f supabase/functions/remapro-bootstrap/index.ts
           test -f .github/workflows/install-v27-10.yml
           test -f .github/workflows/build-android-v27-10.yml
       - name: Create READY ZIP
