@@ -8,7 +8,7 @@ const css=readFileSync('app/styles.css','utf8');
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 
 assert.equal(pkg.version,'27.10.1');
-assert.match(app,/APP_VERSION='27\.10\.0'/);
+assert.match(app,/APP_VERSION='27\.10\.1'/);
 
 // Finance: saved records stay in history, but entry controls reopen blank.
 const finance=app.slice(app.indexOf('function finance(){'),app.indexOf('const DOCUMENT_FIELDS='));
