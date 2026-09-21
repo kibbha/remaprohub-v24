@@ -58,7 +58,7 @@ assert.doesNotMatch(client,/OPENAI_API_KEY|api\.openai\.com/,'OpenAI secret/API 
 assert.doesNotMatch(cloudClient,/OPENAI_API_KEY|service_role|sb_secret_/,'privileged server secrets must never be shipped in cloud client code');
 assert.match(edge,/Deno\.env\.get\("OPENAI_API_KEY"\)/);
 assert.match(edge,/https:\/\/api\.openai\.com\/v1\/responses/);
-assert.match(edge,/store:false/);assert.match(edge,/context\.manager\.readyActions/);assert.match(edge,/context\.manager\.supplierOpportunities/);
+assert.match(edge,/store:false/);assert.match(edge,/context\.manager\.readyActions/);assert.match(edge,/context\.manager\.supplierOpportunities/);assert.match(edge,/context\.manager\.setupSteps/);
 for(const action of ['stock-photo','invoice-photo','health'])assert.match(edge,new RegExp(action));
 assert.match(edge,/role:"user",content:\[\{type:"input_text"/,'vision input must use a user message content array');
 assert.equal((edge.match(/role:"user",content:\[/g)||[]).length,2,'both vision actions must use documented Responses input shape');
