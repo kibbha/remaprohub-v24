@@ -10,9 +10,10 @@ export function shiftDurationHours(start,end){const from=timeMinutes(start),to=t
 
 export function plannedLabor(state,now=new Date(),days=7){
   const start=atMidnight(now),end=new Date(start.getTime()+Math.max(1,Math.trunc(days))*dayMs),members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x]));
-  let hours=0,cost=0;const missingRates=new Set(),rows=[];
-  for(const shift of state?.shifts||[]){const when=atMidnight(String(shift.date||''));if(Number.isNaN(when.getTime())||when<start||when>=end)continue;const duration=shiftDurationHours(shift.start,shift.end),member=members.get(String(shift.employee||'').trim().toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost);hours+=duration;if(rate>0)cost+=duration*rate;else if(duration>0)missingRates.add(String(shift.employee||'').trim());rows.push({employee:String(shift.employee||''),date:String(shift.date||''),hours:duration,rate,cost:round(duration*rate,2)})}
-  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),missingRates:[...missingRates].filter(Boolean),shifts:rows.length,rows};
+  let hours=0,cost=0;const missingRates=new Set(),rows=[],employeeHours=new Map();
+  for(const shift of state?.shifts||[]){const when=atMidnight(String(shift.date||''));if(Number.isNaN(when.getTime())||when<start||when>=end)continue;const employee=String(shift.employee||'').trim(),duration=shiftDurationHours(shift.start,shift.end),member=members.get(employee.toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost);hours+=duration;employeeHours.set(employee,round((employeeHours.get(employee)||0)+duration,2));if(rate>0)cost+=duration*rate;else if(duration>0)missingRates.add(employee);rows.push({employee,date:String(shift.date||''),hours:duration,rate,cost:round(duration*rate,2)})}
+  const weeklyLimit=Math.max(1,n(state?.payrollSettings?.ccnt?.weeklyHours)||42),byEmployee=[...employeeHours].map(([employee,value])=>({employee,hours:value})).sort((a,b)=>b.hours-a.hours),overWeeklyHours=byEmployee.filter(x=>x.hours>weeklyLimit);
+  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),weeklyLimit,byEmployee,overWeeklyHours,missingRates:[...missingRates].filter(Boolean),shifts:rows.length,rows};
 }
 
 export function recipePortfolio(state){
