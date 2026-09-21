@@ -113,3 +113,11 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Un bouton permet de générer les tâches manager correspondantes sans doublons, après confirmation.
 - Le rapport manager quotidien inclut maintenant le nombre d’équipements nécessitant une attention et les équipements hors service.
 - ReMaPro AI connaît cette nouvelle action de maintenance.
+
+## Routines quotidiennes automatiques – lot 16
+- Les checklists personnalisées alimentent automatiquement les tâches du jour avec leur catégorie ouverture, fermeture ou nettoyage.
+- Le plan de nettoyage quotidien alimente également les tâches du jour ; les tâches hebdomadaires et mensuelles reviennent uniquement lorsqu’elles sont à nouveau dues.
+- La validation d’une routine mémorise sa dernière exécution afin d’éviter de la reproposer trop tôt.
+- L’écran Opérations affiche maintenant l’avancement global, les points d’ouverture restants et les points de fermeture restants.
+- Lorsque toutes les tâches de fermeture sont validées, ReMaPro affiche clairement « Fermeture prête ».
+- Le rapport manager quotidien inclut le taux de réalisation des routines et les tâches de fermeture encore ouvertes.
