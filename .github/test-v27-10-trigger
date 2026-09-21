@@ -30,3 +30,5 @@ V27.11 lot 3 confirmed manager actions validation
 V27.11 lot 4 action center and non-POS positioning validation
 
 V27.11 lot 5 supplier savings and manager action center validation
+
+V27.11 lot 5 retry after action-center syntax fix
