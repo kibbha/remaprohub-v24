@@ -1,4 +1,4 @@
-name: Install ReMaPro Hub V27.9.1.1
+name: Install ReMaPro Hub V27.9.1
 on:
   workflow_dispatch:
 permissions:
@@ -37,8 +37,8 @@ jobs:
           PY
           test -f /tmp/remapro-ready/package.json
           test -f /tmp/remapro-ready/src/app.js
-          grep -q '"version":"27.9.0"' /tmp/remapro-ready/package.json
-          grep -q "APP_VERSION='27.9.0'" /tmp/remapro-ready/src/app.js
+          grep -q '"version":"27.9.1"' /tmp/remapro-ready/package.json
+          grep -q "APP_VERSION='27.9.1'" /tmp/remapro-ready/src/app.js
           rsync -a /tmp/remapro-ready/ ./
       - name: Validate restored source
         run: |
