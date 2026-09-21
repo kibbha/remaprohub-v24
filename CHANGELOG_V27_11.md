@@ -85,3 +85,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Les services de la semaine précédente sont copiés sur les mêmes jours et horaires, sans créer de doublons.
 - Les collaborateurs supprimés ou invalides ne sont pas recréés automatiquement.
 - L’action reste confirmée par le manager avant modification du planning.
+
+## HACCP express – lot 12
+- ReMaPro repère automatiquement les postes de contrôle HACCP récurrents à partir des relevés précédents.
+- Un bouton par poste permet de reprendre instantanément zone, équipement, seuils et responsable.
+- La température actuelle reste volontairement vide afin qu’elle soit réellement mesurée à chaque contrôle.
+- Aucun ancien relevé n’est dupliqué : le raccourci sert uniquement à préremplir le nouveau contrôle.
