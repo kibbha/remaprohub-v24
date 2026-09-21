@@ -30,9 +30,14 @@ jobs:
           test "$SUPABASE_PROJECT_REF" = "gkbzawjlmwjweuqckuxm"
       - name: Link exact ReMaPro Hub project
         run: npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-      - name: Apply database migrations
-        run: npx --yes supabase@latest db push --linked --include-all
-      - name: Deploy manager account administration
-        run: npx --yes supabase@latest functions deploy remapro-admin --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Verify linked migration history
+        run: npx --yes supabase@latest migration list --linked
+      - name: Deploy ReMaPro Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for fn in remapro-admin remapro-sync remapro-account remapro-ai remapro-bootstrap remapro-revenuecat-webhook; do
+            npx --yes supabase@latest functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
+          done
       - name: Verify deployed function list
         run: npx --yes supabase@latest functions list --project-ref "$SUPABASE_PROJECT_REF"
