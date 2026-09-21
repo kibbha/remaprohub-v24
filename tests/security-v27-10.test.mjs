@@ -31,9 +31,9 @@ const migration=readFileSync('supabase/migrations/004_v27_10_security_accounts_a
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const workflow=readFileSync('.github/workflows/android.yml','utf8');
 
-assert.equal(pkg.version,'27.10.1');
+assert.equal(pkg.version,'27.11.0');
 assert.match(pkg.dependencies['@capgo/capacitor-native-biometric'],/^\^?7\./);
-assert.match(app,/APP_VERSION='27\.10\.1'/);
+assert.match(app,/APP_VERSION='27\.11\.0'/);
 assert.match(app,/function securityGate\(\)/);
 assert.match(app,/id="securityLoginForm"/);
 assert.match(app,/id="securitySignupForm"/);
