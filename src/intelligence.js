@@ -31,7 +31,8 @@ export function supplierPriceAlerts(state,threshold=.08){
 }
 
 function latestSupplierForStock(state,stockId){
-  const id=String(stockId||'');
+  const id=String(stockId||''),item=(state?.stock||[]).find(x=>String(x?.id||'')===id),preferred=String(item?.preferredSupplier||'').trim();
+  if(preferred)return preferred;
   const prices=(state?.priceHistory||[]).filter(x=>String(x?.stockId||'')===id&&String(x?.supplier||'').trim()).sort((a,b)=>String(b?.recordedAt||b?.date||'').localeCompare(String(a?.recordedAt||a?.date||'')));
   if(prices[0])return String(prices[0].supplier).trim();
   const deliveries=(state?.deliveries||[]).filter(x=>String(x?.stockId||'')===id&&String(x?.supplier||'').trim()).sort((a,b)=>String(b?.date||'').localeCompare(String(a?.date||'')));
@@ -41,7 +42,7 @@ function latestSupplierForStock(state,stockId){
 export function purchasePlan(state){
   const groups=new Map(),items=reorderSuggestions(state);
   for(const item of items){
-    const supplier=latestSupplierForStock(state,item.stockId),key=supplier||'__unassigned__',row={...item,supplier};
+    const supplier=latestSupplierForStock(state,item.stockId),stockItem=(state?.stock||[]).find(x=>String(x?.id||'')===String(item.stockId)),preferred=String(stockItem?.preferredSupplier||'').trim(),key=supplier||'__unassigned__',row={...item,supplier,supplierSource:preferred?'preferred':supplier?'history':'unassigned'};
     const group=groups.get(key)||{supplier,unassigned:!supplier,items:[],estimatedCost:0};
     group.items.push(row);group.estimatedCost+=n(item.estimatedCost);groups.set(key,group);
   }
