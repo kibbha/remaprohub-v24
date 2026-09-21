@@ -1,10 +1,13 @@
 const URL_KEY='remaprohub-sb-url';
 const KEY_KEY='remaprohub-sb-key';
 const SESSION_KEY='remaprohub-sb-session';
+const IDENTITY_KEY='remaprohub-cloud-identity';
 let SESSION_CACHE=null,SESSION_READY=false;
 const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
 function parseSession(raw){try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}}
-async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)try{await plugin.remove({key:SESSION_KEY})}catch{}}
+async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){try{await plugin.remove({key:SESSION_KEY})}catch{}try{await plugin.remove({key:IDENTITY_KEY})}catch{}}}
+async function persistCloudIdentity(identity){if(!identity||typeof identity!=='object')return false;const raw=JSON.stringify(identity),plugin=secureStorage();if(plugin){await plugin.set({key:IDENTITY_KEY,value:raw});localStorage.removeItem(IDENTITY_KEY)}else localStorage.setItem(IDENTITY_KEY,raw);return identity}
+export async function loadCachedCloudIdentity(){const plugin=secureStorage();let raw='';if(plugin)try{raw=String((await plugin.get({key:IDENTITY_KEY}))?.value||'')}catch{};if(!raw)raw=String(localStorage.getItem(IDENTITY_KEY)||'');try{const value=JSON.parse(raw||'null');return value&&typeof value==='object'?value:null}catch{return null}}
 async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY=true;const plugin=secureStorage();if(plugin){await plugin.set({key:SESSION_KEY,value:JSON.stringify(session)});localStorage.removeItem(SESSION_KEY)}else localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session}
 export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
@@ -31,7 +34,7 @@ export function saveCloudConfig(url,key){
 export function disconnectCloud(){
   localStorage.removeItem(URL_KEY);
   localStorage.removeItem(KEY_KEY);
-  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);const plugin=secureStorage();if(plugin)plugin.remove({key:SESSION_KEY}).catch(()=>{});
+  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}
 }
 export function cloudSession(){return SESSION_READY?SESSION_CACHE:parseSession(localStorage.getItem(SESSION_KEY))}
 async function saveSession(data){if(!data?.access_token||!data?.refresh_token)return false;const expiresAt=Number(data.expires_at)||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);return persistStoredSession({...data,expires_at:expiresAt})}
@@ -49,6 +52,12 @@ export async function signInCloud(email,password){
   const mail=String(email||'').trim().toLowerCase(),secret=String(password||'');
   if(!mail||!secret)throw new Error('AUTH_REQUIRED');
   return await saveSession(await authRequest('/auth/v1/token?grant_type=password',{body:{email:mail,password:secret}}));
+}
+export async function requestPasswordReset(email,redirectTo=''){
+  const mail=String(email||'').trim().toLowerCase();
+  if(!mail)throw new Error('EMAIL_REQUIRED');
+  const body={email:mail};if(redirectTo)body.redirect_to=String(redirectTo);
+  return authRequest('/auth/v1/recover',{body});
 }
 export async function refreshCloudSession(){
   const current=cloudSession();
@@ -97,7 +106,7 @@ export async function loadCloudIdentity(){
   const restaurants=orgIds.length?await dataRequest('/rest/v1/restaurants?select=id,organization_id,name,city,canton,country_code,currency,active&active=eq.true&organization_id=in.('+orgFilter+')'):[];
   const organizations=orgIds.length?await dataRequest('/rest/v1/organizations?select=id,created_at&id=in.('+orgFilter+')'):[];
   const subscriptions=orgIds.length?await dataRequest('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,created_at,plan:subscription_plans(code)&organization_id=in.('+orgFilter+')&order=created_at.desc'):[];
-  return {user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};
+  const identity={user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};await persistCloudIdentity(identity);return identity;
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
 const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
