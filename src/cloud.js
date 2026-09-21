@@ -12,9 +12,11 @@ async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY
 export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
 export function cloudConfig(){
+  const runtimeUrl=String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,'');
+  const runtimeKey=String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim();
   return {
-    url:String(localStorage.getItem(URL_KEY)||'').trim().replace(/\/+$/,''),
-    key:String(localStorage.getItem(KEY_KEY)||'').trim()
+    url:String(localStorage.getItem(URL_KEY)||runtimeUrl).trim().replace(/\/+$/,''),
+    key:String(localStorage.getItem(KEY_KEY)||runtimeKey).trim()
   };
 }
 export function cloudConfigured(){
