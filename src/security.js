@@ -1,8 +1,11 @@
 const SETTINGS_KEY='rmp.security.settings';
 const EMAIL_KEY='rmp.security.email';
+const DEVELOPER_KEY='rmp.security.developer';
 const DEFAULTS={biometricEnabled:false,lockMinutes:5,lockOnBackground:true};
 
 const nativeBiometric=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.NativeBiometric:null;
+const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
+const normalizeDeveloperAlias=value=>String(value||'').trim().toLowerCase();
 
 export function securitySettings(){
   try{
@@ -25,6 +28,32 @@ export function rememberSecurityEmail(email){
   if(value)localStorage.setItem(EMAIL_KEY,value);else localStorage.removeItem(EMAIL_KEY);
   return value;
 }
+export function validDeveloperAlias(alias){return /^[a-z0-9._-]{3,32}$/.test(normalizeDeveloperAlias(alias))}
+export async function loadDeveloperAccess(){
+  const plugin=secureStorage();let raw='';
+  if(plugin)try{raw=String((await plugin.get({key:DEVELOPER_KEY}))?.value||'')}catch{}
+  if(!raw)raw=String(localStorage.getItem(DEVELOPER_KEY)||'');
+  try{
+    const value=JSON.parse(raw||'null');
+    if(!value?.enabled||!validDeveloperAlias(value.alias)||!String(value.email||'').includes('@'))return null;
+    return {enabled:true,alias:normalizeDeveloperAlias(value.alias),email:String(value.email).trim().toLowerCase()};
+  }catch{return null}
+}
+export async function saveDeveloperAccess({alias,email,enabled=true}={}){
+  const value={enabled:!!enabled,alias:normalizeDeveloperAlias(alias),email:String(email||'').trim().toLowerCase()};
+  if(!value.enabled)return clearDeveloperAccess();
+  if(!validDeveloperAlias(value.alias)||!value.email.includes('@'))throw new Error('DEVELOPER_ACCESS_INVALID');
+  const raw=JSON.stringify(value),plugin=secureStorage();
+  if(plugin){await plugin.set({key:DEVELOPER_KEY,value:raw});localStorage.removeItem(DEVELOPER_KEY)}
+  else localStorage.setItem(DEVELOPER_KEY,raw);
+  return value;
+}
+export async function clearDeveloperAccess(){
+  localStorage.removeItem(DEVELOPER_KEY);
+  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:DEVELOPER_KEY})}catch{}
+  return null;
+}
+export function developerAliasMatches(input,profile){return!!profile?.enabled&&normalizeDeveloperAlias(input)===normalizeDeveloperAlias(profile.alias)}
 export async function biometricAvailability(){
   const plugin=nativeBiometric();
   if(!plugin)return{isAvailable:false,deviceIsSecure:false,strongBiometryIsAvailable:false};
