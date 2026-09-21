@@ -158,6 +158,11 @@ const v2711fEn={notifyManagerActions:"Smart manager alerts",notificationManagerT
 const v2711fDe={notifyManagerActions:"Intelligente Manager-Warnungen",notificationManagerTitle:"ReMaPro · Manager-Aktionen"};
 const v2711fIt={notifyManagerActions:"Avvisi intelligenti manager",notificationManagerTitle:"ReMaPro · Azioni manager"};
 Object.assign(fr,v2711fFr);Object.assign(en,v2711fEn);Object.assign(de,v2711fDe);Object.assign(it,v2711fIt);
+const v2711gFr={targetStock:"Stock cible"};
+const v2711gEn={targetStock:"Target stock"};
+const v2711gDe={targetStock:"Zielbestand"};
+const v2711gIt={targetStock:"Scorta obiettivo"};
+Object.assign(fr,v2711gFr);Object.assign(en,v2711gEn);Object.assign(de,v2711gDe);Object.assign(it,v2711gIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
