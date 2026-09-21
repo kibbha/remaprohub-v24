@@ -49,3 +49,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Détection du fournisseur actuellement le moins cher à partir de l’historique des factures scannées.
 - Estimation de l’économie potentielle sur le prochain réassort lorsque plusieurs fournisseurs sont connus.
 - Affichage des opportunités directement dans Achats, sans changer automatiquement de fournisseur.
+
+## Assistant proactif – lot 6
+- ReMaPro AI exploite explicitement les actions prêtes et les opportunités d’économie fournisseurs avant les conseils génériques.
+- L’assistant indique lorsqu’une action confirmable existe dans l’app sans prétendre l’avoir exécutée.
+- Ajout d’une alerte Android optionnelle « Actions manager », désactivée par défaut pour éviter le bruit.
+- L’écran IA affiche maintenant le nombre total d’actions prêtes.
