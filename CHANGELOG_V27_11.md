@@ -79,3 +79,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le premier fournisseur détecté par facture devient automatiquement le fournisseur préféré d’un nouvel article, sans écraser un choix déjà défini par le manager.
 - À la réception d’une livraison, le fournisseur est prérempli automatiquement depuis le fournisseur préféré ou l’historique connu du produit.
 - La configuration Finance n’est considérée terminée qu’après une vraie saisie de CA/couverts, et non après une simple dépense fournisseur.
+
+## Planning accéléré – lot 11
+- Ajout d’un bouton « Reprendre la semaine précédente » dans Planning.
+- Les services de la semaine précédente sont copiés sur les mêmes jours et horaires, sans créer de doublons.
+- Les collaborateurs supprimés ou invalides ne sont pas recréés automatiquement.
+- L’action reste confirmée par le manager avant modification du planning.
