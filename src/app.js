@@ -92,7 +92,7 @@ function securityGate(){
   const cfg=securitySettings(),session=cloudSession(),email=rememberedSecurityEmail()||cloudIdentity?.user?.email||session?.user?.email||'';
   if(securityBooting)return `<main class="security-shell"><section class="security-card"><img src="assets-remaprohub-logo.png" alt="ReMaPro Hub"><h1>ReMaPro Hub</h1><p class="muted">${t('securityInitializing')}</p></section></main>`;
   const login=`<form id="securityLoginForm" class="form security-form"><input name="email" type="email" required autocomplete="username" value="${esc(email)}" placeholder="${t('email')}"><input name="password" type="password" required autocomplete="current-password" placeholder="${t('password')}"><button class="btn primary">${session?t('unlockWithPassword'):t('signIn')}</button></form><button id="securityForgotPassword" class="btn link-btn">${t('forgotPassword')}</button>`;
-  const biometric=session&&cfg.biometricEnabled?`<button id="securityBiometric" class="btn biometric-btn">${t('unlockWithBiometrics')}</button><div class="security-separator"><span>${t('or')}</span></div>`:'';
+  const biometric=session&&cfg.biometricEnabled?`<button id="securityBiometric" class="btn biometric-btn">${t('unlockWithBiometrics')}</button><div class="security-separator"><span>${t('orUsePassword')}</span></div>`:'';
   return `<main class="security-shell"><section class="security-card"><img src="assets-remaprohub-logo.png" alt="ReMaPro Hub"><h1>${session?t('appLocked'):t('secureSignIn')}</h1><p class="muted">${session?t('unlockToContinue'):t('individualAccountRequired')}</p>${biometric}${login}<small class="muted security-note">${t('securityNoPasswordStored')}</small></section></main>`;
 }
 async function refreshCloudAdminData(){
