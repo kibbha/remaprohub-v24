@@ -105,3 +105,11 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Lorsque l’historique le permet, le rapport ajoute l’évolution par rapport à la semaine précédente.
 - Après 17 h, le cockpit peut proposer la génération du rapport si des données utiles existent et si le rapport n’a pas encore été exporté sur l’appareil.
 - ReMaPro AI connaît cette action et peut la suggérer au manager sans prétendre l’avoir exécutée.
+
+## Maintenance proactive – lot 15
+- ReMaPro détecte les équipements hors service, les entretiens marqués « à prévoir », les échéances dépassées et les entretiens à venir sous 30 jours.
+- Ces points remontent automatiquement dans le cockpit manager selon leur niveau d’urgence.
+- L’écran Équipements affiche désormais une synthèse des éléments à surveiller.
+- Un bouton permet de générer les tâches manager correspondantes sans doublons, après confirmation.
+- Le rapport manager quotidien inclut maintenant le nombre d’équipements nécessitant une attention et les équipements hors service.
+- ReMaPro AI connaît cette nouvelle action de maintenance.

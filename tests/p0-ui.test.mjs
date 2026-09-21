@@ -5,7 +5,7 @@ assert.match(store,/\.last-good/);
 assert.match(store,/LEGACY_KEYS/);
 assert.match(store,/recordStockMovement/);
 assert.match(restored,/recordStockMovement\(s/);
-assert.match(app,/id="prepareServiceBriefing"/);assert.match(app,/id="prepareHandover"/);assert.match(app,/serviceBriefingText\(draft\)/);
+assert.match(app,/id="prepareServiceBriefing"/);assert.match(app,/id="prepareHandover"/);assert.match(app,/id="generateEquipmentTasks"/);assert.match(app,/maintenanceTaskDrafts\(state\)/);assert.match(app,/serviceBriefingText\(draft\)/);
 assert.doesNotMatch(restored,/type==='exit'\?Math\.max\(0,before-Math\.abs\(q\)\)/);
 assert.match(cloud,/RETRYABLE_FUNCTION_STATUS/);
 assert.match(cloud,/250\*\(2\*\*attempt\)/);
