@@ -91,3 +91,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Un bouton par poste permet de reprendre instantanément zone, équipement, seuils et responsable.
 - La température actuelle reste volontairement vide afin qu’elle soit réellement mesurée à chaque contrôle.
 - Aucun ancien relevé n’est dupliqué : le raccourci sert uniquement à préremplir le nouveau contrôle.
+
+## Briefing automatique – lot 13
+- ReMaPro prépare maintenant un briefing opérationnel du service à partir du planning du jour, des réservations, des anomalies HACCP, du stock bas et des tâches encore ouvertes.
+- Le briefing reste un brouillon prérempli : le responsable peut le relire et le modifier avant enregistrement.
+- Le même moteur peut préremplir une transmission de service afin d’éviter la ressaisie des points importants.
+- Aucun chiffre financier n’est injecté dans ces écrans opérationnels afin de respecter les droits d’accès du personnel.
+- Le cockpit manager signale lorsqu’un briefing du jour utile reste à préparer.
