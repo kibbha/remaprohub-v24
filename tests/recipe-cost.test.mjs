@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {recordRecipe,calculateRecipeCost,recipeIngredientCost,removeRecord} from '../src/store.js';
+import {recordRecipe,calculateRecipeCost,recipeIngredientCost,applyRecipeSuggestedPrice,removeRecord} from '../src/store.js';
 const state={stock:[{id:'flour',name:'Flour',unit:'kg',price:4,qty:10},{id:'milk',name:'Milk',unit:'l',price:2,qty:10}],recipes:[],deliveries:[],waste:[],stockMoves:[]};
 assert.equal(recipeIngredientCost(state.stock[0],250,'g'),1);
 assert.equal(recipeIngredientCost(state.stock[1],500,'ml'),1);
@@ -10,6 +10,7 @@ assert.equal(metrics.rawCost,2);
 assert.equal(metrics.totalCost,2.5);
 assert.equal(metrics.costPerPortion,0.625);
 assert.ok(metrics.netPrice<8);
+const suggested=applyRecipeSuggestedPrice(state,0,30);assert.ok(suggested>0);assert.equal(state.recipes[0].price,suggested);
 const before=metrics.costPerPortion;
 state.stock[0].price=8;
 metrics=calculateRecipeCost(state,recipe);

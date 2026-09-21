@@ -67,10 +67,33 @@ export function managementOutlook(state,now=new Date()){
 
 export function openHaccpIssues(state){return(state?.temps||[]).map((reading,index)=>{if(reading?.conforming!==false)return null;const status=haccpReadingStatus(state,reading.id);if(status.cancelled||status.resolved)return null;return{index,id:String(reading.id||''),zone:String(reading.zone||''),equipment:String(reading.equipment||''),value:n(reading.value),min:reading.min,max:reading.max,action:String(reading.action||''),responsible:String(reading.responsible||''),recordedAt:String(reading.recordedAt||reading.date||'')}}).filter(Boolean)}
 
+export function haccpCorrectiveTaskDrafts(state,now=new Date()){
+  const existing=new Set((state?.managerTasks||[]).filter(x=>x?.source==='haccp'&&x?.sourceId).map(x=>String(x.sourceId)));
+  return openHaccpIssues(state).filter(issue=>!existing.has(String(issue.id))).map(issue=>({
+    title:[issue.equipment,issue.zone].filter(Boolean).join(' · ')||'HACCP',
+    priority:'urgent',
+    due:localDate(now),
+    owner:issue.responsible||'',
+    status:'todo',
+    note:[issue.value+' °C',issue.min!=null||issue.max!=null?('['+(issue.min??'−∞')+'…'+(issue.max??'+∞')+']'):'',issue.action].filter(Boolean).join(' · '),
+    source:'haccp',
+    sourceId:String(issue.id||'')
+  }));
+}
+
+export function managerReadyActions(state,now=new Date()){
+  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),recipes=recipePortfolio(state);
+  return{
+    purchaseOrders:purchases.groups.filter(x=>x.supplier).map(x=>({supplier:x.supplier,items:x.items.length,estimatedCost:x.estimatedCost})),
+    haccpTasks,
+    recipePriceUpdates:recipes.items.filter(x=>x.status==='bad'&&x.suggestedPrice>0).map(x=>({name:x.name,suggestedPrice:x.suggestedPrice,foodCostPercent:x.foodCostPercent}))
+  };
+}
+
 export function onboardingHealth(state){const checks=[{key:'restaurant',done:!!String(state?.preferences?.restaurant||'').trim()},{key:'team',done:(state?.team||[]).length>0},{key:'stock',done:(state?.stock||[]).length>0},{key:'recipes',done:(state?.recipes||[]).length>0},{key:'haccp',done:(state?.temps||[]).length>0},{key:'finance',done:(state?.financeHistory||[]).length>0}],done=checks.filter(x=>x.done).length;return{score:Math.round(done/checks.length*100),done,total:checks.length,missing:checks.filter(x=>!x.done).map(x=>x.key)}}
 
 export function managerSnapshot(state,now=new Date()){
-  const finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
+  const readyActions=managerReadyActions(state,now),finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
   if(haccp.length)priorities.push({code:'haccp',severity:'urgent',count:haccp.length});if(overdueInvoices.length)priorities.push({code:'overdueInvoices',severity:'warning',count:overdueInvoices.length});if(reorder.length)priorities.push({code:'stock',severity:'warning',count:reorder.length,value:round(reorder.reduce((sum,x)=>sum+x.estimatedCost,0),2)});const rising=priceAlerts.filter(x=>x.changePct>0);if(rising.length)priorities.push({code:'supplierPrice',severity:'warning',count:rising.length,value:rising[0]?.changePct||0});if(recipes.critical)priorities.push({code:'foodCost',severity:'warning',count:recipes.critical,value:recipes.averageFoodCost});const urgentManager=managerTasks.filter(x=>x.priority==='urgent').length;if(urgentManager)priorities.push({code:'managerTasks',severity:'urgent',count:urgentManager});if(tasks.length)priorities.push({code:'dailyTasks',severity:'info',count:tasks.length});if(labor.missingRates.length)priorities.push({code:'laborRate',severity:'info',count:labor.missingRates.length});if(setup.score<100)priorities.push({code:'setup',severity:'info',count:setup.score});
-  return{generatedAt:now.toISOString(),finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
+  return{generatedAt:now.toISOString(),readyActions,finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
 }
