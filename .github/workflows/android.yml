@@ -1,4 +1,4 @@
-name: Android ReMaPro Hub V27.9
+name: Android ReMaPro Hub V27.9.1
 on:
   workflow_dispatch:
   push:
@@ -59,9 +59,11 @@ jobs:
       - name: Apply ReMaPro Android branding
         run: |
           mkdir -p android/app/src/main/res/drawable-nodpi
+          mkdir -p android/app/src/main/res/drawable
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26
           mkdir -p android/app/src/main/res/values
           install -m 644 app/assets-remaprohub-logo.png android/app/src/main/res/drawable-nodpi/remaprohub_logo.png
+          install -m 644 android-native/remaprohub_foreground.xml android/app/src/main/res/drawable/remaprohub_foreground.xml
           install -m 644 android-native/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           install -m 644 android-native/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
           install -m 644 android-native/remaprohub_colors.xml android/app/src/main/res/values/remaprohub_colors.xml
@@ -102,10 +104,10 @@ jobs:
           jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-Hub-V27.9.0-debug-apk
+          name: ReMaPro-Hub-V27.9.1-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-Hub-V27.9.0-release-aab
+          name: ReMaPro-Hub-V27.9.1-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: ignore

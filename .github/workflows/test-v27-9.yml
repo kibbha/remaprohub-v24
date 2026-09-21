@@ -1,4 +1,4 @@
-name: Test ReMaPro Hub V27.9
+name: Test ReMaPro Hub V27.9.1
 on:
   push:
     branches: [rebuild/remaprohub-clean]
