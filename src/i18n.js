@@ -101,6 +101,23 @@ const v278En={offlineMode:'Offline · data saved locally',localOnly:'Local data'
 const v278De={offlineMode:'Offline · Daten lokal gespeichert',localOnly:'Lokale Daten',mainNavigation:'Hauptnavigation'};
 const v278It={offlineMode:'Offline · dati salvati localmente',localOnly:'Dati locali',mainNavigation:'Navigazione principale'};
 Object.assign(fr,v278Fr);Object.assign(en,v278En);Object.assign(de,v278De);Object.assign(it,v278It);
+const v279Fr={
+financeEntryResetHint:'Après enregistrement, les champs sont remis à zéro. Les totaux enregistrés restent visibles dans l’historique.',
+appearance:'Apparence et disposition',theme:'Thème',accentColor:'Couleur d’accent',displayDensity:'Densité d’affichage',comfortable:'Confortable',compact:'Compacte',moduleLayout:'Disposition des modules',twoColumns:'Deux colonnes',oneColumn:'Une colonne',navigationStyle:'Style de navigation',iconsAndLabels:'Icônes + texte',iconsOnly:'Icônes uniquement',textSize:'Taille du texte',normal:'Normale',large:'Grande',cornerStyle:'Style des angles',softCorners:'Angles doux',roundCorners:'Très arrondis',squareCorners:'Plus carrés',compactDashboard:'Tableau de bord compact',saveAppearance:'Enregistrer l’apparence'
+};
+const v279En={
+financeEntryResetHint:'After saving, the entry fields are cleared. Saved totals remain available in the history.',
+appearance:'Appearance and layout',theme:'Theme',accentColor:'Accent color',displayDensity:'Display density',comfortable:'Comfortable',compact:'Compact',moduleLayout:'Module layout',twoColumns:'Two columns',oneColumn:'One column',navigationStyle:'Navigation style',iconsAndLabels:'Icons + labels',iconsOnly:'Icons only',textSize:'Text size',normal:'Normal',large:'Large',cornerStyle:'Corner style',softCorners:'Soft corners',roundCorners:'Very rounded',squareCorners:'Squarer',compactDashboard:'Compact dashboard',saveAppearance:'Save appearance'
+};
+const v279De={
+financeEntryResetHint:'Nach dem Speichern werden die Eingabefelder geleert. Gespeicherte Summen bleiben im Verlauf sichtbar.',
+appearance:'Darstellung und Layout',theme:'Design',accentColor:'Akzentfarbe',displayDensity:'Anzeigedichte',comfortable:'Komfortabel',compact:'Kompakt',moduleLayout:'Modulanordnung',twoColumns:'Zwei Spalten',oneColumn:'Eine Spalte',navigationStyle:'Navigationsstil',iconsAndLabels:'Symbole + Text',iconsOnly:'Nur Symbole',textSize:'Textgröße',normal:'Normal',large:'Groß',cornerStyle:'Eckenstil',softCorners:'Weiche Ecken',roundCorners:'Stark abgerundet',squareCorners:'Eckiger',compactDashboard:'Kompaktes Dashboard',saveAppearance:'Darstellung speichern'
+};
+const v279It={
+financeEntryResetHint:'Dopo il salvataggio i campi di inserimento vengono azzerati. I totali salvati restano visibili nello storico.',
+appearance:'Aspetto e disposizione',theme:'Tema',accentColor:'Colore accento',displayDensity:'Densità visualizzazione',comfortable:'Comoda',compact:'Compatta',moduleLayout:'Disposizione moduli',twoColumns:'Due colonne',oneColumn:'Una colonna',navigationStyle:'Stile navigazione',iconsAndLabels:'Icone + testo',iconsOnly:'Solo icone',textSize:'Dimensione testo',normal:'Normale',large:'Grande',cornerStyle:'Stile angoli',softCorners:'Angoli morbidi',roundCorners:'Molto arrotondati',squareCorners:'Più squadrati',compactDashboard:'Dashboard compatta',saveAppearance:'Salva aspetto'
+};
+Object.assign(fr,v279Fr);Object.assign(en,v279En);Object.assign(de,v279De);Object.assign(it,v279It);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
