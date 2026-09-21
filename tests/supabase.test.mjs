@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 const base=readFileSync('supabase/migrations/001_initial_schema.sql','utf8');
 const v27=readFileSync('supabase/migrations/002_v27_permissions_and_plans.sql','utf8');
 const play=readFileSync('supabase/migrations/003_v27_7_play_security_billing.sql','utf8');
+const security=readFileSync('supabase/migrations/004_v27_10_security_accounts_audit.sql','utf8');
 
 assert.match(base,/create table if not exists public\.organizations/);
 assert.match(base,/create table if not exists public\.restaurants/);
@@ -50,3 +51,9 @@ assert.match(play,/drop policy if exists temp_update/);
 assert.match(play,/revoke insert, update, delete on public\.subscriptions from authenticated/);
 assert.match(play,/subscriptions_organization_unique/);
 assert.match(play,/revenuecat_event_id/);
+
+assert.match(security,/create table if not exists public\.audit_logs/);
+assert.match(security,/alter table public\.audit_logs enable row level security/);
+assert.match(security,/revoke insert, update, delete on public\.memberships from authenticated/);
+assert.match(security,/grant select on public\.memberships to authenticated/);
+assert.match(security,/restaurant_admin','director','manager/);
