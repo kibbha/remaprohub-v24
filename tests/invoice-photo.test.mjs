@@ -6,7 +6,7 @@ const state={
   suppliers:[],
   invoices:[],
   purchases:[],
-  stock:[{id:'milk',name:'Milk',unit:'l',qty:2,price:1,min:1}],
+  stock:[{id:'milk',name:'Milk',unit:'l',qty:2,price:1,min:1,preferredSupplier:'Legacy Dairy'}],
   deliveries:[],
   waste:[],
   financeHistory:[],
@@ -42,6 +42,8 @@ assert.equal(milk.price,1.2);
 assert.equal(stockAvailable(state,milk),5);
 assert.equal(bread.qty,0);
 assert.equal(bread.price,0.8);
+assert.equal(bread.preferredSupplier,'Metro');
+assert.equal(milk.preferredSupplier,'Legacy Dairy','invoice import must not overwrite an explicit preferred supplier');
 assert.equal(stockAvailable(state,bread),5);
 
 const snapshot=JSON.stringify(state);
