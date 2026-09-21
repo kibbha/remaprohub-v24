@@ -150,13 +150,19 @@ export function serviceBriefingData(state,now=new Date()){
   return{day,shifts,reservations:reservations.length,covers:round(covers,0),haccpIssues,lowStock,openTasks,urgentTasks,meaningful:!!(shifts.length||reservations.length||haccpIssues||lowStock||openTasks||urgentTasks)};
 }
 
+export function dailyManagerReportData(state,now=new Date()){
+  const day=localDate(now),finance=(state?.financeHistory||[]).find(x=>String(x?.date||'')===day)||{},service=serviceBriefingData(state,now),trend=financeTrend(state,now),supplierSavings=supplierPriceOpportunities(state),recipes=recipePortfolio(state),openOrders=(state?.orders||[]).filter(x=>String(x?.date||x?.dateTime||'').slice(0,10)===day&&!['paid','cancelled'].includes(String(x?.status||''))).length,pendingInvoices=(state?.invoices||[]).filter(x=>x?.status!=='paid').length,revenue=n(finance.revenue),expenses=n(finance.expenses),covers=n(finance.covers),result=revenue-expenses;
+  return{day,revenue:round(revenue,2),expenses:round(expenses,2),result:round(result,2),covers:round(covers,0),avgTicket:round(covers?revenue/covers:0,2),service,trend,openOrders,pendingInvoices,haccpIssues:openHaccpIssues(state).length,lowStock:reorderSuggestions(state).length,urgentTasks:(state?.managerTasks||[]).filter(x=>x?.status!=='done'&&x?.priority==='urgent').length,supplierSavings:supplierSavings.length,foodCostAverage:recipes.averageFoodCost,meaningful:!!(revenue||expenses||covers||service.meaningful||openOrders||pendingInvoices)};
+}
+
 export function managerReadyActions(state,now=new Date()){
-  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),recipes=recipePortfolio(state),supplierSavings=supplierPriceOpportunities(state),briefing=serviceBriefingData(state,now),briefingNeeded=briefing.meaningful&&!(state?.briefings||[]).some(x=>String(x?.date||'')===briefing.day);
+  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),recipes=recipePortfolio(state),supplierSavings=supplierPriceOpportunities(state),briefing=serviceBriefingData(state,now),report=dailyManagerReportData(state,now),briefingNeeded=briefing.meaningful&&!(state?.briefings||[]).some(x=>String(x?.date||'')===briefing.day),dailyReportNeeded=report.meaningful&&now.getHours()>=17&&String(state?.preferences?.lastManagementReportDate||'')!==report.day;
   return{
     purchaseOrders:purchases.groups.filter(x=>x.supplier).map(x=>({supplier:x.supplier,items:x.items.length,estimatedCost:x.estimatedCost})),
     haccpTasks,
     supplierSavings,
     briefingNeeded,
+    dailyReportNeeded,
     recipePriceUpdates:recipes.items.filter(x=>x.status==='bad'&&x.suggestedPrice>0).map(x=>({name:x.name,suggestedPrice:x.suggestedPrice,foodCostPercent:x.foodCostPercent}))
   };
 }
