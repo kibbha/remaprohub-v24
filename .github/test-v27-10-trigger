@@ -18,3 +18,5 @@ V27.11 final manager intelligence validation
 V27.11 retry after legacy recipe fallback fix
 
 V27.11.0 final full validation
+
+V27.11.0 validation after version-guard alignment
