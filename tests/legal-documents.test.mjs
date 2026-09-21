@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {LEGAL_COUNTRIES,LEGAL_REVIEW_DATE,legalCountryCode,legalPack,legalFieldsFor,isLegalHrDocument} from '../src/legal.js';
 import {readFileSync} from 'node:fs';
-assert.equal(LEGAL_REVIEW_DATE,'2026-09-19');
+assert.equal(LEGAL_REVIEW_DATE,'2026-09-20');
 assert.equal(legalCountryCode('Switzerland'),'CH');
 assert.equal(legalCountryCode('France'),'FR');
 assert.equal(legalCountryCode('UK'),'GB');
