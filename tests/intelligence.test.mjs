@@ -1,5 +1,5 @@
 import assert from'node:assert/strict';
-import{shiftDurationHours,plannedLabor,recipePortfolio,reorderSuggestions,supplierPriceAlerts,supplierPriceOpportunities,purchasePlan,recipeSupplierImpacts,managementOutlook,openHaccpIssues,haccpCorrectiveTaskDrafts,managerReadyActions,onboardingHealth,managerSnapshot}from'../src/intelligence.js';
+import{shiftDurationHours,plannedLabor,recipePortfolio,reorderSuggestions,supplierPriceAlerts,supplierPriceOpportunities,purchasePlan,recipeSupplierImpacts,financeTrend,trendSignals,managementOutlook,openHaccpIssues,haccpCorrectiveTaskDrafts,managerReadyActions,onboardingHealth,managerSnapshot}from'../src/intelligence.js';
 globalThis.localStorage={getItem(){return null},setItem(){},removeItem(){}};
 assert.equal(shiftDurationHours('10:00','18:30'),8.5);assert.equal(shiftDurationHours('22:00','02:00'),4);
 const state={revenue:0,covers:0,expenses:0,recipeTarget:30,recipeWarning:35,financeHistory:[{date:'2026-09-21',revenue:1000,covers:50,expenses:250}],stock:[{id:'s1',name:'Tomate',unit:'kg',qty:1,price:4,min:2}],deliveries:[],waste:[],stockMoves:[],priceHistory:[{stockId:'s1',product:'Tomate',supplier:'A',unit:'kg',unitPrice:4.4,date:'2026-09-21',recordedAt:'2026-09-21T10:00:00Z'},{stockId:'s1',product:'Tomate',supplier:'A',unit:'kg',unitPrice:4,date:'2026-09-14',recordedAt:'2026-09-14T10:00:00Z'}],team:[{name:'Alex',hourlyRate:25}],shifts:[{employee:'Alex',date:'2026-09-21',start:'10:00',end:'18:00'}],recipes:[{name:'Salade',cost:3,price:12}],temps:[{id:'h1',conforming:false,zone:'Froid',equipment:'Frigo',value:9,min:0,max:5,action:'Isoler',responsible:'Alex',recordedAt:'2026-09-21T08:00:00Z'}],haccpAudit:[],invoices:[{date:'2026-09-20',status:'pending'}],tasks:[['openKitchen',false]],managerTasks:[],preferences:{restaurant:'Demo'},reservations:[]};
@@ -11,4 +11,10 @@ state.priceHistory.push({stockId:'s1',product:'Tomate',supplier:'B',unit:'kg',un
 state.recipes.push({name:'Tomato bowl',ingredients:[{stockId:'s1',quantity:.25,unit:'kg'}],portions:1,yieldPercent:100,price:10,vatRate:0});assert.equal(recipeSupplierImpacts(state)[0].recipe,'Tomato bowl');
 const outlook=managementOutlook(state,new Date(2026,8,21,12));assert.equal(outlook.reorderBudget,12);assert.equal(outlook.plannedLaborCost,200);assert.equal(outlook.plannedCommitments,212);
 const snapshot=managerSnapshot(state,new Date(2026,8,21,12));assert.ok(snapshot.priorities.some(x=>x.code==='haccp'));assert.ok(snapshot.priorities.some(x=>x.code==='stock'));
+
+const trendState={financeHistory:[
+  {date:'2026-09-21',revenue:1200,expenses:300,covers:60},
+  {date:'2026-09-14',revenue:1000,expenses:250,covers:50}
+]};
+const trend=financeTrend(trendState,new Date(2026,8,21,12));assert.equal(trend.current.revenue,1200);assert.equal(trend.previous.revenue,1000);assert.equal(trend.delta.revenuePct,20);assert.equal(trend.current.avgTicket,20);assert.equal(trend.comparable,true);assert.ok(trendSignals(trendState,new Date(2026,8,21,12)).some(x=>x.code==='revenueTrend'));
 console.log('Manager intelligence checks passed.');

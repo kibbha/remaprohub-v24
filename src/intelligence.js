@@ -84,6 +84,38 @@ export function recipeSupplierImpacts(state){
   return out.sort((a,b)=>b.maxChangePct-a.maxChangePct);
 }
 
+
+function financeRangeTotals(state,startDate,endDate){
+  const start=localDate(startDate),end=localDate(endDate),rows=(state?.financeHistory||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x?.date||''))&&x.date>=start&&x.date<=end);
+  return rows.reduce((out,row)=>(out.revenue+=n(row.revenue),out.expenses+=n(row.expenses),out.covers+=n(row.covers),out),{revenue:0,expenses:0,covers:0,rows});
+}
+function pctDelta(current,previous){if(previous===0)return current===0?0:null;return round((current-previous)/Math.abs(previous)*100,1)}
+export function financeTrend(state,now=new Date()){
+  const currentEnd=atMidnight(now),currentStart=new Date(currentEnd);currentStart.setDate(currentStart.getDate()-(currentStart.getDay()+6)%7);
+  const previousStart=new Date(currentStart);previousStart.setDate(previousStart.getDate()-7);
+  const previousEnd=new Date(currentEnd);previousEnd.setDate(previousEnd.getDate()-7);
+  const current=financeRangeTotals(state,currentStart,currentEnd),previous=financeRangeTotals(state,previousStart,previousEnd);
+  const currentAvg=current.covers?current.revenue/current.covers:0,previousAvg=previous.covers?previous.revenue/previous.covers:0,currentExpenseRatio=current.revenue?current.expenses/current.revenue*100:0,previousExpenseRatio=previous.revenue?previous.expenses/previous.revenue*100:0;
+  return{
+    current:{revenue:round(current.revenue,2),expenses:round(current.expenses,2),covers:round(current.covers,0),result:round(current.revenue-current.expenses,2),avgTicket:round(currentAvg,2),expenseRatio:round(currentExpenseRatio,1)},
+    previous:{revenue:round(previous.revenue,2),expenses:round(previous.expenses,2),covers:round(previous.covers,0),result:round(previous.revenue-previous.expenses,2),avgTicket:round(previousAvg,2),expenseRatio:round(previousExpenseRatio,1)},
+    delta:{revenuePct:pctDelta(current.revenue,previous.revenue),expensesPct:pctDelta(current.expenses,previous.expenses),coversPct:pctDelta(current.covers,previous.covers),avgTicketPct:pctDelta(currentAvg,previousAvg),resultPct:pctDelta(current.revenue-current.expenses,previous.revenue-previous.expenses)},
+    comparable:previous.rows.length>0,currentDays:current.rows.length,previousDays:previous.rows.length,
+    currentRange:[localDate(currentStart),localDate(currentEnd)],previousRange:[localDate(previousStart),localDate(previousEnd)]
+  };
+}
+
+export function trendSignals(state,now=new Date()){
+  const trend=financeTrend(state,now),signals=[];
+  if(!trend.comparable)return signals;
+  const revenue=trend.delta.revenuePct,avg=trend.delta.avgTicketPct,expenses=trend.delta.expensesPct,covers=trend.delta.coversPct;
+  if(revenue!=null&&Math.abs(revenue)>=5)signals.push({code:'revenueTrend',direction:revenue>0?'up':'down',value:revenue,severity:revenue<0?'warning':'good'});
+  if(avg!=null&&Math.abs(avg)>=5)signals.push({code:'avgTicketTrend',direction:avg>0?'up':'down',value:avg,severity:avg<0?'warning':'good'});
+  if(expenses!=null&&expenses>=10)signals.push({code:'expenseTrend',direction:'up',value:expenses,severity:'warning'});
+  if(covers!=null&&Math.abs(covers)>=8)signals.push({code:'coversTrend',direction:covers>0?'up':'down',value:covers,severity:covers<0?'warning':'good'});
+  return signals;
+}
+
 export function managementOutlook(state,now=new Date()){
   const finance=financeTotals(state,'week',now),labor=plannedLabor(state,now,7),purchases=purchasePlan(state),currentResult=finance.revenue-finance.expenses,plannedCommitments=labor.cost+purchases.estimatedCost;
   return{weekRevenue:round(finance.revenue,2),weekExpenses:round(finance.expenses,2),currentResult:round(currentResult,2),plannedLaborCost:round(labor.cost,2),reorderBudget:round(purchases.estimatedCost,2),plannedCommitments:round(plannedCommitments,2),commitmentsToRevenuePct:finance.revenue?round(plannedCommitments/finance.revenue*100,1):0};
@@ -118,7 +150,7 @@ export function managerReadyActions(state,now=new Date()){
 export function onboardingHealth(state){const checks=[{key:'restaurant',done:!!String(state?.preferences?.restaurant||'').trim()},{key:'team',done:(state?.team||[]).length>0},{key:'stock',done:(state?.stock||[]).length>0},{key:'recipes',done:(state?.recipes||[]).length>0},{key:'haccp',done:(state?.temps||[]).length>0},{key:'finance',done:(state?.financeHistory||[]).length>0}],done=checks.filter(x=>x.done).length;return{score:Math.round(done/checks.length*100),done,total:checks.length,missing:checks.filter(x=>!x.done).map(x=>x.key)}}
 
 export function managerSnapshot(state,now=new Date()){
-  const supplierOpportunities=supplierPriceOpportunities(state),readyActions=managerReadyActions(state,now),finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
+  const supplierOpportunities=supplierPriceOpportunities(state),readyActions=managerReadyActions(state,now),trend=financeTrend(state,now),trendAlerts=trendSignals(state,now),finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),today=localDate(now),overdueInvoices=(state?.invoices||[]).filter(x=>x.status!=='paid'&&String(x.date||'')&&String(x.date)<localDate(now)),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
   if(haccp.length)priorities.push({code:'haccp',severity:'urgent',count:haccp.length});if(overdueInvoices.length)priorities.push({code:'overdueInvoices',severity:'warning',count:overdueInvoices.length});if(reorder.length)priorities.push({code:'stock',severity:'warning',count:reorder.length,value:round(reorder.reduce((sum,x)=>sum+x.estimatedCost,0),2)});const rising=priceAlerts.filter(x=>x.changePct>0);if(rising.length)priorities.push({code:'supplierPrice',severity:'warning',count:rising.length,value:rising[0]?.changePct||0});if(recipes.critical)priorities.push({code:'foodCost',severity:'warning',count:recipes.critical,value:recipes.averageFoodCost});const urgentManager=managerTasks.filter(x=>x.priority==='urgent').length;if(urgentManager)priorities.push({code:'managerTasks',severity:'urgent',count:urgentManager});if(tasks.length)priorities.push({code:'dailyTasks',severity:'info',count:tasks.length});if(labor.missingRates.length)priorities.push({code:'laborRate',severity:'info',count:labor.missingRates.length});if(setup.score<100)priorities.push({code:'setup',severity:'info',count:setup.score});
-  return{generatedAt:now.toISOString(),readyActions,supplierOpportunities,finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
+  return{generatedAt:now.toISOString(),readyActions,supplierOpportunities,trend,trendAlerts,finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
 }
