@@ -7,12 +7,12 @@ const cors={
 };
 const ORG_ADMIN_ROLES=new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
-const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","payrollSettings","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","expenseEntries","cashChecks","weeklyKpis","managerTasks","stockMoves","complianceItems","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
+const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","payrollSettings","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","expenseEntries","cashChecks","weeklyKpis","managerTasks","stockMoves","complianceItems","priceHistory","stock","temps","haccpAudit","suppliers","purchases","team","shifts","incidents","waste","reservations","customers","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
 const READ_BY_PERMISSION={
   operations:["tasksDate","tasks","briefings","handover","maintenance","equipment"],
   finance:["revenue","covers","expenses","sales","financeHistory","expenseEntries","cashChecks","weeklyKpis","goals","alerts"],
   haccp:["temps","haccpAudit","cleaning","allergens","recalls","incidents","waste","complianceItems","audits"],
-  stock:["stock","stockMoves","products","categories"],
+  stock:["stock","stockMoves","products","categories","priceHistory"],
   deliveries:["deliveries","stock","suppliers"],
   checklists:["checklists"],
   planning:["shifts","team","leave","leaveHolidays","training","managerTasks"],
@@ -23,8 +23,8 @@ const READ_BY_PERMISSION={
   team:["team","shifts","leave","training","tasks","managerTasks"],
   orders:["orders","sales"],
   suppliers:["suppliers"],
-  purchases:["purchases","suppliers","stock"],
-  invoices:["invoices","suppliers","purchases"],
+  purchases:["purchases","suppliers","stock","priceHistory"],
+  invoices:["invoices","suppliers","purchases","priceHistory"],
   customers:["customers","reservations"],
   loyalty:["loyalty","customers"],
   ai:[]
@@ -33,7 +33,7 @@ const WRITE_BY_PERMISSION={
   operations:["tasksDate","tasks","briefings","handover","maintenance","equipment"],
   finance:["revenue","covers","expenses","sales","financeHistory","expenseEntries","cashChecks","weeklyKpis","goals","alerts"],
   haccp:["temps","haccpAudit","cleaning","allergens","recalls","incidents","waste","complianceItems","audits"],
-  stock:["stock","stockMoves","products","categories"],
+  stock:["stock","stockMoves","products","categories","priceHistory"],
   deliveries:["deliveries","stock"],
   checklists:["checklists"],
   planning:["shifts","leave","leaveHolidays","training","tasks","managerTasks"],
@@ -44,8 +44,8 @@ const WRITE_BY_PERMISSION={
   team:["team","shifts","leave","training","tasks","managerTasks"],
   orders:["orders","sales"],
   suppliers:["suppliers"],
-  purchases:["purchases","stock"],
-  invoices:["invoices","purchases"],
+  purchases:["purchases","stock","priceHistory"],
+  invoices:["invoices","purchases","priceHistory"],
   customers:["customers","reservations"],
   loyalty:["loyalty"],
   ai:[]
