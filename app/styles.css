@@ -192,3 +192,8 @@ html[data-theme="dark"] .sync-badge.bad{background:#4b2d28;color:#ffc0b7;border-
 .account-row .row-actions{max-width:48%;justify-content:flex-end}
 #securitySettingsForm .actions{margin-top:6px}
 @media(max-width:620px){.security-shell{padding:14px}.security-card{padding:20px 16px}.account-row{display:block}.account-row .row-actions{max-width:none;margin-top:10px;justify-content:flex-start}}
+
+
+/* V27.10.1 — developer access */
+.developer-entry-btn{width:100%;margin-top:8px;background:color-mix(in srgb,var(--accent) 10%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line));color:var(--accent);font-weight:850}
+#developerAccessForm .document-field input{width:100%}
