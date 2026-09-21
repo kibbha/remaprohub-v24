@@ -1,4 +1,4 @@
-name: Android ReMaPro Hub V27.9.1.1
+name: Android ReMaPro Hub V27.9.1
 on:
   workflow_dispatch:
 permissions:
