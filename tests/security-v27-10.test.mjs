@@ -31,7 +31,7 @@ const migration=readFileSync('supabase/migrations/004_v27_10_security_accounts_a
 const pkg=JSON.parse(readFileSync('package.json','utf8'));
 const workflow=readFileSync('.github/workflows/android.yml','utf8');
 
-assert.equal(pkg.version,'27.10.0');
+assert.equal(pkg.version,'27.10.1');
 assert.match(pkg.dependencies['@capgo/capacitor-native-biometric'],/^\^?7\./);
 assert.match(app,/APP_VERSION='27\.10\.0'/);
 assert.match(app,/function securityGate\(\)/);
@@ -67,4 +67,4 @@ assert.match(migration,/revoke insert, update, delete on public\.memberships fro
 const securitySource=readFileSync('src/security.js','utf8');
 assert.doesNotMatch(securitySource,/setCredentials|password\s*:/,'biometric layer must not store the account password');
 assert.match(securitySource,/verifyIdentity/);
-console.log('V27.10 individual auth, biometric lock, manager delegation and audit guards OK');
+console.log('V27.10.1 individual auth, biometric lock, manager delegation and audit guards OK');
