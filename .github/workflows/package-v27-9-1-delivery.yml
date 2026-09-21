@@ -16,8 +16,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '"version":"27.9.0"' package.json
-          grep -q "APP_VERSION='27.9.0'" src/app.js
+          grep -q '"version":"27.9.1"' package.json
+          grep -q "APP_VERSION='27.9.1'" src/app.js
           test -f .github/workflows/install-v27-9-1.yml
           test -f .github/workflows/build-android-v27-9-1.yml
       - name: Create READY ZIP
@@ -32,7 +32,7 @@ jobs:
                '.github/final-build-trigger' \
                '.github/delivery-package-trigger' \
                '.github/delivery-v27-9-1-trigger' \
-               '.github/test-v27-9-1-trigger' \
+               '.github/test-v27-9-trigger' \
                '.github/workflows/package-v27-9-1-delivery.yml'
           test -s ReMaPro_Hub_V27_9_1_READY.zip
           unzip -t ReMaPro_Hub_V27_9_1_READY.zip
