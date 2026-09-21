@@ -22,5 +22,5 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - remapro-ai renforcé en « Manager Copilot » et connecté au secret OPENAI_API_KEY Supabase.
 
 ## Validation
-- Suite complète npm test validée sur le lot V27.11 avant le dernier enrichissement planning/menu.
-- Un dernier passage CI V27.11 est requis après le bump de version.
+- Suite complète `npm test` validée sur V27.11.0 après le dernier enrichissement planning/menu.
+- Validation GitHub Actions finale : succès.
