@@ -197,3 +197,17 @@ html[data-theme="dark"] .sync-badge.bad{background:#4b2d28;color:#ffc0b7;border-
 /* V27.10.1 — developer access */
 .developer-entry-btn{width:100%;margin-top:8px;background:color-mix(in srgb,var(--accent) 10%,var(--panel));border-color:color-mix(in srgb,var(--accent) 35%,var(--line));color:var(--accent);font-weight:850}
 #developerAccessForm .document-field input{width:100%}
+
+/* V27.11 manager intelligence */
+.manager-focus{margin:0 0 16px}
+.manager-focus-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.manager-focus-head h2{margin:2px 0 0}
+.manager-priority{width:100%;border:0;border-top:1px solid var(--line,#ded6cc);background:transparent;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 2px;text-align:left}
+.manager-priority span{display:flex;flex-direction:column;gap:3px}
+.manager-priority small{opacity:.68}
+.manager-priority.urgent strong{font-weight:800}
+.manager-priority.warning strong{font-weight:700}
+.intelligence-grid{align-items:stretch}
+.quick-prompts{display:flex;flex-wrap:wrap;gap:8px}
+.page-actions{margin:0 0 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){.manager-focus-head{align-items:flex-start}.intelligence-grid{grid-template-columns:1fr}.quick-prompts .btn{white-space:normal;text-align:left}}
