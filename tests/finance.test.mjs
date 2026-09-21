@@ -39,6 +39,7 @@ assert.equal(updateOrder(invalidFinance,0,{amount:-5}),false);
 recordPurchase(invalidFinance,{supplier:'Good',amount:10,date});
 assert.equal(updatePurchase(invalidFinance,0,{amount:-5}),false);
 console.log('Finance entries and date boundaries OK');
+import {readFileSync} from 'node:fs';const restoredUi=readFileSync('src/restored.js','utf8');assert.match(restoredUi,/exportDailyManagementPdf/);assert.match(restoredUi,/dailyManagerReportData\(s\)/);assert.match(restoredUi,/lastManagementReportDate/);
 // Removing a manual entry must preserve paid orders and purchases on that date.
 import {removeRecord} from '../src/store.js';
 assert.equal(removeRecord(state,'financeHistory',0),true);
