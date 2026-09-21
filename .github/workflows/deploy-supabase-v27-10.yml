@@ -1,6 +1,10 @@
 name: Deploy Supabase ReMaPro Hub V27.10
 on:
   workflow_dispatch:
+  push:
+    branches: [rebuild/remaprohub-clean]
+    paths:
+      - '.github/deploy-v27-10-trigger'
 permissions:
   contents: read
 jobs:
