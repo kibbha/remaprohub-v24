@@ -98,3 +98,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le même moteur peut préremplir une transmission de service afin d’éviter la ressaisie des points importants.
 - Aucun chiffre financier n’est injecté dans ces écrans opérationnels afin de respecter les droits d’accès du personnel.
 - Le cockpit manager signale lorsqu’un briefing du jour utile reste à préparer.
+
+## Rapport manager du jour – lot 14
+- Ajout d’un rapport PDF quotidien accessible directement depuis Finance.
+- Le rapport synthétise CA, dépenses, résultat, couverts, ticket moyen, HACCP, stock bas, tâches urgentes, factures, opportunités fournisseurs, food cost, planning et réservations du jour.
+- Lorsque l’historique le permet, le rapport ajoute l’évolution par rapport à la semaine précédente.
+- Après 17 h, le cockpit peut proposer la génération du rapport si des données utiles existent et si le rapport n’a pas encore été exporté sur l’appareil.
+- ReMaPro AI connaît cette action et peut la suggérer au manager sans prétendre l’avoir exécutée.
