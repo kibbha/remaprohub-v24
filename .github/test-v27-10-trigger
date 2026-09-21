@@ -14,3 +14,5 @@ V27.11 manager intelligence validation
 V27.11 retry after complete intelligence translations
 
 V27.11 final manager intelligence validation
+
+V27.11 retry after legacy recipe fallback fix
