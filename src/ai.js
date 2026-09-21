@@ -1,4 +1,5 @@
 import {financeTotals,stockAvailable} from './store.js';
+import {managerSnapshot} from './intelligence.js';
 import {cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,cloudFunction} from './cloud.js';
 export {cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud} from './cloud.js';
 
@@ -28,7 +29,8 @@ export function buildAiContext(state,now=new Date()){
       low:stock.filter(x=>+(x.min||0)>0&&stockAvailable(state,x)<=+(x.min||0)).map(x=>({name:x.name,available:stockAvailable(state,x),minimum:+x.min||0}))
     },
     team:{members:(state.team||[]).length},
-    reservations:{count:(state.reservations||[]).length}
+    reservations:{count:(state.reservations||[]).length},
+    manager:managerSnapshot(state,now)
   };
 }
 export async function callRemaproAi(payload){
