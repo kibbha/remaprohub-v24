@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.2.0';
+const APP_VERSION='0.3.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -106,7 +106,22 @@ async function closeSession(countedCash){
   await queueCommand('close_cash_session',{sessionId:state.cashSession.id,countedCash:Number(countedCash)||0});
   render();flushQueue().catch(()=>{});
 }
-function addItem(item){const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,qty:1});render()}
+function addItem(item){const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,qty:1,quick:!!item.quick});render()}
+function addQuickItem(){
+  const name=prompt('Nom de l’article libre');if(!name?.trim())return;
+  const raw=prompt('Prix TTC (CHF)','0.00');if(raw===null)return;
+  const price=Number(String(raw).replace(',','.'));if(!Number.isFinite(price)||price<0){alert('Prix invalide');return}
+  addItem({id:'quick:'+uuid(),name:name.trim(),price,tax_rate:8.1,quick:true});
+}
+async function refreshCatalog(){
+  if(!state.restaurant||!state.online)return;
+  try{
+    const device=await ensureDevice();
+    const data=await posFunction({action:'bootstrap',restaurantId:state.restaurant.id,deviceId:device.id});
+    state.bootstrap=data;await kvSet(catalogKey(state.restaurant.id),data);state.error='';
+  }catch(error){state.error=error.message||String(error)}
+  render();
+}
 function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
@@ -117,7 +132,7 @@ async function checkout(method){
     id:orderId,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,
     businessDate:state.cashSession.businessDate,serviceType:state.serviceType,tableLabel:state.tableLabel,
     covers:Number(state.covers)||0,currency:state.restaurant.currency||'CHF',
-    lines:state.cart.map(x=>({id:uuid(),catalog_item_id:x.id,recipe_id:x.recipe_id,sku:x.sku,name:x.name,quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate})),
+    lines:state.cart.map(x=>({id:uuid(),catalog_item_id:x.quick?null:x.id,recipe_id:x.recipe_id,sku:x.sku,name:x.name,quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate})),
     paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:0,occurredAt:now.toISOString()
   };
   const snapshot=state.cart.map(x=>({...x})),total=cartTotal();
@@ -135,10 +150,10 @@ function mainView(){
   const catalog=state.bootstrap?.catalog||[],cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
   if(!cats.includes(state.category))state.category='Tous';
   const visible=state.category==='Tous'?catalog:catalog.filter(x=>(x.category||'Autres')===state.category);
-  return `<div class="shell"><header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div><div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div><div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>
+  return `<div class="shell"><header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div><div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div><div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div><button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>
   ${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
   <main class="workspace"><nav class="categories">${cats.map(c=>`<button class="category ${c===state.category?'active':''}" data-category="${esc(c)}">${esc(c)}</button>`).join('')}</nav>
-  <section class="products">${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}"><strong>${esc(p.name)}</strong><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
+  <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}"><strong>${esc(p.name)}</strong><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
   <aside class="cart"><div class="cart-head"><h2>Commande</h2><div class="order-meta"><select id="service-type"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select><input id="table-label" placeholder="Table" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div></div>
   <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line"><div><strong>${esc(x.name)}</strong><div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}">−</button><span>${x.qty}</span><button data-plus="${x.id}">+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
   <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
@@ -156,6 +171,8 @@ function wire(){
   document.querySelector('#logout')?.addEventListener('click',()=>{signOut();state.identity=null;state.restaurant=null;render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
+  document.querySelector('#refresh-catalog')?.addEventListener('click',()=>refreshCatalog());
+  document.querySelector('#quick-item')?.addEventListener('click',()=>addQuickItem());
   document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=prompt('Montant espèces compté dans le tiroir (CHF)');if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){alert('Montant invalide');return}await closeSession(n)});
   document.querySelector('#service-type')?.addEventListener('change',e=>state.serviceType=e.target.value);
   document.querySelector('#table-label')?.addEventListener('input',e=>state.tableLabel=e.target.value);

@@ -2,35 +2,28 @@
 
 Application de caisse distincte de ReMaPro Hub, connectée à la même plateforme ReMaPro/Supabase.
 
-Version actuelle: **0.2.0**  
+Version actuelle: **0.3.0**  
 Android package: **com.remapro.pos**
 
-## Fonctionnel dans ce socle
-- compte ReMaPro partagé avec Hub ;
-- sélection du restaurant autorisé ;
+## Disponible
+- compte et restaurants partagés avec ReMaPro Hub ;
 - terminal POS identifié par UUID ;
-- catalogue POS synchronisé et mis en cache ;
+- catalogue POS publié depuis Hub via `sync_catalog` ;
+- rafraîchissement manuel + cache catalogue ;
+- article libre pour tests/ventes ponctuelles sans polluer le catalogue ;
 - ouverture de caisse avec fond initial ;
-- commande avec type de service, table et couverts ;
-- paiement espèces, carte ou TWINT comme moyen de paiement ;
-- écriture serveur atomique commande + lignes + TVA + paiement + ticket + audit ;
-- ticket numéroté par restaurant et date ;
-- clôture de caisse et calcul espèces attendues / comptées / écart ;
-- file offline ordonnée via IndexedDB ;
-- resynchronisation automatique après retour du réseau ;
-- historique local des derniers tickets.
+- commandes avec type de service, table et couverts ;
+- encaissement espèces/carte/TWINT ;
+- transaction atomique: commande + lignes + TVA + paiement + ticket + audit ;
+- numérotation des tickets par restaurant/jour ;
+- clôture avec espèces attendues, comptées et écart ;
+- file offline IndexedDB rejouée dans l'ordre ;
+- historique des derniers tickets.
 
 ## Sécurité
-Le client n'embarque jamais de clé service-role. Les RPC financiers sont réservés au service role et ne sont appelés que par l'Edge Function authentifiée `remapro-pos-sync`. Aucune donnée PAN/CVV n'est collectée.
+Aucune clé service-role dans le client. Les RPC financiers sont réservés au backend. Le POS ne collecte pas PAN/CVV ni données de piste bancaire.
 
-## Encore à construire
-- publication/édition du catalogue depuis Hub ;
-- plan de salle et commandes ouvertes ;
-- partage de note et paiements multiples ;
-- annulation/remboursement ;
-- KDS/imprimantes cuisine ;
-- impression ticket ;
-- intégration réelle Worldline/TWINT ;
-- stockage natif SQLite pour une résilience offline de production.
+## Suite
+Plan de salle, commandes ouvertes, partage de note, remboursements, KDS/imprimantes, intégrations Worldline/TWINT et stockage SQLite natif de production.
 
-Aucun build Android automatique n'est attaché à cette branche pendant la phase de développement.
+Aucun workflow Android automatique n'est attaché à cette branche pendant le développement.
