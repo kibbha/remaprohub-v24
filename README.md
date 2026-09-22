@@ -1,20 +1,20 @@
 # ReMaPro POS
 
-Version actuelle: **0.20.0**  
+Version actuelle: **0.21.0**  
 Android package: **com.remapro.pos**
 
-## v0.20 — architecture prestataires prête
-- lecture du registre Worldline/TWINT configuré depuis ReMaPro Hub ;
-- affichage dans le POS du chemin d’intégration, environnement et état du dossier ;
-- Worldline : Terminal API Cloud ou TIM ;
-- TWINT : Direct ou Terminal/PSP ;
-- cache offline de l’état prestataire ;
-- aucune clé API ni secret marchand dans l’application ;
-- aucune transaction automatique n’est activée tant que l’adaptateur officiel serveur et les identifiants réels ne sont pas installés.
+## v0.21 — service offline renforcé
+- envoi Cuisine/Bar disponible hors ligne ;
+- les nouveaux articles sont ajoutés à la file dans l’ordre avant l’envoi production ;
+- statuts production (envoyé, préparation, prêt, servi) modifiables hors ligne ;
+- impression ESC/POS Cuisine/Bar continue localement pendant la coupure ;
+- reprise serveur ordonnée au retour du réseau ;
+- chaque action offline conserve l’ID de l’opérateur d’origine sans stocker son PIN ni son token ;
+- si un autre opérateur est connecté au moment de la reprise, la synchronisation attend la reconnexion de l’opérateur d’origine au lieu de réattribuer l’action.
 
-Les paiements carte/TWINT restent donc enregistrables uniquement après confirmation manuelle sur un terminal externe indépendant. La bascule vers le paiement intégré se fera sans modifier les commandes, tickets, remboursements ni paiements fractionnés déjà construits.
+Les ventes, paiements cash/carte manuels, ouvertures/clôtures de caisse et commandes étaient déjà journalisés offline. Cette version étend le même mécanisme à la production.
 
-## v0.19
-Food cost théorique, consommation stock idempotente et synchronisation Hub.
+## v0.20
+Registre de préparation Worldline/TWINT sans secrets côté client.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

@@ -2,7 +2,7 @@ import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,sav
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.20.0';
+const APP_VERSION='0.21.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -34,6 +34,27 @@ async function ensureDevice(){
   d.appVersion=APP_VERSION;await kvSet('device',d);return d;
 }
 async function updateQueueCount(){state.queueCount=(await queueAll()).length}
+function queuedOperatorContext(){
+  if(!state.operatorRequired||!state.operator)return{};
+  return{operatorId:String(state.operator.id||''),operatorName:String(state.operator.display_name||'Opérateur')};
+}
+function queuedItem(action,restaurantId,payload,{clientEventId='',queuedAt=''}={}){
+  return{
+    client_event_id:clientEventId||uuid(),
+    queued_at:queuedAt||new Date().toISOString(),
+    action,restaurantId,payload,
+    ...queuedOperatorContext()
+  };
+}
+function assertQueuedOperator(item){
+  if(!item?.operatorId)return;
+  const current=currentOperatorSession();
+  if(current?.operator?.id===item.operatorId&&current?.token)return;
+  const err=new Error('OFFLINE_OPERATOR_REAUTH');
+  err.operatorName=item.operatorName||'opérateur';
+  throw err;
+}
+
 function isManager(){
   const restaurant=state.restaurant;if(!restaurant)return false;
   return (state.identity?.memberships||[]).some(m=>
@@ -582,6 +603,7 @@ async function refreshReceipts(){
   }catch(error){state.error=error.message||String(error)}
 }
 async function executeQueued(item){
+  assertQueuedOperator(item);
   if(item.action==='open_cash_session'){
     const r=await posFunction({action:'open_cash_session',restaurantId:item.restaurantId,...item.payload});
     if(state.cashSession?.id===item.payload.sessionId){state.cashSession={...state.cashSession,...r.session,synced:true};await kvSet(sessionKey(item.restaurantId),state.cashSession)}
@@ -594,6 +616,15 @@ async function executeQueued(item){
   }
   if(item.action==='save_open_order'){
     return posFunction({action:'save_open_order',restaurantId:item.restaurantId,order:item.payload.order});
+  }
+  if(item.action==='append_order_items'){
+    return posFunction({action:'append_order_items',restaurantId:item.restaurantId,...item.payload});
+  }
+  if(item.action==='send_to_production'){
+    return posFunction({action:'send_to_production',restaurantId:item.restaurantId,...item.payload});
+  }
+  if(item.action==='update_production_item'){
+    return posFunction({action:'update_production_item',restaurantId:item.restaurantId,...item.payload});
   }
   if(item.action==='settle_open_order'){
     const r=await posFunction({action:'settle_open_order',restaurantId:item.restaurantId,...item.payload});
@@ -622,21 +653,28 @@ async function executeQueued(item){
 async function flushQueue(){
   if(!state.online||!state.restaurant)return;
   const list=await queueAll();
-  let floorChanged=false;
+  let floorChanged=false,productionChanged=false;
   for(const item of list){
     if(item.restaurantId!==state.restaurant.id)continue;
     try{
       await executeQueued(item);
-      if(['save_open_order','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
+      if(['save_open_order','append_order_items','send_to_production','update_production_item','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
+      if(['append_order_items','send_to_production','update_production_item'].includes(item.action))productionChanged=true;
       await queueDelete(item.client_event_id);
-    }catch(error){state.error='Synchronisation: '+(error.message||String(error));break}
+    }catch(error){
+      state.error=error?.message==='OFFLINE_OPERATOR_REAUTH'
+        ?'Synchronisation en attente : reconnectez '+(error.operatorName||'l’opérateur d’origine')+'.'
+        :'Synchronisation: '+(error.message||String(error));
+      break
+    }
   }
   if(floorChanged&&state.online)await refreshFloorData();
+  if(productionChanged&&state.online)await refreshProductionQueue();
   if(state.pendingAutoReceiptNumber&&state.online)await refreshReceipts();
   await updateQueueCount();render();
 }
-async function queueCommand(action,payload){
-  const item={client_event_id:uuid(),queued_at:new Date().toISOString(),action,restaurantId:state.restaurant.id,payload};
+async function queueCommand(action,payload,options={}){
+  const item=queuedItem(action,state.restaurant.id,payload,options);
   await queuePut(item);await updateQueueCount();return item;
 }
 async function bootstrapRestaurant(restaurant){
@@ -735,7 +773,7 @@ function localOpenOrder(order,status='open'){
     id:order.id,business_date:order.businessDate,table_id:order.tableId||null,table_label:order.tableLabel||null,
     service_type:order.serviceType,status,currency:order.currency,covers:order.covers,
     total:order.lines.reduce((s,x)=>s+Number(x.quantity)*Number(x.unit_price),0),
-    items:order.lines.map(x=>({id:x.id,order_id:order.id,catalog_item_id:x.catalog_item_id,recipe_id:x.recipe_id,name_snapshot:x.name,sku_snapshot:x.sku,quantity:x.quantity,unit_price:x.unit_price,tax_rate:x.tax_rate,line_total:Number(x.quantity)*Number(x.unit_price),kitchen_status:'new'})),
+    items:order.lines.map(x=>({id:x.id,order_id:order.id,catalog_item_id:x.catalog_item_id,recipe_id:x.recipe_id,name_snapshot:x.name,sku_snapshot:x.sku,quantity:x.quantity,unit_price:x.unit_price,tax_rate:x.tax_rate,line_total:Number(x.quantity)*Number(x.unit_price),station_snapshot:x.production_station||'kitchen',kitchen_status:'new',note:x.note||null})),
     updated_at:new Date().toISOString()
   };
 }
@@ -751,7 +789,7 @@ async function saveOpenOrder(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
   const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid(),order=buildOpenOrder(orderId,eventId);
   order.deviceId=device.id;
-  await queuePut({client_event_id:eventId,queued_at:new Date().toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+  await queuePut(queuedItem('save_open_order',state.restaurant.id,{order},{clientEventId:eventId}));
   const local=localOpenOrder(order,'open');
   state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];
   await saveFloorCache();state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
@@ -1189,13 +1227,10 @@ async function splitCheckout(){
   const existing=currentServerOrder();
   if(!existing||existing.status==='open'){
     const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
-    await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+    await queuePut(queuedItem('save_open_order',state.restaurant.id,{order},{clientEventId:saveEventId,queuedAt:now.toISOString()}));
     state.openOrders=[localOpenOrder(order,'payment_pending'),...state.openOrders.filter(x=>x.id!==orderId)];
   }
-  await queuePut({
-    client_event_id:payEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order_split',restaurantId:state.restaurant.id,
-    payload:{orderId,clientEventId:payEventId,deviceId:device.id,cashSessionId:state.cashSession.id,payments,occurredAt:now.toISOString()}
-  });
+  await queuePut(queuedItem('settle_open_order_split',state.restaurant.id,{orderId,clientEventId:payEventId,deviceId:device.id,cashSessionId:state.cashSession.id,payments,occurredAt:now.toISOString()},{clientEventId:payEventId,queuedAt:new Date(now.getTime()+1).toISOString()}));
   state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
 }
@@ -1235,10 +1270,53 @@ async function confirmRefund(refundId,success){
     await refreshReceipts();state.error=success?'Remboursement externe confirmé.':'Remboursement externe marqué en échec.';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
+function applyLocalProductionSend(order,newLines=[]){
+  const existingItems=Array.isArray(order.items)?order.items.map(x=>({...x})):[];
+  const appended=newLines.map(x=>({
+    id:x.id,order_id:order.id,catalog_item_id:x.catalog_item_id||null,recipe_id:x.recipe_id||null,
+    name_snapshot:x.name,sku_snapshot:x.sku||'',quantity:Number(x.quantity)||1,unit_price:Number(x.unit_price)||0,
+    tax_rate:Number(x.tax_rate)||0,line_total:(Number(x.quantity)||1)*(Number(x.unit_price)||0),
+    station_snapshot:x.production_station||'kitchen',kitchen_status:'new',note:x.note||null
+  }));
+  const all=[...existingItems,...appended];
+  const sentIds=[];
+  for(const item of all){
+    if((item.station_snapshot||'kitchen')!=='none'&&item.kitchen_status==='new'){
+      item.kitchen_status='sent';sentIds.push(String(item.id));
+    }
+  }
+  const nextStatus=sentIds.length&&['open','served'].includes(order.status)?'sent':order.status;
+  const next={...order,status:nextStatus,items:all,updated_at:new Date().toISOString()};
+  state.openOrders=[next,...state.openOrders.filter(x=>x.id!==order.id)];
+  state.productionQueue=[next,...state.productionQueue.filter(x=>x.id!==order.id)];
+  return{order:next,sentIds};
+}
+async function persistLocalProduction(){
+  await saveFloorCache();
+  if(state.restaurant)await kvSet(productionKey(state.restaurant.id),state.productionQueue);
+}
 async function sendCurrentOrderProduction(){
   const order=currentServerOrder();
   if(!order){alert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
-  if(!state.online){alert('L’envoi cuisine/bar nécessite une connexion.');return}
+  if(!state.online){
+    try{
+      const now=Date.now(),newLines=order.status==='open'?[]:deltaLines();
+      if(order.status!=='open'&&!newLines.length){alert('Aucun nouvel article à envoyer.');return}
+      if(newLines.length){
+        const appendEventId=uuid();
+        await queueCommand('append_order_items',{
+          orderId:order.id,clientEventId:appendEventId,lines:newLines,occurredAt:new Date(now).toISOString()
+        },{clientEventId:appendEventId,queuedAt:new Date(now).toISOString()});
+      }
+      await queueCommand('send_to_production',{orderId:order.id},{queuedAt:new Date(now+1).toISOString()});
+      const local=applyLocalProductionSend(order,newLines);
+      state.cart=state.cart.map(x=>({...x,locked:true,delta:false}));
+      await persistLocalProduction();
+      await autoPrintProductionItems(order.id,local.sentIds);
+      state.error='Envoi Cuisine/Bar enregistré hors ligne — synchronisation automatique au retour du réseau.';
+      render();return;
+    }catch(error){state.error=error.message||String(error);render();return}
+  }
   try{
     if(order.status==='open'){
       const device=await ensureDevice(),eventId=uuid(),payload=buildOpenOrder(order.id,eventId);payload.deviceId=device.id;
@@ -1260,7 +1338,15 @@ async function sendCurrentOrderProduction(){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function updateProductionItem(itemId,status){
-  if(!state.online){alert('Le suivi production nécessite une connexion.');return}
+  if(!state.online){
+    const patchItems=order=>({...order,items:(order.items||[]).map(i=>String(i.id)===String(itemId)?{...i,kitchen_status:status}:i),updated_at:new Date().toISOString()});
+    state.productionQueue=state.productionQueue.map(patchItems);
+    state.openOrders=state.openOrders.map(patchItems);
+    await queueCommand('update_production_item',{itemId,status});
+    await persistLocalProduction();
+    state.error='Statut production enregistré hors ligne.';
+    render();return;
+  }
   try{
     await posFunction({action:'update_production_item',restaurantId:state.restaurant.id,itemId,status});
     await Promise.all([refreshProductionQueue(),refreshFloorData()]);
@@ -1318,14 +1404,11 @@ async function checkout(method){
     const existing=currentServerOrder();
     if(!existing||existing.status==='open'){
       const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
-      await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+      await queuePut(queuedItem('save_open_order',state.restaurant.id,{order},{clientEventId:saveEventId,queuedAt:now.toISOString()}));
       const local=localOpenOrder(order,'payment_pending');
       state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];
     }
-    await queuePut({
-      client_event_id:settleEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order',restaurantId:state.restaurant.id,
-      payload:{orderId,clientEventId:settleEventId,deviceId:device.id,cashSessionId:state.cashSession.id,paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()}
-    });
+    await queuePut(queuedItem('settle_open_order',state.restaurant.id,{orderId,clientEventId:settleEventId,deviceId:device.id,cashSessionId:state.cashSession.id,paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()},{clientEventId:settleEventId,queuedAt:new Date(now.getTime()+1).toISOString()}));
   }else{
     const orderId=uuid(),eventId=uuid();
     const order={
@@ -1334,7 +1417,7 @@ async function checkout(method){
       covers:Number(state.covers)||0,currency:state.restaurant.currency||'CHF',lines:orderLines(),
       paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()
     };
-    await queuePut({client_event_id:eventId,queued_at:now.toISOString(),action:'commit_order',restaurantId:state.restaurant.id,payload:{order}});
+    await queuePut(queuedItem('commit_order',state.restaurant.id,{order},{clientEventId:eventId,queuedAt:now.toISOString()}));
   }
 
   state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
