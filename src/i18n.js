@@ -233,6 +233,11 @@ const v2711uEn={supplierPaymentsDue:"Supplier payments to review"};
 const v2711uDe={supplierPaymentsDue:"Lieferantenzahlungen prüfen"};
 const v2711uIt={supplierPaymentsDue:"Pagamenti fornitori da gestire"};
 Object.assign(fr,v2711uFr);Object.assign(en,v2711uEn);Object.assign(de,v2711uDe);Object.assign(it,v2711uIt);
+const v2711vFr={supplierNeeds7d:"Besoins fournisseurs · 7 jours",supplierInvoicesDue7d:"Factures à traiter"};
+const v2711vEn={supplierNeeds7d:"Supplier needs · 7 days",supplierInvoicesDue7d:"Invoices to handle"};
+const v2711vDe={supplierNeeds7d:"Lieferantenbedarf · 7 Tage",supplierInvoicesDue7d:"Zu bearbeitende Rechnungen"};
+const v2711vIt={supplierNeeds7d:"Fabbisogno fornitori · 7 giorni",supplierInvoicesDue7d:"Fatture da gestire"};
+Object.assign(fr,v2711vFr);Object.assign(en,v2711vEn);Object.assign(de,v2711vDe);Object.assign(it,v2711vIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
