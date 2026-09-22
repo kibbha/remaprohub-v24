@@ -174,3 +174,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - La revue consolide également food cost, coût de planning, pertes, échéances fournisseurs, HACCP, maintenance et préparation des prochains services.
 - Les signaux ne créent pas de score opaque : ReMaPro conserve les indicateurs factuels et les alertes déjà calculées.
 - Le Manager Copilot reçoit cette revue ainsi que la préparation des services afin de prioriser ses réponses à partir des données réelles du restaurant.
+
+## Paiement facture en un clic – lot 25
+- Une facture fournisseur en attente peut maintenant être marquée comme payée directement depuis sa ligne.
+- L’action demande une confirmation et enregistre la date/heure de paiement.
+- Une facture déjà payée ne peut pas être payée une seconde fois par cette action.
+- Le paiement retire immédiatement la facture des échéances et alertes fournisseurs sans créer artificiellement une nouvelle dépense comptable.
