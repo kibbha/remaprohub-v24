@@ -1,7 +1,7 @@
 # ReMaPro Hub — Google Play Data Safety working sheet
 
-Version target: 27.7.0
-Review date: 2026-09-20
+Version target: 27.11.0
+Review date: 2026-09-22
 
 ## Data collected or processed
 - Account data: email, Supabase user ID, organization and restaurant memberships.
