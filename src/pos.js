@@ -1,9 +1,10 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='5';
+export const POS_BRIDGE_VERSION='6';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
+const stationOf=item=>{const s=String(item?.productionStation||item?.posStation||item?.station||item?.metadata?.station||'kitchen').toLowerCase();return['kitchen','bar','none'].includes(s)?s:'kitchen'};
 
 export function buildPosCatalogFromHubState(state){
   const products=Array.isArray(state?.products)?state.products:[];
@@ -20,6 +21,7 @@ export function buildPosCatalogFromHubState(state){
       itemType:'product',
       price:Math.max(0,n(item?.price)),
       taxRate:Math.max(0,n(item?.taxRate??item?.vatRate??8.1)),
+      productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:index,
       metadata:{hubSource:'products'}
@@ -38,6 +40,7 @@ export function buildPosCatalogFromHubState(state){
       itemType:'recipe',
       price:Math.max(0,n(item?.price??item?.sellingPrice)),
       taxRate:Math.max(0,n(item?.taxRate??item?.vatRate??8.1)),
+      productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:10000+index,
       metadata:{hubSource:'recipes'}
@@ -108,4 +111,14 @@ export async function confirmPosExternalRefund(restaurantId,refundId,success,pro
 }
 export async function loadPosRefunds(restaurantId,{orderId='',limit=50}={}){
   return cloudFunction('remapro-pos-sync',{action:'list_refunds',restaurantId,orderId,limit});
+}
+
+export async function sendPosOrderToProduction(restaurantId,orderId){
+  return cloudFunction('remapro-pos-sync',{action:'send_to_production',restaurantId,orderId});
+}
+export async function loadPosProductionQueue(restaurantId,station=''){
+  return cloudFunction('remapro-pos-sync',{action:'production_queue',restaurantId,station});
+}
+export async function updatePosProductionItem(restaurantId,itemId,status){
+  return cloudFunction('remapro-pos-sync',{action:'update_production_item',restaurantId,itemId,status});
 }

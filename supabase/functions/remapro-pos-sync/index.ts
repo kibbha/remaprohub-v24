@@ -42,7 +42,7 @@ export default {
         const deviceId=clean(body.deviceId,64);
         const requests:any[]=[
           ctx.supabaseAdmin.from("pos_catalog_items")
-            .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
+            .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,production_station,active,sort_order,metadata,version,updated_at")
             .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name"),
           ctx.supabaseAdmin.from("profiles").select("id,first_name,last_name,locale").eq("id",userId).maybeSingle(),
           ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle()
@@ -71,8 +71,9 @@ export default {
             tips:true,
             tableTransfers:true,
             refunds:true,
-            paymentProviders:false,
-            kitchen:false
+            productionRouting:true,
+            kitchen:true,
+            paymentProviders:false
           }
         });
       }
@@ -180,6 +181,7 @@ export default {
             return json({error:`Invalid catalog item at index ${i}`},400);
           }
           sourceKeys.push(sourceKey);
+          const station=clean(item.productionStation||item.station||item?.metadata?.station,30).toLowerCase();
           const row:any={
             organization_id:restaurant.organization_id,
             restaurant_id:restaurantId,
@@ -190,6 +192,7 @@ export default {
             item_type:["product","recipe","modifier","service"].includes(clean(item.itemType,30))?clean(item.itemType,30):"product",
             price:Math.round(price*100)/100,
             tax_rate:Math.round(taxRate*1000)/1000,
+            production_station:["kitchen","bar","none"].includes(station)?station:"kitchen",
             active:item.active!==false,
             sort_order:Math.trunc(Number(item.sortOrder)||0),
             metadata:item.metadata&&typeof item.metadata==="object"?item.metadata:{},
@@ -222,7 +225,7 @@ export default {
         }
 
         const {data:catalog,error:catalogError}=await ctx.supabaseAdmin.from("pos_catalog_items")
-          .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
+          .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,production_station,active,sort_order,metadata,version,updated_at")
           .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name");
         if(catalogError)return json({error:catalogError.message},500);
         return json({ok:true,count:catalog?.length||0,catalog:catalog||[]});
@@ -425,7 +428,7 @@ export default {
         let items:any[]=[];
         if(ids.length){
           const itemResult=await ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,kitchen_status,note")
+            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,station_snapshot,kitchen_status,note")
             .in("order_id",ids).order("created_at");
           if(itemResult.error)return json({error:itemResult.error.message},500);
           items=itemResult.data||[];
@@ -436,6 +439,53 @@ export default {
           byOrder.get(item.order_id)!.push(item);
         }
         return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]}))});
+      }
+
+      if(action==="send_to_production"){
+        const orderId=clean(body.orderId,64);
+        if(!validUuid(orderId))return json({error:"Valid orderId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_send_order_to_production",{
+          p_order_id:orderId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
+      if(action==="production_queue"){
+        const station=clean(body.station,20).toLowerCase();
+        const {data:orders,error}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,business_date,table_id,table_label,service_type,status,covers,opened_at,updated_at")
+          .eq("restaurant_id",restaurantId).in("status",["sent","preparing"]).order("updated_at");
+        if(error)return json({error:error.message},500);
+        const ids=(orders||[]).map((x:any)=>x.id);
+        let items:any[]=[];
+        if(ids.length){
+          let itemQuery=ctx.supabaseAdmin.from("pos_order_items")
+            .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,created_at")
+            .in("order_id",ids).in("kitchen_status",["sent","preparing","ready"]).neq("station_snapshot","none").order("created_at");
+          if(["kitchen","bar"].includes(station))itemQuery=itemQuery.eq("station_snapshot",station);
+          const itemResult=await itemQuery;
+          if(itemResult.error)return json({error:itemResult.error.message},500);
+          items=itemResult.data||[];
+        }
+        const byOrder=new Map<string,any[]>();
+        for(const item of items){
+          if(!byOrder.has(item.order_id))byOrder.set(item.order_id,[]);
+          byOrder.get(item.order_id)!.push(item);
+        }
+        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]})).filter((o:any)=>o.items.length)});
+      }
+
+      if(action==="update_production_item"){
+        const itemId=clean(body.itemId,64),status=clean(body.status,20).toLowerCase();
+        if(!validUuid(itemId)||!["sent","preparing","ready","served","cancelled"].includes(status)){
+          return json({error:"Valid itemId and production status required"},400);
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_update_production_item",{
+          p_item_id:itemId,p_status:status,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,item:data});
       }
 
       if(action==="recent_receipts"){
