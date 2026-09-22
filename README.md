@@ -2,7 +2,7 @@
 
 Application de caisse distincte de ReMaPro Hub, connectée à la même plateforme ReMaPro/Supabase.
 
-Version actuelle: **0.3.0**  
+Version actuelle: **0.3.1**  
 Android package: **com.remapro.pos**
 
 ## Disponible
