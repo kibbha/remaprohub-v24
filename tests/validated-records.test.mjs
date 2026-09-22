@@ -42,7 +42,9 @@ assert.equal(recordValidated(state,'loyalty',{name:'Client',points:-1}),false);
 assert.equal(recordValidated(state,'temps',{equipment:'Fridge',value:-3.5})?.value,-3.5);
 assert.equal(recordValidated(state,'temps',{equipment:'Fridge',value:'oops'}),false);
 assert.equal(recordValidated(state,'temps',{equipment:'',value:4}),false);
+state.suppliers=[{name:'Metro',paymentDays:45}];
 assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-1',date:'2026-09-20',dueDate:'2026-10-20',amount:120,status:'pending'})?.dueDate,'2026-10-20');
+assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-3',date:'2026-09-20',amount:80,status:'pending'})?.dueDate,'2026-11-04');
 assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-2',date:'2026-09-20',dueDate:'2026-09-19',amount:120,status:'pending'}),false);
 
 assert.equal(updateRecord(state,'audits',0,{score:120}),false);
