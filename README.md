@@ -1,26 +1,21 @@
 # ReMaPro POS
 
-Version actuelle: **0.15.1**  
+Version actuelle: **0.16.0**  
 Android package: **com.remapro.pos**
 
-## v0.15 — impression ESC/POS native
-- profils synchronisés Ticket client / Cuisine / Bar ;
-- découverte des imprimantes Bluetooth et USB sur Android ;
-- impression ESC/POS native avec coupe papier ;
-- test d’impression par profil ;
-- impression ticket et bon production via le profil correspondant ;
-- fallback automatique vers le dialogue d’impression système ;
-- profils réseau/TCP déjà prévus dans le modèle, mais non déclarés opérationnels sur le pilote Capacitor 7 actuel.
+## v0.16 — offline natif SQLite
+- stockage natif SQLite sur Android pour le cache local et la file de synchronisation ;
+- fallback IndexedDB sur le web ;
+- migration automatique des anciennes données IndexedDB vers SQLite au premier démarrage natif ;
+- persistance des commandes en attente, session de caisse, catalogue, tables, tickets, terminaux et imprimantes via la même API locale ;
+- reprise de la file de synchronisation après redémarrage de l’app.
 
-Le pilote natif est fixé à **@fedejm/capacitor-esc-pos-printer 0.2.3**, compatible Capacitor 7. Le projet reste en Capacitor 7.4.3 pour éviter une migration Android prématurée.
+Le plugin **@capacitor-community/sqlite 7.0.3** est fixé explicitement pour rester compatible avec Capacitor 7.
 
-## Sécurité
-Aucune donnée secrète n’est nécessaire pour une imprimante. Les profils ne contiennent que rôle, transport, adresse/ID matériel et préférences d’impression.
+## v0.15
+Impression ESC/POS Bluetooth/USB, profils Ticket/Cuisine/Bar et routage automatique exact des nouveaux articles.
 
 ## Suite
-Routage automatique exact des nouveaux tickets cuisine/bar, SQLite natif offline, utilisateurs/PIN et administration Hub.
+Utilisateurs/PIN et changement rapide de serveur, paramétrage Hub, puis liaison ventes → stocks/food cost.
 
 Aucun build Android automatique n’est lancé pendant cette phase.
-
-## v0.15.1 — routage automatique exact
-Le backend renvoie les IDs des lignes nouvellement envoyées en production. Les profils Cuisine/Bar avec **Impression automatique** n’impriment donc que ces nouvelles lignes, jamais les plats déjà envoyés. Le ticket client peut également s’imprimer automatiquement après récupération du ticket complet.
