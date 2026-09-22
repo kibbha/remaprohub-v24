@@ -229,8 +229,9 @@ export function countInventoryItem(state,countId,{stockId,quantity,countedBy=''}
 export function finalizeInventoryCount(state,countId){
   const count=(state?.inventoryCounts||[]).find(x=>x.id===countId);if(!count||count.status!=='open'||!(count.lines||[]).length)return false;
   for(const line of count.lines){if(!state.stock?.some(x=>x.id===line.stockId)||!Number.isFinite(+line.quantity)||+line.quantity<0)return false}
+  const variance=[];for(const line of count.lines){const item=state.stock.find(x=>x.id===line.stockId),theoretical=stockAvailable(state,item),counted=+line.quantity,delta=Math.round((counted-theoretical)*1000)/1000,unitCost=+item.price||0;variance.push({stockId:item.id,product:item.name,unit:item.unit||'',theoretical,counted,delta,value:Math.round(delta*unitCost*100)/100})}
   const adjustments=[];for(const line of count.lines){const item=state.stock.find(x=>x.id===line.stockId),before=stockAvailable(state,item),target=+line.quantity;if(Math.abs(before-target)<1e-9)continue;const move=recordStockMovement(state,{stockId:item.id,type:'adjustment',quantity:target,reason:'Inventaire '+count.name});if(move)adjustments.push(move)}
-  count.status='closed';count.closedAt=new Date().toISOString();count.adjustments=adjustments.length;return count
+  count.status='closed';count.closedAt=new Date().toISOString();count.adjustments=adjustments.length;count.variance=variance;count.absoluteVarianceValue=Math.round(variance.reduce((sum,x)=>sum+Math.abs(x.value),0)*100)/100;return count
 }
 export function recordProductionBatch(state,{recipeIndex,outputStockId='',multiplier=1,outputQuantity=0,note=''}={}){
   const recipe=state?.recipes?.[Number(recipeIndex)],factor=+multiplier,out=state.stock?.find(x=>String(x.id)===String(outputStockId)),outQty=+outputQuantity;if(!recipe||!Number.isFinite(factor)||factor<=0||!Array.isArray(recipe.ingredients)||!recipe.ingredients.length||!out||!Number.isFinite(outQty)||outQty<=0)return false;
