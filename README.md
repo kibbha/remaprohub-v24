@@ -1,20 +1,20 @@
 # ReMaPro POS
 
-Version actuelle: **0.21.0**  
+Version actuelle: **0.22.0**  
 Android package: **com.remapro.pos**
 
-## v0.21 — service offline renforcé
-- envoi Cuisine/Bar disponible hors ligne ;
-- les nouveaux articles sont ajoutés à la file dans l’ordre avant l’envoi production ;
-- statuts production (envoyé, préparation, prêt, servi) modifiables hors ligne ;
-- impression ESC/POS Cuisine/Bar continue localement pendant la coupure ;
-- reprise serveur ordonnée au retour du réseau ;
-- chaque action offline conserve l’ID de l’opérateur d’origine sans stocker son PIN ni son token ;
-- si un autre opérateur est connecté au moment de la reprise, la synchronisation attend la reconnexion de l’opérateur d’origine au lieu de réattribuer l’action.
+## v0.22 — centre de synchronisation
+- la pastille de file devient un accès direct au centre de synchronisation ;
+- liste des actions en attente pour le restaurant courant ;
+- type d’action, heure, opérateur d’origine, nombre de tentatives et dernière erreur ;
+- relance manuelle disponible dès que le réseau revient ;
+- toute erreur conserve l’action dans SQLite et incrémente son compteur de tentatives ;
+- aucune suppression manuelle n’est proposée : une action de caisse n’est jamais effacée silencieusement.
 
-Les ventes, paiements cash/carte manuels, ouvertures/clôtures de caisse et commandes étaient déjà journalisés offline. Cette version étend le même mécanisme à la production.
+## v0.21
+Production Cuisine/Bar et statuts de production utilisables hors ligne avec réattribution correcte à l’opérateur d’origine.
 
 ## v0.20
-Registre de préparation Worldline/TWINT sans secrets côté client.
+Registre Worldline/TWINT prêt, transactions automatiques volontairement désactivées tant que les adaptateurs officiels ne sont pas configurés.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

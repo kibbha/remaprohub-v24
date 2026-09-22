@@ -2,7 +2,7 @@ import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,sav
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.21.0';
+const APP_VERSION='0.22.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -10,7 +10,8 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[]
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],
+  pendingQueue:[],syncLastRun:''
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -33,7 +34,11 @@ async function ensureDevice(){
   if(!d){d={id:uuid(),installId:uuid(),label:'Caisse principale',platform:'android',appVersion:APP_VERSION};await kvSet('device',d)}
   d.appVersion=APP_VERSION;await kvSet('device',d);return d;
 }
-async function updateQueueCount(){state.queueCount=(await queueAll()).length}
+async function updateQueueCount(){
+  const rows=await queueAll();
+  state.pendingQueue=rows;
+  state.queueCount=state.restaurant?rows.filter(x=>x.restaurantId===state.restaurant.id).length:rows.length;
+}
 function queuedOperatorContext(){
   if(!state.operatorRequired||!state.operator)return{};
   return{operatorId:String(state.operator.id||''),operatorName:String(state.operator.display_name||'Opérateur')};
@@ -662,15 +667,18 @@ async function flushQueue(){
       if(['append_order_items','send_to_production','update_production_item'].includes(item.action))productionChanged=true;
       await queueDelete(item.client_event_id);
     }catch(error){
-      state.error=error?.message==='OFFLINE_OPERATOR_REAUTH'
-        ?'Synchronisation en attente : reconnectez '+(error.operatorName||'l’opérateur d’origine')+'.'
-        :'Synchronisation: '+(error.message||String(error));
+      const message=error?.message==='OFFLINE_OPERATOR_REAUTH'
+        ?'Reconnectez '+(error.operatorName||'l’opérateur d’origine')+' pour synchroniser cette action.'
+        :(error.message||String(error));
+      await queuePut({...item,attempts:Number(item.attempts||0)+1,last_error:message,last_attempt_at:new Date().toISOString()});
+      state.error='Synchronisation: '+message;
       break
     }
   }
   if(floorChanged&&state.online)await refreshFloorData();
   if(productionChanged&&state.online)await refreshProductionQueue();
   if(state.pendingAutoReceiptNumber&&state.online)await refreshReceipts();
+  state.syncLastRun=new Date().toISOString();
   await updateQueueCount();render();
 }
 async function queueCommand(action,payload,options={}){
@@ -1430,6 +1438,36 @@ async function checkout(method){
   render();
 }
 
+
+function syncActionLabel(action){
+  return ({
+    open_cash_session:'Ouverture caisse',
+    close_cash_session:'Clôture caisse',
+    commit_order:'Vente comptoir',
+    save_open_order:'Enregistrement note',
+    append_order_items:'Ajout articles',
+    send_to_production:'Envoi Cuisine/Bar',
+    update_production_item:'Statut production',
+    settle_open_order:'Encaissement note',
+    settle_open_order_split:'Paiement fractionné'
+  })[action]||action||'Action';
+}
+function syncView(){
+  const rows=(state.pendingQueue||[]).filter(x=>x.restaurantId===state.restaurant?.id);
+  const last=state.syncLastRun?new Date(state.syncLastRun).toLocaleString('fr-CH'):'—';
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="sync-page">
+      <div class="floor-head"><div><h2>Synchronisation</h2><p>${rows.length} action(s) locale(s) à envoyer · dernière tentative ${esc(last)}</p></div><div class="terminal-head-actions"><button class="secondary" id="sync-refresh">Actualiser</button><button class="primary compact" id="sync-retry" ${!state.online||!rows.length?'disabled':''}>Relancer maintenant</button></div></div>
+      <div class="sync-health ${state.online?'online':'offline'}"><strong>${state.online?'Connexion disponible':'Mode hors ligne'}</strong><span>${rows.length?'Les actions restent conservées localement dans SQLite jusqu’à confirmation serveur.':'Aucune action en attente.'}</span></div>
+      <section class="sync-list">${rows.length?rows.map(item=>`<article class="sync-card">
+        <div class="sync-card-head"><div><strong>${esc(syncActionLabel(item.action))}</strong><small>${new Date(item.queued_at).toLocaleString('fr-CH')}</small></div><span class="sync-attempts">${Number(item.attempts||0)} tentative(s)</span></div>
+        <div class="sync-meta"><span>Opérateur <strong>${esc(item.operatorName||'Compte Hub')}</strong></span><span>ID <strong>${esc(String(item.client_event_id||'').slice(0,8))}</strong></span></div>
+        ${item.last_error?'<div class="sync-error">'+esc(item.last_error)+'</div>':''}
+        ${item.last_attempt_at?'<small class="muted">Dernier essai : '+esc(new Date(item.last_attempt_at).toLocaleString('fr-CH'))+'</small>':''}
+      </article>`).join(''):'<div class="empty"><h3>Tout est synchronisé</h3><p>La caisse locale et le serveur sont à jour pour ce restaurant.</p></div>'}</section>
+    </main></div>`;
+}
+
 function loginView(){return `<div class="login-wrap"><form class="card" id="login-form"><h1>ReMaPro POS</h1><p>Caisse connectée à ReMaPro Hub.</p>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><p class="muted">v${APP_VERSION}</p></form></div>`}
 function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Choisir le restaurant</h1><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary" id="logout">Déconnexion</button></div></div>`}
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
@@ -1437,7 +1475,7 @@ function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
     <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
     <div class="spacer"></div>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
-    <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
+    <button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
 }
 function floorView(){
@@ -1527,7 +1565,7 @@ function render(){
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -1536,6 +1574,9 @@ function wire(){
   document.querySelector('#operator-account-logout')?.addEventListener('click',()=>{signOut();clearOperatorSession();state.identity=null;state.restaurant=null;state.operator=null;render()});
   document.querySelector('#operator-login-form')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await operatorLogin(String(fd.get('operatorId')||''),String(fd.get('pin')||''))});
   document.querySelector('#switch-operator')?.addEventListener('click',()=>switchOperator());
+  document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
+  document.querySelector('#sync-refresh')?.addEventListener('click',()=>updateQueueCount().then(render));
+  document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue();if(state.view==='sync')render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
