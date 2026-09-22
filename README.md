@@ -1,29 +1,26 @@
 # ReMaPro POS
 
-Application de caisse distincte de ReMaPro Hub, connectée à la même plateforme ReMaPro/Supabase.
-
-Version actuelle: **0.3.1**  
+Version actuelle: **0.4.0**  
 Android package: **com.remapro.pos**
 
-## Disponible
-- compte et restaurants partagés avec ReMaPro Hub ;
-- terminal POS identifié par UUID ;
-- catalogue POS publié depuis Hub via `sync_catalog` ;
-- rafraîchissement manuel + cache catalogue ;
-- article libre pour tests/ventes ponctuelles sans polluer le catalogue ;
-- ouverture de caisse avec fond initial ;
-- commandes avec type de service, table et couverts ;
-- encaissement espèces/carte/TWINT ;
-- transaction atomique: commande + lignes + TVA + paiement + ticket + audit ;
-- numérotation des tickets par restaurant/jour ;
-- clôture avec espèces attendues, comptées et écart ;
-- file offline IndexedDB rejouée dans l'ordre ;
-- historique des derniers tickets.
+ReMaPro POS est l'application de caisse séparée de ReMaPro Hub, sur le même backend ReMaPro.
+
+## Fonctionnalités présentes
+- compte/restaurant partagés avec Hub ;
+- catalogue Hub → POS + article libre ;
+- ouverture/clôture de caisse ;
+- transactions atomiques avec TVA, paiement, audit et ticket numéroté ;
+- file offline IndexedDB ;
+- plan de salle ;
+- tables libres/occupées ;
+- commandes/notes ouvertes ;
+- sauvegarde et réouverture d'une note ;
+- encaissement ultérieur d'une table ;
+- blocage de clôture tant qu'une note reste ouverte ;
+- cache local des tables, notes et tickets.
 
 ## Sécurité
-Aucune clé service-role dans le client. Les RPC financiers sont réservés au backend. Le POS ne collecte pas PAN/CVV ni données de piste bancaire.
+Les RPC financiers ne sont exécutables que par le service role côté Edge Function. Aucun secret serveur ni donnée carte PAN/CVV n'est stocké dans le client.
 
 ## Suite
-Plan de salle, commandes ouvertes, partage de note, remboursements, KDS/imprimantes, intégrations Worldline/TWINT et stockage SQLite natif de production.
-
-Aucun workflow Android automatique n'est attaché à cette branche pendant le développement.
+Partage de note, transferts de table, annulations/remboursements, KDS/imprimantes, terminaux Worldline/TWINT et SQLite natif.
