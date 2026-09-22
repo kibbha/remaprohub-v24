@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for fn in remapro-admin remapro-sync remapro-account remapro-ai remapro-bootstrap remapro-pos-sync remapro-delivery-ai; do
+          for fn in remapro-admin remapro-sync remapro-account remapro-ai remapro-bootstrap remapro-pos-sync remapro-delivery-ai remapro-academy; do
             npx --yes supabase@latest functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"
           done
       - name: Deploy public callback/webhook Edge Functions

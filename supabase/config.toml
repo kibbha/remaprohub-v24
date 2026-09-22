@@ -24,3 +24,6 @@ verify_jwt = true
 
 [functions.remapro-delivery-ai]
 verify_jwt = true
+
+[functions.remapro-academy]
+verify_jwt = true
