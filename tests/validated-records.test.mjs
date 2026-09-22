@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {load,recordValidated,updateRecord} from '../src/store.js';
+import {load,recordValidated,recordInvoice,updateRecord} from '../src/store.js';
 
 const values=new Map();
 globalThis.localStorage={
@@ -42,6 +42,8 @@ assert.equal(recordValidated(state,'loyalty',{name:'Client',points:-1}),false);
 assert.equal(recordValidated(state,'temps',{equipment:'Fridge',value:-3.5})?.value,-3.5);
 assert.equal(recordValidated(state,'temps',{equipment:'Fridge',value:'oops'}),false);
 assert.equal(recordValidated(state,'temps',{equipment:'',value:4}),false);
+assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-1',date:'2026-09-20',dueDate:'2026-10-20',amount:120,status:'pending'})?.dueDate,'2026-10-20');
+assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-2',date:'2026-09-20',dueDate:'2026-09-19',amount:120,status:'pending'}),false);
 
 assert.equal(updateRecord(state,'audits',0,{score:120}),false);
 assert.equal(updateRecord(state,'goals',0,{target:-1}),false);
