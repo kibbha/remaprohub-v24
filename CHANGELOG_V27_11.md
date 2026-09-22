@@ -206,3 +206,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Les alertes remontent dans le cockpit manager et dans l’écran Formation.
 - Un bouton permet de créer les tâches de renouvellement correspondantes sans doublons, après confirmation.
 - La date de renouvellement ne peut pas être antérieure à la date de formation.
+
+## Contrôle allergènes recettes – lot 30
+- ReMaPro compare désormais les recettes avec la matrice allergènes par nom de plat/recette.
+- Il signale les recettes absentes de la matrice ainsi que les différences entre les allergènes enregistrés dans la recette et ceux de la matrice.
+- Aucun allergène n’est déduit automatiquement à partir d’un ingrédient : le système contrôle uniquement la cohérence des données réellement saisies.
+- Une recette absente peut préremplir la fiche allergènes ; une incohérence peut être synchronisée depuis la recette uniquement après confirmation.
+- Les incohérences remontent dans le cockpit manager et sont transmises au Manager Copilot.
