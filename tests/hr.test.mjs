@@ -23,8 +23,10 @@ assert.equal(updateRecord(state,'leave',0,{status:'invalid'}),false);
 
 assert.equal(recordTraining(state,{employee:'Unknown',topic:'HACCP',date:'2026-09-18',status:'planned'}),false);
 assert.equal(recordTraining(state,{employee:'Alice',topic:'',date:'2026-09-18',status:'planned'}),false);
-assert.ok(recordTraining(state,{employee:'Alice',topic:'HACCP',date:'2026-09-18',status:'planned'}));
+assert.ok(recordTraining(state,{employee:'Alice',topic:'HACCP',date:'2026-09-18',status:'planned',validUntil:'2027-09-18'}));
+assert.equal(recordTraining(state,{employee:'Alice',topic:'Sécurité',date:'2026-09-18',status:'completed',validUntil:'2026-09-17'}),false);
 assert.equal(updateRecord(state,'training',0,{status:'invalid'}),false);
 assert.equal(updateRecord(state,'training',0,{employee:'Bob',status:'completed'}),true);
+assert.equal(updateRecord(state,'training',0,{validUntil:'2026-09-17'}),false);
 
 console.log('HR registry links and date/status validation OK');
