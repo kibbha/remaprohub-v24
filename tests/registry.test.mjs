@@ -5,6 +5,8 @@ const unique={categories:[],suppliers:[],team:[]};
 assert.ok(recordRegistry(unique,'categories',{name:'Boissons'}));
 assert.equal(recordRegistry(unique,'categories',{name:' boissons '}),false);
 assert.ok(recordRegistry(unique,'suppliers',{name:'Metro',contact:'A'}));
+assert.equal(unique.suppliers[0].paymentDays,30);
+assert.equal(recordRegistry(unique,'suppliers',{name:'BadTerms',contact:'',paymentDays:181}),false);
 assert.equal(recordRegistry(unique,'suppliers',{name:'METRO',contact:'B'}),false);
 assert.ok(recordRegistry(unique,'team',{name:'Alice',role:'Manager'}));
 assert.equal(recordRegistry(unique,'team',{name:'alice',role:'Server'}),false);
@@ -12,7 +14,7 @@ assert.equal(recordRegistry(unique,'team',{name:'alice',role:'Server'}),false);
 const state={
   categories:[{name:'Boissons'}],
   products:[{name:'Cola',category:'Boissons'}],
-  suppliers:[{name:'Metro'}],
+  suppliers:[{name:'Metro',paymentDays:30}],
   purchases:[{supplier:'Metro',amount:20}],
   invoices:[{supplier:'Metro',amount:30}],
   team:[{name:'Alice',role:'Manager'}],
@@ -28,6 +30,7 @@ state.categories.pop();
 state.suppliers.push({name:'Other'});
 assert.equal(updateRecord(state,'suppliers',0,{name:' other '}),false);
 state.suppliers.pop();
+assert.equal(updateRecord(state,'suppliers',0,{paymentDays:45}),true);assert.equal(state.suppliers[0].paymentDays,45);assert.equal(updateRecord(state,'suppliers',0,{paymentDays:181}),false);
 state.team.push({name:'Bob'});
 assert.equal(updateRecord(state,'team',0,{name:' bob '}),false);
 state.team.pop();
