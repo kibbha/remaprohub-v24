@@ -124,6 +124,15 @@ export function planningConflicts(state,now=new Date(),days=14){
   return{days:Math.max(1,Math.trunc(days)),rows,count:rows.length};
 }
 
+export function planningReplacementCandidates(state,conflict){
+  const date=String(conflict?.date||''),start=String(conflict?.start||''),end=String(conflict?.end||''),absent=String(conflict?.employee||'').trim(),members=state?.team||[],absentMember=members.find(x=>String(x?.name||'').trim().toLocaleLowerCase()===absent.toLocaleLowerCase()),role=String(absentMember?.role||'').trim().toLocaleLowerCase();
+  if(!date||!start||!end)return[];
+  const from=timeMinutes(start),to=timeMinutes(end);if(from==null||to==null)return[];
+  const overlaps=(aStart,aEnd)=>{const a=timeMinutes(aStart),b=timeMinutes(aEnd);if(a==null||b==null)return false;const spans=x=>x[1]>=x[0]?[x]:[[x[0],1440],[0,x[1]]],target=spans([from,to]),other=spans([a,b]);return target.some(x=>other.some(y=>Math.max(x[0],y[0])<Math.min(x[1],y[1])))};
+  const approved=(state?.leave||[]).filter(x=>x?.status==='approved'),hours=new Map(plannedLabor(state,new Date(date+'T12:00:00'),7).byEmployee.map(x=>[String(x.employee||'').toLocaleLowerCase(),x.hours]));
+  return members.map(member=>{const name=String(member?.name||'').trim(),key=name.toLocaleLowerCase();if(!name||key===absent.toLocaleLowerCase())return null;const onLeave=approved.some(x=>String(x?.employee||'').trim().toLocaleLowerCase()===key&&String(x?.start||'')<=date&&String(x?.end||'')>=date);if(onLeave)return null;const busy=(state?.shifts||[]).some(x=>String(x?.date||'')===date&&String(x?.employee||'').trim().toLocaleLowerCase()===key&&overlaps(String(x?.start||''),String(x?.end||'')));if(busy)return null;const memberRole=String(member?.role||'').trim();return{name,role:memberRole,sameRole:!!role&&memberRole.toLocaleLowerCase()===role,plannedHours:n(hours.get(key))}}).filter(Boolean).sort((a,b)=>Number(b.sameRole)-Number(a.sameRole)||a.plannedHours-b.plannedHours||a.name.localeCompare(b.name));
+}
+
 export function serviceReadiness(state,now=new Date(),days=7){
   const start=atMidnight(now),span=Math.max(1,Math.trunc(days)),rows=[];
   for(let offset=0;offset<span;offset++){const d=new Date(start.getTime()+offset*dayMs),date=localDate(d),reservations=(state?.reservations||[]).filter(x=>String(x?.time||'').slice(0,10)===date),covers=reservations.reduce((sum,x)=>sum+n(x?.covers),0),shifts=(state?.shifts||[]).filter(x=>String(x?.date||'')===date),employees=[...new Set(shifts.map(x=>String(x?.employee||'').trim()).filter(Boolean))];if(!reservations.length&&!shifts.length)continue;rows.push({date,reservations:reservations.length,covers:round(covers,0),shifts:shifts.length,employees,staffCount:employees.length,uncovered:covers>0&&employees.length===0})}
