@@ -1,19 +1,20 @@
 # ReMaPro POS
 
-Version actuelle: **0.19.0**  
+Version actuelle: **0.20.0**  
 Android package: **com.remapro.pos**
 
-## v0.19 — ventes, food cost et consommation stock
-- coût unitaire figé sur chaque ligne vendue au moment de la commande ;
-- food cost théorique et marge brute dans le rapport POS ;
-- mapping multi-composants configuré depuis ReMaPro Hub ;
-- chaque vente payée crée des mouvements matière idempotents ;
-- les mouvements sont repris par le module Stock du Hub sans double décrémentation ;
-- un remboursement commercial ne remet pas automatiquement les ingrédients en stock.
+## v0.20 — architecture prestataires prête
+- lecture du registre Worldline/TWINT configuré depuis ReMaPro Hub ;
+- affichage dans le POS du chemin d’intégration, environnement et état du dossier ;
+- Worldline : Terminal API Cloud ou TIM ;
+- TWINT : Direct ou Terminal/PSP ;
+- cache offline de l’état prestataire ;
+- aucune clé API ni secret marchand dans l’application ;
+- aucune transaction automatique n’est activée tant que l’adaptateur officiel serveur et les identifiants réels ne sont pas installés.
 
-Les articles non mappés restent vendables et ont simplement une consommation matière nulle jusqu’à leur configuration dans Hub.
+Les paiements carte/TWINT restent donc enregistrables uniquement après confirmation manuelle sur un terminal externe indépendant. La bascule vers le paiement intégré se fera sans modifier les commandes, tickets, remboursements ni paiements fractionnés déjà construits.
 
-## Versions précédentes
-Impression ESC/POS, SQLite offline, opérateurs/PIN, paiements fractionnés/progressifs, production Cuisine/Bar, terminaux préparés et rapports Z.
+## v0.19
+Food cost théorique, consommation stock idempotente et synchronisation Hub.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

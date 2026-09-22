@@ -2,7 +2,7 @@ import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,sav
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.19.0';
+const APP_VERSION='0.20.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -10,7 +10,7 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false,foodCostReport:null
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[]
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -26,6 +26,7 @@ const productionKey=id=>'production:'+id;
 const terminalsKey=id=>'terminals:'+id;
 const printersKey=id=>'printers:'+id;
 const operatorsKey=id=>'operators:'+id;
+const providersKey=id=>'providers:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -51,17 +52,23 @@ async function refreshTerminals(){
   if(!state.restaurant)return;
   if(!state.online){
     state.terminals=await kvGet(terminalsKey(state.restaurant.id))||state.terminals||[];
+    state.providerConnections=await kvGet(providersKey(state.restaurant.id))||state.providerConnections||[];
     state.terminalIntents=[];
     return;
   }
   try{
-    const [terminals,intents]=await Promise.all([
+    const [terminals,intents,providers]=await Promise.all([
       posFunction({action:'list_terminals',restaurantId:state.restaurant.id}),
-      posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,limit:30})
+      posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,limit:30}),
+      posFunction({action:'list_provider_connections',restaurantId:state.restaurant.id}).catch(()=>({rows:[]}))
     ]);
     state.terminals=terminals.rows||[];
     state.terminalIntents=intents.rows||[];
-    await kvSet(terminalsKey(state.restaurant.id),state.terminals);
+    state.providerConnections=providers.rows||[];
+    await Promise.all([
+      kvSet(terminalsKey(state.restaurant.id),state.terminals),
+      kvSet(providersKey(state.restaurant.id),state.providerConnections)
+    ]);
   }catch(error){state.error=error.message||String(error)}
 }
 function closeTerminalEditor(){
@@ -120,12 +127,33 @@ function terminalStatusLabel(status){
 function terminalProviderLabel(provider){
   return ({worldline:'Worldline',twint:'TWINT',generic:'Générique'})[provider]||provider||'—';
 }
+function providerStatusLabel(status){
+  return ({
+    not_configured:'Non configuré',
+    waiting_contract:'Contrat en attente',
+    credentials_pending:'Identifiants attendus',
+    ready_for_adapter:'Prêt pour adaptateur',
+    disabled:'Désactivé'
+  })[status]||status||'Inconnu';
+}
+function providerModeLabel(mode){
+  return ({
+    terminal_api_cloud:'Terminal API Cloud',
+    tim:'TIM',
+    direct:'Direct',
+    terminal_psp:'Terminal / PSP'
+  })[mode]||mode||'—';
+}
+
 function terminalsView(){
   const intents=state.terminalIntents||[];
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="terminals-page">
       <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
       <div class="terminal-warning"><strong>Mode préparation.</strong> Aucun connecteur Worldline/TWINT réel n’est encore activé. Une vente carte/TWINT peut seulement être enregistrée manuellement après confirmation sur un terminal externe indépendant.</div>
+      <section class="provider-readiness"><h3>Préparation prestataires</h3>
+        ${state.providerConnections.length?state.providerConnections.map(c=>`<article class="provider-readiness-card"><div><strong>${esc(terminalProviderLabel(c.provider))}</strong><small>${esc(providerModeLabel(c.integration_mode))} · ${esc(c.environment||'test')}</small></div><span class="provider-readiness-status provider-${esc(c.status)}">${esc(providerStatusLabel(c.status))}</span>${c.merchant_reference?'<small class="provider-merchant">Réf. marchand '+esc(c.merchant_reference)+'</small>':''}</article>`).join(''):'<div class="muted">Aucun prestataire préparé dans ReMaPro Hub.</div>'}
+      </section>
       <section class="terminal-grid">${state.terminals.length?state.terminals.map(t=>`<article class="terminal-card">
         <div class="terminal-card-head"><div><strong>${esc(t.label)}</strong><small>${esc(terminalProviderLabel(t.provider))} · ${esc(t.integration_mode)}</small></div><span class="terminal-state state-${esc(t.connection_status)}">${esc(terminalStatusLabel(t.connection_status))}</span></div>
         <div class="terminal-capabilities"><span>${t.supports_card?'Carte':''}</span><span>${t.supports_twint?'TWINT':''}</span><span>${t.supports_tips?'Tips':''}</span><span>${t.supports_refunds?'Remb.':''}</span></div>
