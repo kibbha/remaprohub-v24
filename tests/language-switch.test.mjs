@@ -6,6 +6,7 @@ globalThis.Event=class{constructor(type){this.type=type}};
 globalThis.window={addEventListener:(type,fn)=>listeners.set(type,fn),dispatchEvent:event=>listeners.get(event.type)?.(event)};
 globalThis.document={documentElement:{lang:'fr',dataset:{}},getElementById:id=>id==='app'?app:null,querySelector:()=>null,querySelectorAll:selector=>selector==='[data-page]'?[{dataset:{page:'documents'},addEventListener:(_type,fn)=>listeners.set('navigate',fn)}]:[]};
 await import('../src/app.js');
+for(let i=0;i<40&&/Initialisation sécurisée|Secure initialization|Sichere Initialisierung|Inizializzazione sicura/.test(app.innerHTML);i++)await new Promise(resolve=>setTimeout(resolve,5));
 assert.match(app.innerHTML,/Tableau de bord/);
 listeners.get('navigate')();
 assert.match(app.innerHTML,/Remplir/);
