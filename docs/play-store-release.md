@@ -27,7 +27,7 @@ Configure a RevenueCat webhook pointing to the deployed `remapro-revenuecat-webh
 Send `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`.
 
 ## Supabase
-Apply migrations through `006_v27_10_private_auth_helpers.sql`.
+Apply migrations through `007_v27_11_server_only_tables.sql`.
 Deploy the production Edge Functions used by the app:
 - remapro-admin
 - remapro-sync

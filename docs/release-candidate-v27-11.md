@@ -35,11 +35,13 @@ The Release Candidate phase must now prioritize stability and store readiness ra
 Automated validation result: GitHub Actions `Test ReMaPro Hub V27.11.0` succeeded on commit `68b1025`.
 
 ## Gate 3 — backend / billing
-- [ ] Verify migrations 001 through 006 are applied to the production Supabase project.
+- [x] Verify migrations 001 through 007 are applied to the production Supabase project.
 - [ ] Verify production Edge Functions are deployed.
 - [ ] Verify RevenueCat products, offerings and entitlements match Google Play.
 - [ ] Verify the RevenueCat webhook secret and OpenAI server secret are configured.
 - [ ] Confirm Standard / Multi access from a real authenticated account.
+
+Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY; migrations 001–006 and required Edge Functions were verified before applying migration 007. The two server-only tables intentionally use RLS without client policies.
 
 ## Gate 4 — physical Android validation
 - [ ] Sign-in / sign-out / password reset.
