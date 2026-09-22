@@ -49,7 +49,7 @@ export default {
       }
       if(action==="list_orders"){
         const statuses=Array.isArray(body.statuses)?body.statuses.map(String).slice(0,10):["pending","accepted","imported","preparing","ready"];
-        const {data,error}=await ctx.supabaseAdmin.from("direct_orders").select("id,public_reference,service_type,status,payment_status,payment_method,customer_name,customer_phone,customer_email,marketing_consent,table_label,requested_for,note,subtotal,tax_total,total,currency,created_at,accepted_at,pos_order_id,direct_order_items(id,catalog_item_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,station_snapshot,note,modifiers)").eq("restaurant_id",restaurantId).in("status",statuses).order("created_at",{ascending:true}).limit(200);
+        const {data,error}=await ctx.supabaseAdmin.from("direct_orders").select("id,public_reference,service_type,status,payment_status,payment_method,customer_name,customer_phone,customer_email,marketing_consent,table_label,covers,requested_for,note,subtotal,tax_total,total,currency,created_at,accepted_at,pos_order_id,direct_order_items(id,catalog_item_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,station_snapshot,note,modifiers)").eq("restaurant_id",restaurantId).in("status",statuses).order("created_at",{ascending:true}).limit(200);
         if(error)return json({error:error.message},500);return json({ok:true,orders:data||[]});
       }
       return json({error:"Unsupported action"},400);
