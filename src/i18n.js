@@ -253,6 +253,11 @@ const v2711yEn={markPaid:"Mark as paid",markPaidConfirm:"Confirm that this suppl
 const v2711yDe={markPaid:"Als bezahlt markieren",markPaidConfirm:"Bestätigen, dass diese Lieferantenrechnung bezahlt wurde?"};
 const v2711yIt={markPaid:"Segna come pagata",markPaidConfirm:"Confermare che questa fattura fornitore è stata pagata?"};
 Object.assign(fr,v2711yFr);Object.assign(en,v2711yEn);Object.assign(de,v2711yDe);Object.assign(it,v2711yIt);
+const v2711zFr={exportWeeklyReview:"Exporter la revue hebdomadaire"};
+const v2711zEn={exportWeeklyReview:"Export weekly review"};
+const v2711zDe={exportWeeklyReview:"Wochenübersicht exportieren"};
+const v2711zIt={exportWeeklyReview:"Esporta revisione settimanale"};
+Object.assign(fr,v2711zFr);Object.assign(en,v2711zEn);Object.assign(de,v2711zDe);Object.assign(it,v2711zIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
