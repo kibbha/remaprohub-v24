@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {recordAdvancedReservation,updateReservationStatus,updateCustomerConsent,createGiftCard,redeemGiftCard,loyaltyTransaction} from '../src/store.js';
+import {customerInsights,reservationLoad} from '../src/intelligence.js';
+const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const state={reservationSettings:{defaultDurationMinutes:120},reservations:[],customers:[{name:'Ana',phone:'1',email:'a@example.com'}],giftCards:[],loyalty:[],loyaltyTransactions:[],orders:[]};
+const res=recordAdvancedReservation(state,{name:'Ana',time:'2026-09-24T19:00',covers:2,durationMinutes:90,depositAmount:50,depositStatus:'paid'});assert.ok(res);assert.ok(updateReservationStatus(state,res.id,'confirmed'));assert.ok(updateReservationStatus(state,res.id,'seated'));assert.ok(updateReservationStatus(state,res.id,'completed'));
+assert.ok(updateCustomerConsent(state,'Ana',{marketing:true,profiling:false}));assert.equal(customerInsights(state,new Date('2026-09-25T12:00:00')).consented,1);
+const gift=createGiftCard(state,{amount:100,customer:'Ana'});assert.ok(gift);assert.ok(redeemGiftCard(state,gift.code,30));assert.equal(gift.balance,70);
+assert.ok(loyaltyTransaction(state,{customer:'Ana',points:20,reason:'Visit'}));assert.equal(state.loyalty[0].points,20);
+assert.equal(reservationLoad(state,new Date('2026-09-24T08:00:00'),1)[0].covers,2);
+for(const token of ['advancedReservationForm','customerInsights','loyaltyTransactionForm','giftCardForm'])assert.ok(app.includes(token),token+' UI missing');
+console.log('Advanced reservations, CRM, loyalty and gift-card checks passed');
