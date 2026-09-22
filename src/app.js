@@ -6,6 +6,7 @@ import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyPr
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
 import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
+import {recordDiagnostic} from './telemetry.js';
 
 const APP_VERSION='0.27.0';
 const state={
@@ -688,6 +689,7 @@ async function flushQueue(){
         ?'Reconnectez '+(error.operatorName||'l’opérateur d’origine')+' pour synchroniser cette action.'
         :(error.message||String(error));
       await queuePut({...item,attempts:Number(item.attempts||0)+1,last_error:message,last_attempt_at:new Date().toISOString()});
+      recordDiagnostic('sync.queue_error',{action:item.action,attempts:Number(item.attempts||0)+1,message});
       state.error='Synchronisation: '+message;
       break
     }
@@ -1930,8 +1932,10 @@ function wire(){
 async function init(){
   await initializePosSessionStorage();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
-  window.addEventListener('online',()=>{state.online=true;render();flushQueue().catch(()=>{})});
-  window.addEventListener('offline',()=>{state.online=false;render()});
+  window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
+  window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
+  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{})});
+  window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
   setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
 }
