@@ -1,6 +1,10 @@
 name: Package ReMaPro Hub V27.11.0 delivery
 on:
   workflow_dispatch:
+  push:
+    branches: [rebuild/remaprohub-clean]
+    paths:
+      - '.github/package-v27-11-trigger'
 permissions:
   contents: read
 jobs:
