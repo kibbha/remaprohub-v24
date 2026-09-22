@@ -156,3 +156,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le cockpit affiche directement le montant fournisseur à traiter et signale l’action comme urgente lorsqu’une échéance est dépassée.
 - Les alertes manager optionnelles comptabilisent aussi ces paiements fournisseurs.
 - ReMaPro AI connaît désormais l’action « vérifier les paiements fournisseurs » et peut la proposer sans prétendre l’avoir exécutée.
+
+## Besoins fournisseurs à 7 jours – lot 22
+- Finance affiche maintenant les besoins fournisseurs estimés sur 7 jours.
+- Le calcul additionne les factures en retard, les factures arrivant à échéance sous 7 jours et le budget de réassort suggéré.
+- Les factures dues restent séparées du coût du personnel afin de ne pas mélanger trésorerie fournisseur et coût salarial planifié.
+- L’indicateur reste présenté comme une estimation opérationnelle et ne remplace pas un plan de trésorerie comptable.
