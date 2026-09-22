@@ -1,6 +1,6 @@
 # ReMaPro POS
 
-Version actuelle: **0.15.0**  
+Version actuelle: **0.15.1**  
 Android package: **com.remapro.pos**
 
 ## v0.15 — impression ESC/POS native
@@ -21,3 +21,6 @@ Aucune donnée secrète n’est nécessaire pour une imprimante. Les profils ne 
 Routage automatique exact des nouveaux tickets cuisine/bar, SQLite natif offline, utilisateurs/PIN et administration Hub.
 
 Aucun build Android automatique n’est lancé pendant cette phase.
+
+## v0.15.1 — routage automatique exact
+Le backend renvoie les IDs des lignes nouvellement envoyées en production. Les profils Cuisine/Bar avec **Impression automatique** n’impriment donc que ces nouvelles lignes, jamais les plats déjà envoyés. Le ticket client peut également s’imprimer automatiquement après récupération du ticket complet.

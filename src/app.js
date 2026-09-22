@@ -2,14 +2,14 @@ import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} 
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.15.0';
+const APP_VERSION='0.15.1';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
-  terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[]
+  terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:''
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -375,6 +375,26 @@ async function smartPrintReceipt(receipt){
     render();printReceipt(receipt);
   }
 }
+async function autoPrintProductionItems(orderId,sentIds){
+  const ids=new Set((sentIds||[]).map(String));
+  if(!ids.size)return;
+  const order=state.productionQueue.find(x=>x.id===orderId);
+  if(!order)return;
+  const selected={...order,items:(order.items||[]).filter(i=>ids.has(String(i.id)))};
+  for(const role of ['kitchen','bar']){
+    const printer=activePrinter(role);
+    const items=selected.items.filter(i=>i.station_snapshot===role);
+    if(!items.length||!printer?.auto_print)continue;
+    if(['system','network'].includes(printer.connection_type))continue;
+    try{
+      await printEscPosText(printer,buildProductionText({...selected,items},{station:role,width:printer.chars_per_line}));
+      await markPrinter(printer,'online');
+    }catch(error){
+      await markPrinter(printer,'error');
+      state.error='Auto-impression '+printerRoleLabel(role)+' impossible : '+(error.message||String(error));
+    }
+  }
+}
 async function smartPrintProduction(order){
   const roles=[...new Set((order.items||[]).map(i=>i.station_snapshot).filter(x=>['kitchen','bar'].includes(x)))];
   if(!roles.length)return printProductionOrder(order);
@@ -424,6 +444,10 @@ async function saveReceipt(receipt){
   const normalized={...receipt,receipt_number:receipt.receipt_number||receipt.receiptNumber,total:Number(receipt.total)||0,status:receipt.status||'paid'};
   state.receipts=[normalized,...state.receipts.filter(x=>(x.receipt_number||x.receiptNumber)!==normalized.receipt_number)].slice(0,50);
   await kvSet(receiptsKey(state.restaurant.id),state.receipts);
+  const printer=activePrinter('receipt');
+  if(printer?.auto_print&&printer.connection_type!=='system'&&printer.connection_type!=='network'){
+    state.pendingAutoReceiptNumber=normalized.receipt_number;
+  }
 }
 async function refreshReceipts(){
   if(!state.restaurant)return;
@@ -432,6 +456,10 @@ async function refreshReceipts(){
     const r=await posFunction({action:'recent_receipts',restaurantId:state.restaurant.id,limit:50});
     state.receipts=r.rows||[];
     await kvSet(receiptsKey(state.restaurant.id),state.receipts);
+    if(state.pendingAutoReceiptNumber){
+      const pending=state.receipts.find(x=>(x.receipt_number||x.receiptNumber)===state.pendingAutoReceiptNumber);
+      if(pending){state.pendingAutoReceiptNumber='';await smartPrintReceipt(pending)}
+    }
   }catch(error){state.error=error.message||String(error)}
 }
 async function executeQueued(item){
@@ -485,6 +513,7 @@ async function flushQueue(){
     }catch(error){state.error='Synchronisation: '+(error.message||String(error));break}
   }
   if(floorChanged&&state.online)await refreshFloorData();
+  if(state.pendingAutoReceiptNumber&&state.online)await refreshReceipts();
   await updateQueueCount();render();
 }
 async function queueCommand(action,payload){
@@ -1102,6 +1131,7 @@ async function sendCurrentOrderProduction(){
     const sent=await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId:order.id});
     state.cart=state.cart.map(x=>({...x,locked:true,delta:false}));
     await Promise.all([refreshFloorData(),refreshProductionQueue()]);
+    await autoPrintProductionItems(order.id,sent.order?.sentItemIds||[]);
     state.error=Number(sent.order?.sentItems||0)>0?'Nouveaux articles envoyés en production.':'Commande déjà en production.';
     render();
   }catch(error){state.error=error.message||String(error);render()}

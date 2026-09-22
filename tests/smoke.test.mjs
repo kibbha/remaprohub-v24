@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const pkg=JSON.parse(read('package.json'));
-assert.equal(pkg.version,'0.15.0');
+assert.equal(pkg.version,'0.15.1');
 assert.equal(pkg.dependencies['@fedejm/capacitor-esc-pos-printer'],'0.2.3');
 assert.equal(JSON.parse(read('capacitor.config.json')).appId,'com.remapro.pos');
 const app=read('src/app.js');
@@ -10,4 +10,4 @@ for(const token of ['printersView','scanPrinters','smartPrintReceipt','smartPrin
 const printer=read('src/printer.js');
 for(const token of ['BluetoothPrinter','UsbPrinter','buildReceiptText','buildProductionText','escPosBytes'])assert.ok(printer.includes(token),token);
 assert.doesNotMatch(read('src/cloud.js'),/service[_-]?role/i);
-console.log('ReMaPro POS 0.15 smoke checks passed');
+console.log('ReMaPro POS 0.15.1 smoke checks passed');
