@@ -8,7 +8,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutDirty=false,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutDirty=false,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,directChannels:[],directOrderShare:null};
 const state=load(),persist=()=>{if(cloudSession()){const current=activeRestaurant(state);if(current?.cloudId)current.cloudDirty=true}save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -237,19 +237,46 @@ function ai(){const connected=cloudConfigured()&&!!cloudSession(),snapshot=manag
 async function loadPosAdminData(showError=false){
   const restaurantId=cloudRestaurantId();
   if(!restaurantId||!cloudSession()||!cloudManager()){
-    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
+    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,directChannels:[],directOrderShare:null};
     if(showError)render();return false;
   }
   posAdminState={...posAdminState,restaurantId,loading:true,error:''};
   if(showError)render();
   try{
-    const snapshot=await loadPosAdminSnapshot(restaurantId,today());
-    posAdminState={restaurantId,loading:false,error:'',...snapshot};
+    const [snapshot,direct]=await Promise.all([
+      loadPosAdminSnapshot(restaurantId,today()),
+      cloudFunction('remapro-direct-order-admin',{action:'list_channels',restaurantId},{attempts:1}).catch(()=>({channels:[]}))
+    ]);
+    posAdminState={restaurantId,loading:false,error:'',...snapshot,directChannels:Array.isArray(direct.channels)?direct.channels:[],directOrderShare:posAdminState.directOrderShare||null};
     render();return true;
   }catch(error){
     posAdminState={...posAdminState,restaurantId,loading:false,error:error?.message||String(error)};
     render();return false;
   }
+}
+async function createDirectOrderChannel(form){
+  const rid=cloudRestaurantId();if(!rid)return;
+  try{
+    const r=await cloudFunction('remapro-direct-order-admin',{action:'create_channel',restaurantId:rid,slug:form.slug,title:form.title,modes:form.modes,allowNotes:true},{attempts:1});
+    await loadPosAdminData(false);posAdminState.directOrderShare={channel:r.channel,url:r.url,qrSvg:r.qrSvg};render();
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+async function rotateDirectOrderChannel(channelId){
+  const rid=cloudRestaurantId();if(!rid)return;
+  if(!confirm(t('directRotateConfirm')))return;
+  try{const r=await cloudFunction('remapro-direct-order-admin',{action:'rotate_token',restaurantId:rid,channelId},{attempts:1});posAdminState.directOrderShare={channel:r.channel,url:r.url,qrSvg:r.qrSvg};render()}
+  catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+async function setDirectOrderChannel(channelId,active){
+  const rid=cloudRestaurantId();if(!rid)return;
+  try{await cloudFunction('remapro-direct-order-admin',{action:'set_channel',restaurantId:rid,channelId,active},{attempts:1});await loadPosAdminData(false)}
+  catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+function directOrderAdminCard(){
+  const channels=posAdminState.directChannels||[],share=posAdminState.directOrderShare,qr=share?.qrSvg?'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(share.qrSvg):'';
+  const shareBlock=share?`<div class="direct-order-share notice success"><strong>${t('directQrReady')}</strong><div class="direct-order-share-grid">${qr?'<img src="'+esc(qr)+'" alt="QR commande">':''}<div><input id="directOrderUrl" readonly value="${esc(share.url||'')}"><div class="actions"><button type="button" class="btn primary" id="directOrderCopy">${t('copyLink')}</button><button type="button" class="btn" id="directOrderPrint">${t('printQr')}</button></div><small>${t('directSecretOnce')}</small></div></div></div>`:'';
+  const rows=channels.map(c=>`<div class="pos-admin-row"><span><strong>${esc(c.public_config?.title||c.slug)}</strong><small>${esc(c.slug)} · ${(c.modes||[]).map(x=>t('directMode_'+x)).join(' / ')}</small></span><span class="actions"><span class="pill ${c.active?'good':'info'}">${c.active?t('active'):t('inactive')}</span><button type="button" class="btn compact" data-direct-rotate="${c.id}">${t('regenerateQr')}</button><button type="button" class="btn compact" data-direct-toggle="${c.id}" data-active="${c.active?'0':'1'}">${c.active?t('disable'):t('enable')}</button></span></div>`).join('')||`<p class="muted">${t('noDirectChannels')}</p>`;
+  return card(t('directOrderAdmin'),`${shareBlock}<form id="directChannelForm" class="form"><input name="title" required placeholder="${t('directChannelTitle')}"><input name="slug" placeholder="${t('directSlugOptional')}"><div class="check-grid"><label class="checkline"><input type="checkbox" name="mode" value="dine_in" checked> ${t('directMode_dine_in')}</label><label class="checkline"><input type="checkbox" name="mode" value="takeaway" checked> ${t('directMode_takeaway')}</label></div><button class="btn primary">${t('createQrChannel')}</button></form><div class="pos-admin-list">${rows}</div>`);
 }
 function posAdminStation(value){return['kitchen','bar','none'].includes(String(value||''))?String(value):'kitchen'}
 function posLayoutDocument(){
@@ -343,7 +370,7 @@ async function applyPosInventoryMovements(){
 function posAdmin(){
   const restaurantId=cloudRestaurantId(),manager=cloudManager();
   if(restaurantId&&manager&&posAdminState.restaurantId!==restaurantId&&!posAdminState.loading){
-    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
+    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,directChannels:[],directOrderShare:null};
     setTimeout(()=>loadPosAdminData(false),0);
   }
   const venue=activeRestaurant(state)?.name||state.preferences?.restaurant||'Restaurant';
@@ -361,7 +388,7 @@ function posAdmin(){
     <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
     ${posAdminState.foodCost?`<div class="pos-foodcost-strip"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
-    <div id="pos-layout-editor-root">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,selectedButtonId:posLayoutSelectedButtonId,selectedPageId:posLayoutSelectedPageId})}</div>
+    ${directOrderAdminCard()}<div id="pos-layout-editor-root">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,selectedButtonId:posLayoutSelectedButtonId,selectedPageId:posLayoutSelectedPageId})}</div>
     <div class="pos-admin-grid">
       <section class="card pos-admin-card pos-admin-catalog"><h2>Catalogue & routage</h2><p class="muted">Choisissez où chaque article doit partir avant publication.</p>
         <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)} · coût ${money(x.cost)} · ${x.components} composant(s) stock</small></span><span class="actions"><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select><button class="btn compact" data-pos-components="${x.collection}:${x.index}">Stock</button></span></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
