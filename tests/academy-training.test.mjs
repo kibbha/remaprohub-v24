@@ -18,7 +18,7 @@ assert.ok(app.includes("document.getElementById('academy-scope')"),'cross-app sc
 assert.ok(app.includes("if(!posOrgAdmin()||!org)return"),'org admin visibility mutation guard');
 assert.ok(app.includes("application:'ReMaPro POS'"),'safe support context');
 assert.ok(sw.includes('./src/academy-content.js'));assert.ok(sw.includes('./src/academy.js'));
-assert.ok(sw.includes('remapro-pos-shell-v0270-academy-final-20260923'),'offline cache refreshed');
+assert.ok(sw.includes('remapro-pos-shell-v0270-beta-hardening-20260923'),'offline cache refreshed');
 assert.equal(JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version,'0.27.0');
 console.log('POS Academy training, permissions, support and offline checks passed');
 
