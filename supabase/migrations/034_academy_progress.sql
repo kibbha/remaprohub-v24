@@ -33,3 +33,14 @@ alter table public.academy_settings enable row level security;
 alter table public.academy_progress enable row level security;
 revoke all on public.academy_settings from anon,authenticated;
 revoke all on public.academy_progress from anon,authenticated;
+
+
+-- Explicit deny-all policies document the server-only access model.
+-- remapro-academy uses the service role and authenticated clients have no direct grants.
+drop policy if exists academy_progress_server_only on public.academy_progress;
+create policy academy_progress_server_only on public.academy_progress
+for all to authenticated using (false) with check (false);
+
+drop policy if exists academy_settings_server_only on public.academy_settings;
+create policy academy_settings_server_only on public.academy_settings
+for all to authenticated using (false) with check (false);
