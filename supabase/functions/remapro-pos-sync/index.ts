@@ -67,7 +67,10 @@ export default {
             cashSessions:true,
             atomicCheckout:true,
             receiptNumbering:true,
-            splitPayments:false,
+            splitPayments:true,
+            tips:true,
+            tableTransfers:true,
+            refunds:true,
             paymentProviders:false,
             kitchen:false
           }
@@ -326,6 +329,93 @@ export default {
         return json({ok:true,receipt:data});
       }
 
+      if(action==="settle_open_order_split"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),deviceId=clean(body.deviceId,64),sessionId=clean(body.cashSessionId,64);
+        const payments=Array.isArray(body.payments)?body.payments:[];
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId)||!payments.length){
+          return json({error:"Invalid split-payment payload"},400);
+        }
+        const normalized=payments.map((p:any)=>({
+          method:clean(p?.method,30),
+          amount:Math.round((Number(p?.amount)||0)*100)/100,
+          tipAmount:Math.max(0,Math.round((Number(p?.tipAmount)||0)*100)/100),
+          provider:clean(p?.provider,80)||null,
+          providerReference:clean(p?.providerReference,180)||null
+        }));
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_settle_open_order_split",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_device_id:deviceId,
+          p_cash_session_id:sessionId,
+          p_payments:normalized,
+          p_actor_user_id:userId,
+          p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,receipt:data});
+      }
+
+      if(action==="transfer_open_order"){
+        const orderId=clean(body.orderId,64),targetTableId=clean(body.targetTableId,64);
+        if(!validUuid(orderId)||!validUuid(targetTableId))return json({error:"Valid orderId and targetTableId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_transfer_open_order",{
+          p_order_id:orderId,p_target_table_id:targetTableId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
+      if(action==="cancel_open_order"){
+        const orderId=clean(body.orderId,64),reason=clean(body.reason,500);
+        if(!validUuid(orderId)||!reason)return json({error:"Order and cancellation reason required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_cancel_open_order",{
+          p_order_id:orderId,p_reason:reason,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
+      if(action==="refund_order"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),sessionId=clean(body.cashSessionId,64),deviceId=clean(body.deviceId,64);
+        const reason=clean(body.reason,500),method=clean(body.method,30);
+        const amount=Math.round((Number(body.amount)||0)*100)/100;
+        const tipAmount=Math.max(0,Math.round((Number(body.tipAmount)||0)*100)/100);
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(sessionId)||!validUuid(deviceId)||!reason||amount<=0){
+          return json({error:"Invalid refund payload"},400);
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_refund_order",{
+          p_order_id:orderId,p_client_event_id:eventId,p_cash_session_id:sessionId,p_device_id:deviceId,
+          p_method:method,p_amount:amount,p_tip_amount:tipAmount,p_reason:reason,
+          p_provider:clean(body.provider,80)||null,p_provider_reference:clean(body.providerReference,180)||null,
+          p_actor_user_id:userId,p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,refund:data});
+      }
+
+      if(action==="confirm_external_refund"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const refundId=clean(body.refundId,64);
+        if(!validUuid(refundId))return json({error:"Valid refundId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_confirm_external_refund",{
+          p_refund_id:refundId,p_success:body.success===true,
+          p_provider_reference:clean(body.providerReference,180)||null,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,refund:data});
+      }
+
+      if(action==="list_refunds"){
+        let query=ctx.supabaseAdmin.from("pos_refunds")
+          .select("id,order_id,method,amount,tip_amount,status,reason,provider,provider_reference,requested_at,completed_at")
+          .eq("restaurant_id",restaurantId).order("requested_at",{ascending:false});
+        const orderId=clean(body.orderId,64);
+        if(validUuid(orderId))query=query.eq("order_id",orderId);
+        const {data,error}=await query.limit(Math.max(1,Math.min(200,Math.trunc(Number(body.limit)||50))));
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
       if(action==="list_open_orders"){
         const {data:orders,error}=await ctx.supabaseAdmin.from("pos_orders")
           .select("id,business_date,table_id,table_label,service_type,status,currency,covers,subtotal,tax_total,total,opened_at,updated_at")
@@ -351,7 +441,7 @@ export default {
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
           .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});

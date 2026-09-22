@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='4';
+export const POS_BRIDGE_VERSION='5';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -89,4 +89,23 @@ export async function settlePosOpenOrder(restaurantId,payload){
 }
 export async function loadPosOpenOrders(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'list_open_orders',restaurantId});
+}
+
+export async function settlePosOpenOrderSplit(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'settle_open_order_split',restaurantId,...payload});
+}
+export async function transferPosOpenOrder(restaurantId,orderId,targetTableId){
+  return cloudFunction('remapro-pos-sync',{action:'transfer_open_order',restaurantId,orderId,targetTableId});
+}
+export async function cancelPosOpenOrder(restaurantId,orderId,reason){
+  return cloudFunction('remapro-pos-sync',{action:'cancel_open_order',restaurantId,orderId,reason});
+}
+export async function refundPosOrder(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'refund_order',restaurantId,...payload});
+}
+export async function confirmPosExternalRefund(restaurantId,refundId,success,providerReference=''){
+  return cloudFunction('remapro-pos-sync',{action:'confirm_external_refund',restaurantId,refundId,success,providerReference});
+}
+export async function loadPosRefunds(restaurantId,{orderId='',limit=50}={}){
+  return cloudFunction('remapro-pos-sync',{action:'list_refunds',restaurantId,orderId,limit});
 }
