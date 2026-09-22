@@ -98,3 +98,5 @@ V27.11 rerun after async language bootstrap test stabilization
 V27.11 rerun after training action backward-compatibility fix
 
 V27.11 lot 30 allergen matrix coverage validation
+
+V27.11 rerun after allergen translation fix
