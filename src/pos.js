@@ -1,9 +1,31 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='18';
+export const POS_BRIDGE_VERSION='19';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
+const stockById=(state,id)=>(state?.stock||[]).find(x=>String(x?.id||'')===String(id||''));
+const stockComponentsOf=(item,state)=>{
+  const rows=Array.isArray(item?.posStockComponents)?item.posStockComponents:[];
+  return rows.map(row=>{
+    const stock=stockById(state,row?.stockId);
+    const quantity=Math.max(0,n(row?.quantity));
+    if(!stock||quantity<=0)return null;
+    return {
+      stockId:String(stock.id),
+      sourceKey:'stock:'+String(stock.id),
+      name:String(stock.name||'Stock'),
+      unit:String(stock.unit||'unit'),
+      quantity,
+      unitCost:Math.max(0,n(stock.price))
+    };
+  }).filter(Boolean);
+};
+const itemUnitCost=(item,state)=>{
+  const direct=Math.max(0,n(item?.cost));
+  if(direct>0)return direct;
+  return stockComponentsOf(item,state).reduce((sum,row)=>sum+row.quantity*row.unitCost,0);
+};
 const stationOf=item=>{const s=String(item?.productionStation||item?.posStation||item?.station||item?.metadata?.station||'kitchen').toLowerCase();return['kitchen','bar','none'].includes(s)?s:'kitchen'};
 
 export function buildPosCatalogFromHubState(state){
@@ -24,7 +46,7 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:index,
-      metadata:{hubSource:'products'}
+      metadata:{hubSource:'products',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
     });
   });
   recipes.forEach((item,index)=>{
@@ -43,7 +65,7 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:10000+index,
-      metadata:{hubSource:'recipes'}
+      metadata:{hubSource:'recipes',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
     });
   });
   return out;
@@ -177,13 +199,16 @@ export async function loadPosOperators(restaurantId){
 export async function savePosOperator(restaurantId,operator){
   return cloudFunction('remapro-pos-sync',{action:'upsert_operator',restaurantId,operator});
 }
-export async function loadPosAdminSnapshot(restaurantId){
-  const [bootstrap,tables,operators,printers,terminals]=await Promise.all([
+export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
+  const date=businessDate||new Date().toISOString().slice(0,10);
+  const [bootstrap,tables,operators,printers,terminals,movements,foodCost]=await Promise.all([
     loadPosBootstrap(restaurantId),
     loadPosTables(restaurantId),
     loadPosOperators(restaurantId),
     loadPosPrinters(restaurantId),
-    loadPosPaymentTerminals(restaurantId)
+    loadPosPaymentTerminals(restaurantId),
+    loadPosInventoryMovements(restaurantId,{unacknowledged:true,limit:500}),
+    loadPosFoodCostReport(restaurantId,date)
   ]);
   return {
     bootstrap,
@@ -191,6 +216,19 @@ export async function loadPosAdminSnapshot(restaurantId){
     tables:tables?.rows||[],
     operators:operators?.rows||[],
     printers:printers?.rows||[],
-    terminals:terminals?.rows||[]
+    terminals:terminals?.rows||[],
+    inventoryMovements:movements?.rows||[],
+    inventoryCursor:Number(movements?.cursor)||0,
+    foodCost:foodCost?.report||null
   };
+}
+
+export async function loadPosInventoryMovements(restaurantId,{after=0,unacknowledged=true,limit=300}={}){
+  return cloudFunction('remapro-pos-sync',{action:'inventory_movements',restaurantId,after,unacknowledged,limit});
+}
+export async function ackPosInventoryMovements(restaurantId,movementIds){
+  return cloudFunction('remapro-pos-sync',{action:'ack_inventory_movements',restaurantId,movementIds});
+}
+export async function loadPosFoodCostReport(restaurantId,businessDate){
+  return cloudFunction('remapro-pos-sync',{action:'food_cost_report',restaurantId,businessDate});
 }
