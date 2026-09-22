@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.4.0';
+const APP_VERSION='0.5.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -56,8 +56,18 @@ async function refreshFloorData(){
 }
 async function saveReceipt(receipt){
   if(!receipt?.receiptNumber||!state.restaurant)return;
-  state.receipts=[receipt,...state.receipts.filter(x=>x.receiptNumber!==receipt.receiptNumber)].slice(0,30);
+  const normalized={...receipt,receipt_number:receipt.receipt_number||receipt.receiptNumber,total:Number(receipt.total)||0,status:receipt.status||'paid'};
+  state.receipts=[normalized,...state.receipts.filter(x=>(x.receipt_number||x.receiptNumber)!==normalized.receipt_number)].slice(0,50);
   await kvSet(receiptsKey(state.restaurant.id),state.receipts);
+}
+async function refreshReceipts(){
+  if(!state.restaurant)return;
+  if(!state.online){state.receipts=await kvGet(receiptsKey(state.restaurant.id))||state.receipts||[];return}
+  try{
+    const r=await posFunction({action:'recent_receipts',restaurantId:state.restaurant.id,limit:50});
+    state.receipts=r.rows||[];
+    await kvSet(receiptsKey(state.restaurant.id),state.receipts);
+  }catch(error){state.error=error.message||String(error)}
 }
 async function executeQueued(item){
   if(item.action==='open_cash_session'){
@@ -75,6 +85,13 @@ async function executeQueued(item){
   }
   if(item.action==='settle_open_order'){
     const r=await posFunction({action:'settle_open_order',restaurantId:item.restaurantId,...item.payload});
+    if(r.receipt)await saveReceipt(r.receipt);
+    state.openOrders=state.openOrders.filter(x=>x.id!==item.payload.orderId);
+    await saveFloorCache();
+    return r;
+  }
+  if(item.action==='settle_open_order_split'){
+    const r=await posFunction({action:'settle_open_order_split',restaurantId:item.restaurantId,...item.payload});
     if(r.receipt)await saveReceipt(r.receipt);
     state.openOrders=state.openOrders.filter(x=>x.id!==item.payload.orderId);
     await saveFloorCache();
@@ -98,7 +115,7 @@ async function flushQueue(){
     if(item.restaurantId!==state.restaurant.id)continue;
     try{
       await executeQueued(item);
-      if(['save_open_order','settle_open_order'].includes(item.action))floorChanged=true;
+      if(['save_open_order','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
       await queueDelete(item.client_event_id);
     }catch(error){state.error='Synchronisation: '+(error.message||String(error));break}
   }
@@ -128,8 +145,7 @@ async function bootstrapRestaurant(restaurant){
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
       await refreshFloorData();
-      const rr=await posFunction({action:'recent_receipts',restaurantId:restaurant.id,limit:30}).catch(()=>({rows:[]}));
-      if(rr.rows?.length){state.receipts=rr.rows.map(x=>({receiptNumber:x.receipt_number,total:x.total,status:x.status,businessDate:x.business_date}));await kvSet(receiptsKey(restaurant.id),state.receipts)}
+      await refreshReceipts()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -215,6 +231,114 @@ async function saveOpenOrder(){
   await saveFloorCache();state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
+function parseMoneyInput(value){
+  const n=Number(String(value??'').trim().replace(',','.'));return Number.isFinite(n)?Math.round(n*100)/100:NaN;
+}
+function askTip(defaultValue='0.00'){
+  const raw=prompt('Pourboire (CHF)',defaultValue);if(raw===null)return null;
+  const tip=parseMoneyInput(raw);if(!Number.isFinite(tip)||tip<0){alert('Pourboire invalide');return null}return tip;
+}
+function normalizePaymentMethod(value){
+  const v=String(value||'').trim().toLowerCase();
+  if(['cash','especes','espèces'].includes(v))return'cash';
+  if(['card','carte'].includes(v))return'card';
+  if(v==='twint')return'twint';
+  if(['voucher','bon'].includes(v))return'voucher';
+  if(['invoice','facture'].includes(v))return'invoice';
+  if(v==='other')return'other';
+  return'';
+}
+function currentServerOrder(){return state.openOrders.find(o=>o.id===state.activeOrderId)||null}
+async function transferCurrentOrder(){
+  const order=currentServerOrder();
+  if(!order){alert('Enregistrez d’abord la note avant de la transférer.');return}
+  if(!state.online){alert('Le transfert de table nécessite une connexion.');return}
+  const free=state.tables.filter(t=>t.id!==state.activeTableId&&!state.openOrders.some(o=>o.id!==order.id&&o.table_id===t.id));
+  if(!free.length){alert('Aucune autre table libre.');return}
+  const answer=prompt('Transférer vers :\n'+free.map(t=>t.label).join('\n'),free[0].label);if(answer===null)return;
+  const target=free.find(t=>t.label.toLowerCase()===answer.trim().toLowerCase());
+  if(!target){alert('Table introuvable ou occupée.');return}
+  try{
+    await posFunction({action:'transfer_open_order',restaurantId:state.restaurant.id,orderId:order.id,targetTableId:target.id});
+    state.activeTableId=target.id;state.tableLabel=target.label;await refreshFloorData();state.error='';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function cancelCurrentOrder(){
+  const order=currentServerOrder();
+  if(!order){alert('Cette note n’est pas encore enregistrée.');return}
+  if(!state.online){alert('L’annulation nécessite une connexion.');return}
+  const reason=prompt('Motif de l’annulation');if(!reason?.trim())return;
+  if(!confirm('Annuler cette note ? L’opération restera dans le journal d’audit.'))return;
+  try{
+    await posFunction({action:'cancel_open_order',restaurantId:state.restaurant.id,orderId:order.id,reason:reason.trim()});
+    state.openOrders=state.openOrders.filter(x=>x.id!==order.id);await saveFloorCache();
+    state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function splitCheckout(){
+  if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
+  const raw=prompt('Nombre de parts / moyens de paiement','2');if(raw===null)return;
+  const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){alert('Nombre invalide');return}
+  const total=Math.round(cartTotal()*100)/100;
+  const payments=[];let remaining=total;
+  for(let i=0;i<count;i++){
+    const suggested=i===count-1?remaining:Math.floor((total/count)*100)/100;
+    const amountRaw=prompt(`Part ${i+1}/${count} — montant (reste ${remaining.toFixed(2)} CHF)`,suggested.toFixed(2));if(amountRaw===null)return;
+    const amount=parseMoneyInput(amountRaw);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){alert('Montant invalide');return}
+    const methodRaw=prompt(`Part ${i+1} — moyen : espèces, carte ou TWINT`,i===0?'cash':'card');if(methodRaw===null)return;
+    const method=normalizePaymentMethod(methodRaw);if(!method){alert('Moyen de paiement invalide');return}
+    const tip=askTip('0.00');if(tip===null)return;
+    payments.push({method,amount,tipAmount:tip,provider:'',providerReference:''});
+    remaining=Math.round((remaining-amount)*100)/100;
+  }
+  if(Math.abs(remaining)>0.01){alert('Le total des parts doit correspondre exactement à l’addition.');return}
+  const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
+  const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
+  await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+  await queuePut({
+    client_event_id:payEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order_split',restaurantId:state.restaurant.id,
+    payload:{orderId,clientEventId:payEventId,deviceId:device.id,cashSessionId:state.cashSession.id,payments,occurredAt:now.toISOString()}
+  });
+  state.openOrders=[localOpenOrder(order,'payment_pending'),...state.openOrders.filter(x=>x.id!==orderId)];
+  state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
+  await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
+}
+async function refundReceipt(receipt){
+  if(!state.online){alert('Un remboursement nécessite une connexion.');return}
+  if(!state.cashSession||state.cashSession.status!=='open'){alert('Ouvrez une caisse avant de rembourser.');return}
+  const refunds=Array.isArray(receipt.refunds)?receipt.refunds:[];
+  const reserved=refunds.filter(r=>['completed','pending_external'].includes(r.status)).reduce((s,r)=>s+Number(r.amount||0),0);
+  const remaining=Math.max(0,Math.round((Number(receipt.total||0)-reserved)*100)/100);
+  if(remaining<=0){alert('Ce ticket est déjà entièrement remboursé ou réservé pour remboursement.');return}
+  const raw=prompt('Montant à rembourser (CHF)',remaining.toFixed(2));if(raw===null)return;
+  const amount=parseMoneyInput(raw);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.001){alert('Montant invalide');return}
+  const defaultMethod=receipt.payments?.[0]?.method||'cash';
+  const methodRaw=prompt('Moyen du remboursement : espèces, carte ou TWINT',defaultMethod);if(methodRaw===null)return;
+  const method=normalizePaymentMethod(methodRaw);if(!method){alert('Moyen de remboursement invalide');return}
+  const reason=prompt('Motif du remboursement');if(!reason?.trim())return;
+  const tip=0;
+  const device=await ensureDevice(),eventId=uuid();
+  try{
+    const r=await posFunction({
+      action:'refund_order',restaurantId:state.restaurant.id,orderId:receipt.id,clientEventId:eventId,
+      cashSessionId:state.cashSession.id,deviceId:device.id,method,amount,tipAmount:tip,reason:reason.trim(),
+      provider:method==='cash'?'':'external',providerReference:'',occurredAt:new Date().toISOString()
+    });
+    await refreshReceipts();
+    state.error=r.refund?.refundStatus==='pending_external'
+      ?'Remboursement enregistré : confirmation du terminal/prestataire encore nécessaire.'
+      :'Remboursement enregistré.';
+    render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function confirmRefund(refundId,success){
+  if(!state.online||!isManager())return;
+  const ref=success?prompt('Référence de confirmation du prestataire (facultatif)',''):'';if(success&&ref===null)return;
+  try{
+    await posFunction({action:'confirm_external_refund',restaurantId:state.restaurant.id,refundId,success,providerReference:ref||''});
+    await refreshReceipts();state.error=success?'Remboursement externe confirmé.':'Remboursement externe marqué en échec.';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
 function addItem(item){const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,qty:1,quick:!!item.quick});render()}
 function addQuickItem(){
   const name=prompt('Nom de l’article libre');if(!name?.trim())return;
@@ -236,6 +360,7 @@ const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
+  const tip=askTip('0.00');if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
 
   if(state.activeTableId||state.activeOrderId||state.serviceType==='dine_in'){
@@ -244,7 +369,7 @@ async function checkout(method){
     await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
     await queuePut({
       client_event_id:settleEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order',restaurantId:state.restaurant.id,
-      payload:{orderId,clientEventId:settleEventId,deviceId:device.id,cashSessionId:state.cashSession.id,paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:0,occurredAt:now.toISOString()}
+      payload:{orderId,clientEventId:settleEventId,deviceId:device.id,cashSessionId:state.cashSession.id,paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()}
     });
     const local=localOpenOrder(order,'payment_pending');
     state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];
@@ -254,7 +379,7 @@ async function checkout(method){
       id:orderId,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,
       businessDate:state.cashSession.businessDate,serviceType:state.serviceType,tableLabel:state.tableLabel,
       covers:Number(state.covers)||0,currency:state.restaurant.currency||'CHF',lines:orderLines(),
-      paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:0,occurredAt:now.toISOString()
+      paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()
     };
     await queuePut({client_event_id:eventId,queued_at:now.toISOString(),action:'commit_order',restaurantId:state.restaurant.id,payload:{order}});
   }
@@ -270,7 +395,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button>
     <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -284,6 +409,23 @@ function floorView(){
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
     </main></div>`;
 }
+function ticketsView(){
+  const rows=state.receipts||[];
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="tickets-page"><div class="floor-head"><div><h2>Tickets</h2><p>${rows.length} ticket${rows.length>1?'s':''} récent${rows.length>1?'s':''}</p></div><button class="secondary" id="refresh-receipts" ${!state.online?'disabled':''}>Actualiser</button></div>
+    <div class="receipt-list">${rows.length?rows.map(r=>{
+      const refunds=Array.isArray(r.refunds)?r.refunds:[];
+      const completed=refunds.filter(x=>x.status==='completed').reduce((s,x)=>s+Number(x.amount||0),0);
+      const pending=refunds.filter(x=>x.status==='pending_external');
+      const payments=Array.isArray(r.payments)?r.payments:[];
+      return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
+        <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
+        <div class="receipt-payments">${payments.map(p=>`<span>${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
+        <div class="receipt-actions">${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
+          ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
+        </div></article>`;
+    }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
+}
 function mainView(){
   const catalog=state.bootstrap?.catalog||[],cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
   if(!cats.includes(state.category))state.category='Tous';
@@ -294,14 +436,17 @@ function mainView(){
   <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}"><strong>${esc(p.name)}</strong><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
   <aside class="cart"><div class="cart-head"><h2>Commande</h2><div class="order-meta"><select id="service-type"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select><input id="table-label" placeholder="Table" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div></div>
   <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line"><div><strong>${esc(x.name)}</strong><div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}">−</button><span>${x.qty}</span><button data-plus="${x.id}">+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
-  <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length?'disabled':'')+'>Enregistrer la note</button>':''}<div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
+  <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
+    ${currentServerOrder()?'<div class="order-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
+    ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length?'disabled':'')+'>Enregistrer la note</button>':''}
+    <button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager / plusieurs paiements</button><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
 function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();return}
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='tickets'?ticketsView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -311,10 +456,18 @@ function wire(){
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
   document.querySelector('#nav-floor')?.addEventListener('click',()=>{state.view='floor';refreshFloorData().then(render)});
+  document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#add-table')?.addEventListener('click',()=>addDiningTable());
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
   document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,qty:Number(item.quantity)||1,quick:!item.catalog_item_id}));state.view='sale';render()}));
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());
+  document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
+  document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
+  document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
+  document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
+  document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
+  document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
+  document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
   document.querySelector('#refresh-catalog')?.addEventListener('click',()=>{refreshCatalog();refreshFloorData().then(render)});
   document.querySelector('#quick-item')?.addEventListener('click',()=>addQuickItem());
   document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=prompt('Montant espèces compté dans le tiroir (CHF)');if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){alert('Montant invalide');return}await closeSession(n)});
