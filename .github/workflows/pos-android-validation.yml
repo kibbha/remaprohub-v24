@@ -1,4 +1,4 @@
-name: Android ReMaPro POS V0.25.2 Validation
+name: Android ReMaPro POS V0.26.0 Beta Validation
 
 on:
   workflow_dispatch:
@@ -34,7 +34,7 @@ jobs:
       - name: Inject public Supabase runtime config
         run: npm run inject:config
 
-      - name: Run POS smoke tests
+      - name: Run POS smoke and layout tests
         run: npm test
 
       - name: Prepare packaged web runtime
@@ -46,6 +46,7 @@ jobs:
           test -s app/src/cloud.js
           test -s app/src/db.js
           test -s app/src/printer.js
+          test -s app/src/layout.js
 
       - name: Generate Capacitor Android project
         run: npx cap add android
@@ -53,15 +54,16 @@ jobs:
       - name: Synchronize native plugins
         run: npx cap sync android
 
-      - name: Verify native plugin registration
+      - name: Verify packaged Android runtime and native plugins
         run: |
           test -s android/app/src/main/assets/public/index.html
           test -s android/app/src/main/assets/public/src/app.js
+          test -s android/app/src/main/assets/public/src/layout.js
           grep -Rqi "sqlite" android/capacitor.settings.gradle android/app/capacitor.build.gradle
           grep -Rqi "secure" android/capacitor.settings.gradle android/app/capacitor.build.gradle
           grep -Rqi "printer\|esc" android/capacitor.settings.gradle android/app/capacitor.build.gradle
 
-      - name: Build debug APK
+      - name: Build debug beta APK
         run: |
           cd android
           chmod +x gradlew
@@ -77,5 +79,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-POS-V0.25.2-validation-apk
+          name: ReMaPro-POS-V0.26.0-beta-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
