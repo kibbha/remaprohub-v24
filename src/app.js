@@ -7,6 +7,7 @@ import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
 import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 import {recordDiagnostic} from './telemetry.js';
+import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 
 const APP_VERSION='0.27.0';
 const state={
@@ -16,11 +17,11 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],directOrders:[],
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
-let terminalPollTimer=null;
+let terminalPollTimer=null,directOrderPollTimer=null;
 const money=v=>new Intl.NumberFormat(({fr:'fr-CH',en:'en-CH',de:'de-CH',it:'it-CH'})[language()]||'fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -364,9 +365,24 @@ async function refreshOperators(){
     }
   }catch(error){state.error=error.message||String(error)}
 }
+async function refreshDirectOrders(){
+  if(!state.restaurant||!state.online||state.trainingMode)return state.directOrders;
+  try{
+    const r=await posFunction({action:'list_direct_orders',restaurantId:state.restaurant.id,statuses:['pending','accepted']});
+    state.directOrders=Array.isArray(r.rows)?r.rows:[];return state.directOrders;
+  }catch(error){recordDiagnostic('direct_orders.refresh_error',{message:error.message||String(error)});return state.directOrders}
+}
+function startDirectOrderPolling(){
+  if(directOrderPollTimer)clearInterval(directOrderPollTimer);
+  directOrderPollTimer=setInterval(async()=>{
+    if(!state.online||!state.restaurant||!state.cashSession||(state.operatorRequired&&!state.operator)||state.trainingMode)return;
+    const before=state.directOrders.filter(x=>x.status==='pending').length;await refreshDirectOrders();const after=state.directOrders.filter(x=>x.status==='pending').length;
+    if(before!==after||state.view==='directOrders')render();
+  },20000);
+}
 async function refreshOperationalData(){
   if(state.operatorRequired&&!state.operator)return;
-  await Promise.all([refreshFloorData(),refreshProductionQueue(),refreshReceipts(),refreshTerminals(),refreshPrinters()]);
+  await Promise.all([refreshFloorData(),refreshProductionQueue(),refreshReceipts(),refreshTerminals(),refreshPrinters(),refreshDirectOrders()]);
 }
 async function operatorLogin(operatorId,pin){
   const op=state.operators.find(x=>x.id===operatorId);
@@ -378,7 +394,7 @@ async function operatorLogin(operatorId,pin){
     const session=r.session;
     saveOperatorSession({token:session.token,expiresAt:session.expiresAt,restaurantId:state.restaurant.id,operator:session.operator});
     state.operator=session.operator;state.error='';
-    await refreshOperationalData();render();
+    await refreshOperationalData();startDirectOrderPolling();render();
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function switchOperator(){
@@ -731,7 +747,7 @@ async function bootstrapRestaurant(restaurant){
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
       await refreshOperators();
-      await refreshOperationalData()
+      await refreshOperationalData();startDirectOrderPolling()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -856,6 +872,31 @@ async function saveOpenOrder(){
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 
+
+async function acceptDirectOrder(id){
+  if(!state.online){uiAlert(t('connectionRequired'));return}
+  const direct=state.directOrders.find(x=>String(x.id)===String(id));if(!direct||direct.status!=='pending')return;
+  if(!state.cashSession||state.cashSession.status!=='open'){uiAlert(t('directCashRequired'));return}
+  try{
+    await posFunction({action:'claim_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id});
+    const cart=directOrderCart(direct);if(!cart.length)throw new Error(t('directEmpty'));
+    const device=await ensureDevice(),orderId=uuid(),eventId=uuid(),table=direct.service_type==='dine_in'?(state.tables||[]).find(x=>String(x.label||'').trim().toLocaleLowerCase()===String(direct.table_label||'').trim().toLocaleLowerCase()&&!state.openOrders.some(o=>o.table_id===x.id)):null;
+    const lines=cart.map(linePayload),order={id:orderId,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,businessDate:state.cashSession.businessDate,serviceType:direct.service_type||'takeaway',tableId:table?.id||null,tableLabel:direct.table_label||'',covers:Number(direct.covers)||0,currency:direct.currency||state.restaurant.currency||'CHF',lines,occurredAt:new Date().toISOString()};
+    const saved=await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order});
+    await posFunction({action:'link_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id,posOrderId:orderId});
+    const local=saved?.order||localOpenOrder(order,'open');state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];await saveFloorCache();
+    state.activeOrderId=orderId;state.activeTableId=table?.id||null;state.tableLabel=direct.table_label||'';state.serviceType=direct.service_type||'takeaway';state.covers=Number(direct.covers)||0;
+    state.cart=(local.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked:false,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''}));
+    await refreshDirectOrders();state.view='sale';state.error=t('directImported');render();
+  }catch(error){state.error=error.message||String(error);recordDiagnostic('direct_orders.accept_error',{message:state.error});await refreshDirectOrders();render()}
+}
+async function rejectDirectOrder(id){
+  if(!state.online){uiAlert(t('connectionRequired'));return}
+  const reason=await uiPrompt({title:t('directReject'),label:t('cancelReason'),required:true});if(!reason?.trim())return;
+  try{await posFunction({action:'reject_direct_order',restaurantId:state.restaurant.id,directOrderId:id,reason:reason.trim()});await refreshDirectOrders();render()}
+  catch(error){state.error=error.message||String(error);recordDiagnostic('direct_orders.reject_error',{message:state.error});render()}
+}
+function directOrdersView(){return renderDirectOrders({orders:state.directOrders,money,t,esc,online:state.online,topbar:topbar()})}
 
 async function refreshServiceReport(targetDate=state.reportDate||dateKey()){
   if(!state.restaurant)return;
@@ -1744,7 +1785,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>${t
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>${t('openCash')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='directOrders'?'active':''}" id="nav-direct-orders">${t('directOrders')}${state.directOrders.filter(x=>x.status==='pending').length?' <span class="nav-badge">'+state.directOrders.filter(x=>x.status==='pending').length+'</span>':''}</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
     <div class="spacer"></div><label class="top-language"><span class="sr-only">${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><button class="secondary academy-help-context" id="academy-help-context" title="${academyChromeText().contextHelp}">?</button>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -1907,7 +1948,7 @@ function render(){
   if(!state.restaurant){app.innerHTML=pickerView();wire();translateDom(app);return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();translateDom(app);return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();translateDom(app);return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():mainView();wire();translateDom(app);
+  app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():mainView();wire();translateDom(app);
 }
 function wire(){
   document.querySelector('#pos-language')?.addEventListener('change',e=>{const next=setLanguage(e.target.value);state.academyLocale=next;localStorage.setItem('remapro-academy-lang',next);render()});
@@ -1927,6 +1968,10 @@ function wire(){
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
   document.querySelector('#nav-floor')?.addEventListener('click',()=>{state.view='floor';refreshFloorData().then(render)});
+  document.querySelector('#nav-direct-orders')?.addEventListener('click',()=>{state.view='directOrders';refreshDirectOrders().then(render)});
+  document.querySelector('#refresh-direct-orders')?.addEventListener('click',()=>refreshDirectOrders().then(render));
+  document.querySelectorAll('[data-direct-accept]').forEach(b=>b.addEventListener('click',()=>acceptDirectOrder(b.dataset.directAccept)));
+  document.querySelectorAll('[data-direct-reject]').forEach(b=>b.addEventListener('click',()=>rejectDirectOrder(b.dataset.directReject)));
   document.querySelector('#nav-production')?.addEventListener('click',()=>{state.view='production';refreshProductionQueue().then(render)});
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#nav-report')?.addEventListener('click',()=>{state.view='report';state.reportDate=state.reportDate||dateKey();refreshServiceReport(state.reportDate)});
