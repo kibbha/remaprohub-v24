@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.8.0';
+const APP_VERSION='0.9.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -282,7 +282,7 @@ function printReceipt(receipt){
   const when=receipt.closed_at?new Date(receipt.closed_at).toLocaleString('fr-CH'):'';
   const itemRows=items.map(i=>'<div class="print-line"><span>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</span><span>'+money(i.line_total)+'</span></div>').join('')||'<div>Détail indisponible</div>';
   const taxRows=[...taxGroups.entries()].map(([rate,tax])=>'<div class="print-line"><span>TVA '+rate+'%</span><span>'+money(tax)+'</span></div>').join('');
-  const paymentRows=payments.map(p=>'<div class="print-line"><span>'+esc(String(p.method||'').toUpperCase())+'</span><span>'+money(Number(p.amount||0)+Number(p.tip_amount||0))+'</span></div>').join('');
+  const paymentRows=payments.map(p=>'<div class="print-line"><span>'+esc((p.metadata?.splitLabel?p.metadata.splitLabel+' · ':'')+String(p.method||'').toUpperCase())+'</span><span>'+money(Number(p.amount||0)+Number(p.tip_amount||0))+'</span></div>').join('');
   const tipRow=tip?'<div class="print-line"><span>Pourboire</span><span>'+money(tip)+'</span></div>':'';
   const refundRow=refundTotal?'<div class="print-line refund"><span>Remboursé</span><span>− '+money(refundTotal)+'</span></div>':'';
   const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div>'+esc(receipt.receipt_number||receipt.receiptNumber||'')+'</div><div>'+esc(when)+'</div><div>'+esc(receipt.table_label||receipt.service_type||'')+'</div></div>'
@@ -343,6 +343,144 @@ async function cancelCurrentOrder(){
     state.openOrders=state.openOrders.filter(x=>x.id!==order.id);await saveFloorCache();
     state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
   }catch(error){state.error=error.message||String(error);render()}
+}
+
+async function prepareOrderForAllocatedSplit(){
+  if(!state.online){alert('Le partage par articles nécessite une connexion.');return null}
+  if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
+  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return null}
+
+  let order=currentServerOrder();
+  if(!order||order.status==='open'){
+    const device=await ensureDevice();
+    const orderId=state.activeOrderId||uuid(),eventId=uuid();
+    const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
+    try{
+      await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
+      state.activeOrderId=orderId;
+      await refreshFloorData();
+      order=state.openOrders.find(x=>x.id===orderId)||null;
+    }catch(error){
+      state.error=error.message||String(error);render();return null;
+    }
+  }
+  return order;
+}
+function closeAllocatedSplit(){
+  document.querySelector('#allocated-split-modal')?.remove();
+  document.body.classList.remove('modal-open');
+}
+function splitQty(value){
+  const n=Number(value);return Number.isFinite(n)?Math.max(0,Math.round(n*1000)/1000):0;
+}
+function updateAllocatedSplitTotals(){
+  const modal=document.querySelector('#allocated-split-modal');if(!modal)return;
+  const rows=[...modal.querySelectorAll('[data-split-item-row]')];
+  const groupCount=Number(modal.dataset.groups)||0;
+  let complete=true;
+  const totals=Array(groupCount).fill(0);
+
+  for(const row of rows){
+    const qty=Number(row.dataset.qty)||0,lineTotal=Number(row.dataset.total)||0;
+    const unit=qty?lineTotal/qty:0;
+    let assigned=0;
+    for(let gi=0;gi<groupCount;gi++){
+      const input=row.querySelector('[data-split-group="'+gi+'"]');
+      const q=splitQty(input?.value);assigned+=q;totals[gi]+=unit*q;
+    }
+    const remaining=Math.round((qty-assigned)*1000)/1000;
+    const rem=row.querySelector('[data-split-remaining]');
+    if(rem){rem.textContent=Math.abs(remaining)<0.0005?'OK':'Reste '+remaining;rem.classList.toggle('ok',Math.abs(remaining)<0.0005)}
+    if(Math.abs(remaining)>0.0005)complete=false;
+  }
+  for(let gi=0;gi<groupCount;gi++){
+    const el=modal.querySelector('[data-split-total="'+gi+'"]');
+    if(el)el.textContent=money(Math.round(totals[gi]*100)/100);
+  }
+  const pay=modal.querySelector('#allocated-split-submit');
+  if(pay)pay.disabled=!complete||totals.some(x=>x<=0.005);
+}
+function autoAllocateSplit(){
+  const modal=document.querySelector('#allocated-split-modal');if(!modal)return;
+  const groupCount=Number(modal.dataset.groups)||0;
+  for(const row of modal.querySelectorAll('[data-split-item-row]')){
+    const qty=Number(row.dataset.qty)||0;
+    const values=Array(groupCount).fill(0);
+    if(Math.abs(qty-Math.round(qty))<0.0005){
+      for(let unit=0;unit<Math.round(qty);unit++)values[unit%groupCount]+=1;
+    }else{
+      const base=Math.floor((qty/groupCount)*1000)/1000;
+      for(let gi=0;gi<groupCount;gi++)values[gi]=base;
+      values[groupCount-1]=Math.round((qty-base*(groupCount-1))*1000)/1000;
+    }
+    values.forEach((v,gi)=>{const input=row.querySelector('[data-split-group="'+gi+'"]');if(input)input.value=String(v)});
+  }
+  updateAllocatedSplitTotals();
+}
+function collectAllocatedGroups(){
+  const modal=document.querySelector('#allocated-split-modal');if(!modal)return[];
+  const groupCount=Number(modal.dataset.groups)||0,groups=[];
+  for(let gi=0;gi<groupCount;gi++){
+    const selections=[];
+    for(const row of modal.querySelectorAll('[data-split-item-row]')){
+      const input=row.querySelector('[data-split-group="'+gi+'"]');
+      const q=splitQty(input?.value);
+      if(q>0)selections.push({itemId:row.dataset.itemId,quantity:q});
+    }
+    if(!selections.length)continue;
+    const label=modal.querySelector('[data-group-label="'+gi+'"]')?.value?.trim()||('Personne '+(gi+1));
+    const method=modal.querySelector('[data-group-method="'+gi+'"]')?.value||'cash';
+    const tip=parseMoneyInput(modal.querySelector('[data-group-tip="'+gi+'"]')?.value||'0');
+    groups.push({label,method,tipAmount:Number.isFinite(tip)&&tip>=0?tip:0,provider:'',providerReference:'',selections});
+  }
+  return groups;
+}
+async function settleAllocatedSplit(order){
+  const groups=collectAllocatedGroups();if(!groups.length)return;
+  const modal=document.querySelector('#allocated-split-modal');
+  const submit=modal?.querySelector('#allocated-split-submit');
+  if(submit)submit.disabled=true;
+  try{
+    const device=await ensureDevice(),eventId=uuid();
+    const r=await posFunction({
+      action:'settle_open_order_allocated',restaurantId:state.restaurant.id,
+      orderId:order.id,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,
+      groups,occurredAt:new Date().toISOString()
+    });
+    state.openOrders=state.openOrders.filter(x=>x.id!==order.id);
+    state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';
+    await saveFloorCache();await Promise.all([refreshFloorData(),refreshReceipts()]);
+    closeAllocatedSplit();state.view='tickets';
+    state.error='Addition répartie entre '+groups.length+' personne'+(groups.length>1?'s':'')+'.';
+    render();
+    return r;
+  }catch(error){
+    state.error=error.message||String(error);
+    if(submit)submit.disabled=false;
+    render();closeAllocatedSplit();
+  }
+}
+async function openAllocatedSplit(){
+  const order=await prepareOrderForAllocatedSplit();if(!order)return;
+  const items=(order.items||[]).filter(x=>x.kitchen_status!=='cancelled');
+  if(!items.length){alert('Aucun article à répartir.');return}
+  const raw=prompt('Combien de personnes / groupes ?','2');if(raw===null)return;
+  const groupCount=Math.max(2,Math.min(8,Math.trunc(Number(raw)||0)));
+  if(groupCount<2){alert('Nombre invalide.');return}
+
+  closeAllocatedSplit();
+  const modal=document.createElement('div');
+  modal.id='allocated-split-modal';modal.className='modal-overlay';modal.dataset.groups=String(groupCount);
+  const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
+  const itemRows=items.map(item=>'<tr data-split-item-row data-item-id="'+esc(item.id)+'" data-qty="'+Number(item.quantity||0)+'" data-total="'+Number(item.line_total||0)+'"><td><strong>'+esc(item.name_snapshot)+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_price)+'</small></td>'+Array.from({length:groupCount},(_,gi)=>'<td><input class="split-qty-input" data-split-group="'+gi+'" type="number" min="0" max="'+Number(item.quantity||0)+'" step="0.001" value="'+(gi===0?Number(item.quantity||0):0)+'"></td>').join('')+'<td><span class="split-remaining" data-split-remaining>OK</span></td></tr>').join('');
+  modal.innerHTML='<div class="split-dialog"><div class="split-dialog-head"><div><h2>Partager par articles</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · '+money(order.total)+'</p></div><button class="split-close" id="allocated-split-close">×</button></div><div class="split-toolbar"><button class="secondary" id="allocated-auto">Répartir par unité</button><span>Chaque quantité doit être attribuée entièrement.</span></div><div class="split-table-wrap"><table class="split-table"><thead><tr><th>Article</th>'+groupHeads+'<th>Contrôle</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="split-footer"><button class="secondary" id="allocated-split-cancel">Annuler</button><button class="primary" id="allocated-split-submit">Encaisser la répartition</button></div></div>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  modal.querySelector('#allocated-split-close')?.addEventListener('click',closeAllocatedSplit);
+  modal.querySelector('#allocated-split-cancel')?.addEventListener('click',closeAllocatedSplit);
+  modal.querySelector('#allocated-auto')?.addEventListener('click',autoAllocateSplit);
+  modal.querySelectorAll('.split-qty-input,.split-tip').forEach(el=>el.addEventListener('input',updateAllocatedSplitTotals));
+  modal.querySelector('#allocated-split-submit')?.addEventListener('click',()=>settleAllocatedSplit(order));
+  updateAllocatedSplitTotals();
 }
 async function splitCheckout(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
@@ -560,7 +698,7 @@ function ticketsView(){
       const payments=Array.isArray(r.payments)?r.payments:[];
       return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
-        <div class="receipt-payments">${payments.map(p=>`<span>${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
+        <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
         <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Imprimer</button>${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
           ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
@@ -579,7 +717,7 @@ function mainView(){
   <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
     ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>'+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
     ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length||orderLocked()?'disabled':'')+'>Enregistrer la note</button>':''}
-    <button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager / plusieurs paiements</button><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
+    <div class="split-actions"><button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager par montants</button><button class="split-pay split-items-pay" id="split-items" ${!state.cart.length||!state.online?'disabled':''}>Partager par articles</button></div><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
 function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();return}
@@ -603,6 +741,7 @@ function wire(){
   document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;const locked=o.status!=='open';state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false}));state.view='sale';render()}));
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());
   document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
+  document.querySelector('#split-items')?.addEventListener('click',()=>openAllocatedSplit());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
   document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
   document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
