@@ -1,25 +1,21 @@
 # ReMaPro POS
 
-Version actuelle: **0.5.0**  
+Version actuelle: **0.6.0**  
 Android package: **com.remapro.pos**
 
-## Fonctions disponibles
-- compte et restaurants partagés avec ReMaPro Hub ;
-- catalogue Hub → POS et article libre ;
-- ouverture/clôture de caisse ;
-- plan de salle, tables et notes ouvertes ;
-- transfert de table et annulation tracée ;
-- paiement simple espèces/carte/TWINT ;
-- partage d’addition / plusieurs paiements ;
-- pourboires par paiement ;
-- tickets numérotés et historique ;
-- remboursement espèces immédiat ;
-- remboursement carte/TWINT enregistré en attente du prestataire puis confirmable par manager ;
-- CA brut, remboursements et CA net dans le backend Hub ;
-- file offline IndexedDB pour commandes et paiements ;
-- clôture impossible tant qu’une note reste ouverte.
+## Disponible
+- caisse, tickets, TVA, pourboires et paiements multiples ;
+- salle, tables, notes ouvertes et transferts ;
+- annulations et remboursements audités ;
+- catalogue Hub → POS ;
+- routage des articles vers **Cuisine**, **Bar** ou **sans production** ;
+- envoi d’une note en production ;
+- écran Production avec statuts Envoyé → Préparation → Prêt → Servi ;
+- rafraîchissement automatique de l’écran Production ;
+- verrouillage d’une note déjà envoyée pour éviter les doublons de fabrication ;
+- fonctionnement offline pour la prise de commande et les encaissements déjà prévus.
 
-## Limites actuelles
-La carte/TWINT n’est pas encore reliée à un terminal réel : ReMaPro POS ne prétend donc jamais confirmer lui-même un remboursement bancaire. KDS, imprimantes, partage par article et SQLite natif restent à venir.
+## Suite
+Gestion des ajouts après un premier envoi (delta cuisine), impression thermique/KDS externe, partage par article, intégrations Worldline/TWINT et stockage SQLite natif de production.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

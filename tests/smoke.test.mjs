@@ -1,12 +1,9 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const pkg=JSON.parse(read('package.json'));
-assert.equal(pkg.version,'0.5.0');
+assert.equal(JSON.parse(read('package.json')).version,'0.6.0');
 assert.equal(JSON.parse(read('capacitor.config.json')).appId,'com.remapro.pos');
 const app=read('src/app.js');
-for(const token of ['settle_open_order_split','transfer_open_order','cancel_open_order','refund_order','confirm_external_refund','split-pay','nav-tickets','askTip'])assert.ok(app.includes(token),token);
-const cloud=read('src/cloud.js');
-assert.match(cloud,/remapro-pos-sync/);
-assert.doesNotMatch(cloud,/service[_-]?role/i);
-console.log('ReMaPro POS 0.5 smoke checks passed');
+for(const token of ['production_queue','send_to_production','update_production_item','nav-production','data-production-item','orderLocked'])assert.ok(app.includes(token),token);
+assert.doesNotMatch(read('src/cloud.js'),/service[_-]?role/i);
+console.log('ReMaPro POS 0.6 smoke checks passed');

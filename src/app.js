@@ -1,12 +1,13 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.5.0';
+const APP_VERSION='0.6.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
-  tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null
+  tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
+  productionQueue:[],productionStation:'all'
 };
 const app=document.querySelector('#app');
 const money=v=>new Intl.NumberFormat('fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
@@ -17,6 +18,7 @@ const catalogKey=id=>'catalog:'+id;
 const receiptsKey=id=>'receipts:'+id;
 const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
+const productionKey=id=>'production:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -36,6 +38,18 @@ async function saveFloorCache(){
   if(!state.restaurant)return;
   await kvSet(tablesKey(state.restaurant.id),state.tables);
   await kvSet(openOrdersKey(state.restaurant.id),state.openOrders);
+}
+async function refreshProductionQueue(){
+  if(!state.restaurant)return;
+  if(!state.online){
+    state.productionQueue=await kvGet(productionKey(state.restaurant.id))||state.productionQueue||[];
+    return;
+  }
+  try{
+    const r=await posFunction({action:'production_queue',restaurantId:state.restaurant.id});
+    state.productionQueue=r.rows||[];
+    await kvSet(productionKey(state.restaurant.id),state.productionQueue);
+  }catch(error){state.error=error.message||String(error)}
 }
 async function refreshFloorData(){
   if(!state.restaurant)return;
@@ -131,6 +145,7 @@ async function bootstrapRestaurant(restaurant){
   state.receipts=await kvGet(receiptsKey(restaurant.id))||[];
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
+  state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.cashSession=await kvGet(sessionKey(restaurant.id));
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   render();
@@ -145,6 +160,7 @@ async function bootstrapRestaurant(restaurant){
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
       await refreshFloorData();
+      await refreshProductionQueue();
       await refreshReceipts()
     }catch(error){state.error=error.message||String(error)}
   }
@@ -222,6 +238,7 @@ function buildOpenOrder(orderId,eventId){
   };
 }
 async function saveOpenOrder(){
+  if(orderLocked()){alert('Cette note a déjà été envoyée en production.');return}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
   const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid(),order=buildOpenOrder(orderId,eventId);
   order.deviceId=device.id;
@@ -249,6 +266,7 @@ function normalizePaymentMethod(value){
   return'';
 }
 function currentServerOrder(){return state.openOrders.find(o=>o.id===state.activeOrderId)||null}
+function orderLocked(){const o=currentServerOrder();return !!o&&o.status!=='open'}
 async function transferCurrentOrder(){
   const order=currentServerOrder();
   if(!order){alert('Enregistrez d’abord la note avant de la transférer.');return}
@@ -339,7 +357,28 @@ async function confirmRefund(refundId,success){
     await refreshReceipts();state.error=success?'Remboursement externe confirmé.':'Remboursement externe marqué en échec.';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
-function addItem(item){const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,qty:1,quick:!!item.quick});render()}
+async function sendCurrentOrderProduction(){
+  const order=currentServerOrder();
+  if(!order){alert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
+  if(!state.online){alert('L’envoi cuisine/bar nécessite une connexion.');return}
+  if(order.status!=='open'){alert('Cette note a déjà été envoyée en production.');return}
+  try{
+    const device=await ensureDevice(),eventId=uuid(),payload=buildOpenOrder(order.id,eventId);payload.deviceId=device.id;
+    await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
+    await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId:order.id});
+    await Promise.all([refreshFloorData(),refreshProductionQueue()]);
+    state.error='Commande envoyée en production.';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function updateProductionItem(itemId,status){
+  if(!state.online){alert('Le suivi production nécessite une connexion.');return}
+  try{
+    await posFunction({action:'update_production_item',restaurantId:state.restaurant.id,itemId,status});
+    await Promise.all([refreshProductionQueue(),refreshFloorData()]);
+    state.error='';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+function addItem(item){if(orderLocked()){alert('Cette note a déjà été envoyée en production et ne peut plus être modifiée.');return}const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.production_station||'kitchen',qty:1,quick:!!item.quick});render()}
 function addQuickItem(){
   const name=prompt('Nom de l’article libre');if(!name?.trim())return;
   const raw=prompt('Prix TTC (CHF)','0.00');if(raw===null)return;
@@ -355,7 +394,7 @@ async function refreshCatalog(){
   }catch(error){state.error=error.message||String(error)}
   render();
 }
-function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){if(orderLocked()){alert('Cette note a déjà été envoyée en production.');return}const line=state.cart.find(x=>x.id===id);if(!line)return;line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
@@ -395,7 +434,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button>
     <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -407,6 +446,18 @@ function floorView(){
       ${isManager()?'<button class="primary compact" id="add-table">+ Table</button>':''}</div>
       <div class="table-grid">${state.tables.map(t=>{const o=state.openOrders.find(x=>x.table_id===t.id||(!x.table_id&&x.table_label===t.label));return `<button class="table-card ${o?'occupied':'free'}" data-table="${t.id}"><span class="table-label">${esc(t.label)}</span><span>${t.seats||0} pl.</span><strong>${o?money(o.total):'Libre'}</strong>${o?'<small>'+esc(o.status)+'</small>':''}</button>`}).join('')||'<div class="empty">Aucune table configurée.</div>'}</div>
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
+    </main></div>`;
+}
+function productionView(){
+  const station=state.productionStation;
+  const filtered=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||i.station_snapshot===station)})).filter(o=>o.items.length);
+  const label=s=>s==='bar'?'Bar':'Cuisine';
+  const action=i=>i.kitchen_status==='sent'?['preparing','Préparer']:i.kitchen_status==='preparing'?['ready','Prêt']:i.kitchen_status==='ready'?['served','Servi']:null;
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="production-page"><div class="floor-head"><div><h2>Production</h2><p>${filtered.length} commande${filtered.length>1?'s':''} en cours</p></div>
+      <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">Tout</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">Cuisine</button><button data-station="bar" class="${station==='bar'?'active':''}">Bar</button><button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>Actualiser</button></div></div>
+      <div class="production-grid">${filtered.length?filtered.map(o=>`<article class="production-ticket"><header><strong>${esc(o.table_label||o.service_type||'Commande')}</strong><span>${esc(o.status)}</span></header>
+        <div class="production-items">${o.items.map(i=>{const a=action(i);return `<div class="production-item status-${i.kitchen_status}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)}${i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div></article>`).join(''):'<div class="empty">Aucune commande en préparation.</div>'}</div>
     </main></div>`;
 }
 function ticketsView(){
@@ -433,12 +484,12 @@ function mainView(){
   return `<div class="shell">${topbar()}
   ${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
   <main class="workspace"><nav class="categories">${cats.map(c=>`<button class="category ${c===state.category?'active':''}" data-category="${esc(c)}">${esc(c)}</button>`).join('')}</nav>
-  <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}"><strong>${esc(p.name)}</strong><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
+  <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item" ${orderLocked()?'disabled':''}>+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}" ${orderLocked()?'disabled':''}><strong>${esc(p.name)}</strong><small>${p.production_station==='bar'?'Bar':p.production_station==='none'?'Sans production':'Cuisine'}</small><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
   <aside class="cart"><div class="cart-head"><h2>Commande</h2><div class="order-meta"><select id="service-type"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select><input id="table-label" placeholder="Table" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div></div>
-  <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line"><div><strong>${esc(x.name)}</strong><div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}">−</button><span>${x.qty}</span><button data-plus="${x.id}">+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
+  <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line"><div><strong>${esc(x.name)}</strong><div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}" ${orderLocked()?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${orderLocked()?'disabled':''}>+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
   <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
-    ${currentServerOrder()?'<div class="order-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
-    ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length?'disabled':'')+'>Enregistrer la note</button>':''}
+    ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(currentServerOrder()?.status!=='open'?'disabled':'')+'>Envoyer cuisine/bar</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
+    ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length||orderLocked()?'disabled':'')+'>Enregistrer la note</button>':''}
     <button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager / plusieurs paiements</button><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
 function render(){
@@ -446,7 +497,7 @@ function render(){
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='tickets'?ticketsView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -456,6 +507,7 @@ function wire(){
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
   document.querySelector('#nav-floor')?.addEventListener('click',()=>{state.view='floor';refreshFloorData().then(render)});
+  document.querySelector('#nav-production')?.addEventListener('click',()=>{state.view='production';refreshProductionQueue().then(render)});
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#add-table')?.addEventListener('click',()=>addDiningTable());
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
@@ -464,6 +516,10 @@ function wire(){
   document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
   document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
+  document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
+  document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
+  document.querySelectorAll('[data-station]').forEach(b=>b.addEventListener('click',()=>{state.productionStation=b.dataset.station;render()}));
+  document.querySelectorAll('[data-production-item]').forEach(b=>b.addEventListener('click',()=>updateProductionItem(b.dataset.productionItem,b.dataset.productionStatus)));
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
   document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
@@ -484,6 +540,7 @@ async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('online',()=>{state.online=true;render();flushQueue().catch(()=>{})});
   window.addEventListener('offline',()=>{state.online=false;render()});
+  setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
 }
 init();
