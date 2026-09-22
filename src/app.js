@@ -1,9 +1,9 @@
 import{cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,buildAiContext,callRemaproAi,fileToDataUrl}from'./ai.js';import{cloudSession,initializeCloudSessionStorage,loadCachedCloudIdentity,signInCloud,signUpCloud,signOutCloud,requestPasswordReset,loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,cloudWorkspaceReadKeys,cloudFunction}from'./cloud.js';import{LANGS,language,setLanguage,t}from'./i18n.js';import{securitySettings,updateSecuritySettings,rememberedSecurityEmail,rememberSecurityEmail,loadDeveloperAccess,saveDeveloperAccess,clearDeveloperAccess,developerAliasMatches,validDeveloperAlias,biometricAvailability,verifyBiometric,shouldRelock}from'./security.js';import{billingAvailable,configureBilling,purchasePlan,restorePurchases,customerInfo,entitlementPlan}from'./billing.js';import{LEGAL_COUNTRIES,legalPack,legalFieldsFor,isLegalHrDocument}from'./legal.js';import{load,save,storageScope,setStorageScope,exportWorkspace,applyWorkspaceData,restrictWorkspace,resetWorkspaceKeys,recordFinance,financeTotals,financeDayTotals,revenueSeries,localDate,recordRegistry,recordValidated,setStockPreferredSupplier,stockAvailable,recordStockMovement,recordWaste,updateWaste,recordDelivery,ensureDailyTasks,setDailyTaskCompletion,dailyRoutineStatus,updateRecord,removeRecord,updatePreferences,exportData,importData,resetState,saveDocument,updateDocument,recordOrder,updateOrder,removeOrder,recordInvoice,markInvoicePaid,integrateInvoiceReceipt,recordPurchase,updatePurchase,removePurchase,recordShift,copyPreviousWeekSchedule,recordLeave,recordTraining,leaveBusinessDays,calculateSwissPayroll,ccntMinimum,PLAN_CONFIG,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan,STAFF_PERMISSIONS,multiFeaturesEnabled,activeRestaurant,mergeCloudRestaurants,switchRestaurant,recordRestaurant,removeRestaurant,recordManager,removeManager,recordStaffAccess,removeStaffAccess}from'./store.js';
-import{publishPosCatalog,loadPosAdminSnapshot,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements}from'./pos.js';
+import{publishPosCatalog,loadPosAdminSnapshot,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection}from'./pos.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
 const state=load(),persist=()=>{if(cloudSession()){const current=activeRestaurant(state);if(current?.cloudId)current.cloudDirty=true}save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -92,7 +92,7 @@ function ai(){const connected=cloudConfigured()&&!!cloudSession(),snapshot=manag
 async function loadPosAdminData(showError=false){
   const restaurantId=cloudRestaurantId();
   if(!restaurantId||!cloudSession()||!cloudManager()){
-    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null};
+    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
     if(showError)render();return false;
   }
   posAdminState={...posAdminState,restaurantId,loading:true,error:''};
@@ -157,7 +157,7 @@ async function applyPosInventoryMovements(){
 function posAdmin(){
   const restaurantId=cloudRestaurantId(),manager=cloudManager();
   if(restaurantId&&manager&&posAdminState.restaurantId!==restaurantId&&!posAdminState.loading){
-    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null};
+    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
     setTimeout(()=>loadPosAdminData(false),0);
   }
   const venue=activeRestaurant(state)?.name||state.preferences?.restaurant||'Restaurant';
@@ -199,6 +199,21 @@ function posAdmin(){
         <form id="posTerminalAddForm" class="form pos-inline-form"><input name="label" required maxlength="120" placeholder="Terminal principal"><select name="provider"><option value="worldline">Worldline</option><option value="twint">TWINT</option><option value="generic">Générique</option></select><select name="integrationMode"><option value="cloud">Cloud/API</option><option value="external_app">Application externe</option><option value="local_network">Réseau local</option></select><input name="externalTerminalId" maxlength="180" placeholder="ID terminal prestataire"><button class="btn primary">Ajouter</button></form>
         <div class="pos-admin-warning">Aucun secret/API key n’est stocké ici. Les identifiants prestataire restent côté serveur.</div>
         <div class="pos-admin-list">${posAdminState.terminals.length?posAdminState.terminals.map(t=>`<div class="pos-admin-row"><span><strong>${esc(t.label)}</strong><small>${esc(t.provider)} · ${esc(t.connection_status||'not_configured')} · ${t.active?'Actif':'Inactif'}</small></span><button class="btn compact" data-pos-terminal-edit="${t.id}">Modifier</button></div>`).join(''):'<p class="muted">Aucun terminal configuré.</p>'}</div>
+      </section>
+
+      <section class="card pos-admin-card pos-provider-card"><h2>Prestataires de paiement</h2>
+        <p class="muted">Prépare les connexions officielles sans stocker de clé secrète dans Hub ou dans le POS.</p>
+        <form id="posProviderAddForm" class="form pos-inline-form">
+          <select name="provider"><option value="worldline">Worldline</option><option value="twint">TWINT</option></select>
+          <select name="integrationMode"><option value="terminal_api_cloud">Worldline · Terminal API Cloud</option><option value="tim">Worldline · TIM</option><option value="direct">TWINT · Direct</option><option value="terminal_psp">TWINT · Terminal / PSP</option></select>
+          <select name="environment"><option value="test">Test</option><option value="live">Live</option></select>
+          <select name="status"><option value="waiting_contract">Contrat à finaliser</option><option value="credentials_pending">Identifiants attendus</option><option value="ready_for_adapter">Prêt pour adaptateur</option><option value="disabled">Désactivé</option></select>
+          <input name="merchantReference" maxlength="180" placeholder="Référence marchand (non secrète)">
+          <input name="notes" maxlength="1000" placeholder="Note interne">
+          <button class="btn primary">Enregistrer</button>
+        </form>
+        <div class="pos-admin-warning">Les paiements automatiques restent désactivés tant que l’adaptateur officiel et les identifiants prestataire n’ont pas été installés côté serveur.</div>
+        <div class="pos-admin-list">${posAdminState.providerConnections.length?posAdminState.providerConnections.map(c=>`<div class="pos-admin-row"><span><strong>${esc(c.provider.toUpperCase())} · ${esc(c.integration_mode)}</strong><small>${esc(c.environment)} · ${esc(c.status)}${c.merchant_reference?' · '+esc(c.merchant_reference):''}</small></span><button class="btn compact" data-pos-provider-edit="${c.id}">Modifier</button></div>`).join(''):'<p class="muted">Aucune connexion prestataire préparée.</p>'}</div>
       </section>
     </div>
   </section>`;
@@ -489,6 +504,33 @@ document.querySelectorAll('[data-pos-terminal-edit]').forEach(b=>b.addEventListe
   const x=posAdminState.terminals.find(t=>t.id===b.dataset.posTerminalEdit);if(!x)return;
   const ext=prompt('ID terminal prestataire',x.external_terminal_id||'');if(ext===null)return;const active=confirm('Activer ce profil terminal ? (la connexion réelle restera séparée)');
   try{await savePosPaymentTerminal(cloudRestaurantId(),{id:x.id,deviceId:x.device_id||'',label:x.label,provider:x.provider,integrationMode:x.integration_mode,externalTerminalId:ext.trim(),currency:x.currency||'CHF',supportsCard:x.supports_card!==false,supportsTwint:x.supports_twint===true,supportsTips:x.supports_tips!==false,supportsRefunds:x.supports_refunds!==false,active,publicConfig:{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
+}));
+document.getElementById('posProviderAddForm')?.addEventListener('submit',async e=>{
+  e.preventDefault();const d=new FormData(e.currentTarget),provider=String(d.get('provider')||''),integrationMode=String(d.get('integrationMode')||'');
+  const valid=provider==='worldline'?['terminal_api_cloud','tim'].includes(integrationMode):provider==='twint'?['direct','terminal_psp'].includes(integrationMode):false;
+  if(!valid){alert('Le mode choisi ne correspond pas au prestataire.');return}
+  try{
+    await savePosProviderConnection(cloudRestaurantId(),{
+      provider,integrationMode,environment:String(d.get('environment')||'test'),
+      status:String(d.get('status')||'waiting_contract'),
+      merchantReference:String(d.get('merchantReference')||'').trim(),
+      publicConfig:{},notes:String(d.get('notes')||'').trim()
+    });
+    await loadPosAdminData(false);
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
+});
+document.querySelectorAll('[data-pos-provider-edit]').forEach(b=>b.addEventListener('click',async()=>{
+  const c=posAdminState.providerConnections.find(x=>x.id===b.dataset.posProviderEdit);if(!c)return;
+  const status=prompt('Statut : waiting_contract, credentials_pending, ready_for_adapter, disabled',c.status||'waiting_contract');if(status===null)return;
+  const merchantReference=prompt('Référence marchand non secrète',c.merchant_reference||'');if(merchantReference===null)return;
+  const notes=prompt('Note interne',c.notes||'');if(notes===null)return;
+  try{
+    await savePosProviderConnection(cloudRestaurantId(),{
+      id:c.id,provider:c.provider,integrationMode:c.integration_mode,environment:c.environment,
+      status:status.trim(),merchantReference:merchantReference.trim(),publicConfig:c.public_config||{},notes:notes.trim()
+    });
+    await loadPosAdminData(false);
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{const next=b.dataset.page;if(b.classList?.contains('back')){if(globalThis.history?.state?.remaproPage){globalThis.history.back();return}if(next===page&&editing){editing=null;render();return}}if(next===page)return;if(!canPage(next)){alert(t('accessDenied'));return}editing=null;page=next;globalThis.history?.pushState?.({remaproPage:page},'');render()}));
 document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;render()}));
