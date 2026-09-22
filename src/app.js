@@ -2,7 +2,7 @@ import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,sav
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.17.0';
+const APP_VERSION='0.19.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -10,7 +10,7 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -736,8 +736,11 @@ async function refreshServiceReport(targetDate=state.reportDate||dateKey()){
   state.reportDate=targetDate||dateKey();
   if(!state.online){state.error='Le rapport de service nécessite une connexion.';render();return}
   try{
-    const r=await posFunction({action:'service_report',restaurantId:state.restaurant.id,businessDate:state.reportDate});
-    state.serviceReport=r.report||null;state.error='';
+    const [r,cost]=await Promise.all([
+      posFunction({action:'service_report',restaurantId:state.restaurant.id,businessDate:state.reportDate}),
+      posFunction({action:'food_cost_report',restaurantId:state.restaurant.id,businessDate:state.reportDate}).catch(()=>({report:null}))
+    ]);
+    state.serviceReport=r.report||null;state.foodCostReport=cost.report||null;state.error='';
   }catch(error){state.error=error.message||String(error)}
   render();
 }
@@ -1376,6 +1379,7 @@ function reportView(){
       <article><span>TVA</span><strong>${money(r.taxTotal)}</strong></article>
       <article><span>Pourboires nets</span><strong>${money(r.netTips)}</strong></article>
       <article><span>Ticket moyen</span><strong>${money(r.averageTicket)}</strong></article>
+      ${state.foodCostReport?`<article><span>Food cost théorique</span><strong>${money(state.foodCostReport.theoreticalFoodCost)}</strong></article><article><span>Food cost %</span><strong>${Number(state.foodCostReport.foodCostPct||0).toFixed(1)}%</strong></article><article class="net"><span>Marge brute théorique</span><strong>${money(state.foodCostReport.grossMargin)}</strong></article>`:''}
       <article><span>Tickets</span><strong>${Number(r.orders)||0}</strong></article>
       <article><span>Couverts</span><strong>${Number(r.covers)||0}</strong></article>
     </section>
