@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.12.0';
+const APP_VERSION='0.12.1';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -549,7 +549,7 @@ function printProgressivePayment(order,payment){
   const paymentReceipt=payment?.paymentReceiptNumber||payment?.receipt_number||'';
   const master=payment?.masterReceiptNumber||order?.receipt_number||order?.receiptNumber||'';
   const method=payment?.method||'';
-  const amount=Number(payment?.amount||0),tip=Number(payment?.tip??payment?.tip_amount||0);
+  const amount=Number(payment?.amount||0),tip=Number(payment?.tip ?? payment?.tip_amount ?? 0);
   const taxTotal=allocations.reduce((s,a)=>s+Number(a.tax||0),0);
   const itemRows=allocations.map(a=>'<div class="print-line"><span>'+Number(a.quantity||0)+'× '+esc(a.name||'Article')+'</span><span>'+money(a.amount)+'</span></div>').join('');
   const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div><strong>'+esc(label)+'</strong></div><div>'+esc(paymentReceipt)+'</div><div>Ticket maître '+esc(master)+'</div><div>'+esc(order?.table_label||order?.service_type||'')+'</div></div>'

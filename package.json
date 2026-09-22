@@ -1,6 +1,6 @@
 {
   "name":"remapro-pos",
-  "version":"0.12.0",
+  "version":"0.12.1",
   "private":true,
   "type":"module",
   "scripts":{"test":"node tests/smoke.test.mjs","inject:config":"node scripts/inject-runtime-config.mjs","android":"npx cap sync android"},
