@@ -212,18 +212,21 @@ export default {
       if(workspaceError)return json({error:"Unable to load product catalog"},500);
       const workspace=workspaceRow?.data||{},catalog=Array.isArray(workspace.stock)?workspace.stock.slice(0,2000):[];
 
-      const imageContent:any[]=[];const hashes:string[]=[];let totalBytes=0;
+      const imageContent:any[]=[];const hashes:string[]=[];const seenHashes=new Set<string>();let totalBytes=0,uniquePhotoCount=0;
       for(let index=0;index<cleanupPaths.length;index++){
         const path=cleanupPaths[index];
         const {data:file,error}=await ctx.supabaseAdmin.storage.from(BUCKET).download(path);
         if(error||!file)throw new Error("TEMP_IMAGE_NOT_FOUND");
         const buffer=await file.arrayBuffer();totalBytes+=buffer.byteLength;
         if(buffer.byteLength>8_388_608||totalBytes>32_000_000)throw new Error("DELIVERY_IMAGES_TOO_LARGE");
-        hashes.push(await shaHex(buffer));
+        const hash=await shaHex(buffer);hashes.push(hash);
+        if(seenHashes.has(hash))continue;
+        seenHashes.add(hash);uniquePhotoCount++;
         const mime=file.type&&file.type.startsWith("image/")?file.type:"image/jpeg";
         imageContent.push({type:"input_text",text:`Photo ${index+1} of ${cleanupPaths.length}`});
         imageContent.push({type:"input_image",image_url:`data:${mime};base64,${bytesToBase64(new Uint8Array(buffer))}`});
       }
+      if(!uniquePhotoCount)throw new Error("NO_UNIQUE_DELIVERY_PHOTOS");
 
       const apiKey=Deno.env.get("OPENAI_API_KEY")||"";
       if(!apiKey)throw new Error("OPENAI_API_KEY_NOT_CONFIGURED");
@@ -271,7 +274,7 @@ Do not include prices. Interface language: ${lang}.`;
         items:enriched,
         notes:(Array.isArray(parsed?.notes)?parsed.notes:[]).map((x:any)=>clean(x,220)).filter(Boolean).slice(0,10),
         summary:{
-          photos:cleanupPaths.length,items:enriched.length,
+          photos:cleanupPaths.length,uniquePhotos:uniquePhotoCount,items:enriched.length,
           matched:enriched.filter((x:any)=>x.match).length,
           uncertain:enriched.filter((x:any)=>x.uncertain).length,
           newProducts:enriched.filter((x:any)=>x.createSuggested).length
@@ -286,7 +289,7 @@ Do not include prices. Interface language: ${lang}.`;
       if(updateError||!updated)throw new Error("ANALYSIS_LOG_UPDATE_FAILED");
       analysisContext=updated;
       await writeEvent(ctx,updated,"analysis_completed",{
-        photoCount:cleanupPaths.length,itemCount:enriched.length,matched:result.summary.matched,
+        photoCount:cleanupPaths.length,uniquePhotoCount,itemCount:enriched.length,matched:result.summary.matched,
         uncertain:result.summary.uncertain,newProducts:result.summary.newProducts,
         model,durationMs:Date.now()-started
       });
