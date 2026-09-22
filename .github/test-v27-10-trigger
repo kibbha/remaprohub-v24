@@ -94,3 +94,5 @@ V27.11 lot 28 planning replacement assistance validation
 V27.11 lot 29 training renewal validation
 
 V27.11 rerun after async language bootstrap test stabilization
+
+V27.11 rerun after training action backward-compatibility fix
