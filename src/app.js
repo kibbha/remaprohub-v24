@@ -1646,6 +1646,17 @@ async function savePosAcademyTopic(topicId,status,stepIndex=null){
   saveLocalAcademyProgress(academyUserId(),row);state.academy.progress=mergeAcademyProgress(state.academy.progress,[row]);render();
   const org=academyOrgId();if(currentSession()&&org)try{await academyFunction({action:'save',organizationId:org,restaurantId:state.restaurant?.id||'',application:topic.application,topicId:topic.id,contentVersion:ACADEMY_CONTENT_VERSION,status:row.status,stepIndex:row.step_index,metadata:{}})}catch{}
 }
+async function trackTrainingProgress(stepIndex,status='in_progress'){
+  const topic=academyTopic('pos-training');if(!topic)return;
+  const resolvedStep=Math.max(0,Math.min(topic.steps.length,Math.trunc(Number(stepIndex)||0)));
+  const row={application:'pos',topic_id:'pos-training',content_version:ACADEMY_CONTENT_VERSION,status,step_index:resolvedStep,updated_at:new Date().toISOString(),metadata:{training:true}};
+  saveLocalAcademyProgress(academyUserId(),row);
+  state.academy.progress=mergeAcademyProgress(state.academy.progress,[row]);
+  const org=academyOrgId();
+  if(currentSession()&&org)try{
+    await academyFunction({action:'save',organizationId:org,restaurantId:state.restaurant?.id||'',application:'pos',topicId:'pos-training',contentVersion:ACADEMY_CONTENT_VERSION,status,stepIndex:resolvedStep,metadata:{training:true}});
+  }catch{}
+}
 function academyView(){
   ensureAcademyStyles();if(!state.academy.loaded&&!state.academy.loading)setTimeout(()=>refreshPosAcademy(),0);
   return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',scope:state.academy.scope,locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:isManager(),canManageVisibility:posOrgAdmin(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+'</main></div>';
@@ -1696,13 +1707,13 @@ function bindTraining(){
   document.getElementById('training-reset')?.addEventListener('click',()=>{resetTraining();render()});
   document.getElementById('training-locale')?.addEventListener('change',e=>{state.academyLocale=e.target.value;localStorage.setItem('remapro-academy-lang',state.academyLocale);render()});
   const trainingLocale=document.getElementById('training-locale');if(trainingLocale)trainingLocale.value=academyLocale();
-  document.getElementById('training-open')?.addEventListener('click',()=>{state.training.opened=true;render()});
-  document.getElementById('training-table')?.addEventListener('click',()=>{state.training.table=true;render()});
-  document.querySelectorAll('[data-training-product]').forEach(b=>b.addEventListener('click',()=>{const p=trainingProducts.find(x=>x.id===b.dataset.trainingProduct);if(!p||!state.training.table||state.training.sent)return;const existing=state.training.cart.find(x=>x.id===p.id);if(existing)existing.qty++;else state.training.cart.push({...p,qty:1,note:''});render()}));
-  document.getElementById('training-modifier')?.addEventListener('click',()=>{if(!state.training.cart.length||state.training.sent)return;const notes={fr:'Cuisson à point',en:'Medium cooking',de:'Medium',it:'Cottura media'};state.training.cart[0].note=notes[academyLocale()]||notes.fr;state.training.modified=true;render()});
-  document.getElementById('training-send')?.addEventListener('click',()=>{if(!state.training.cart.length)return;state.training.sent=true;render()});
-  document.querySelectorAll('[data-training-pay]').forEach(b=>b.addEventListener('click',()=>{if(!state.training.sent)return;state.training.paid=true;state.training.payment=b.dataset.trainingPay;render()}));
-  document.getElementById('training-close')?.addEventListener('click',async()=>{if(!state.training.paid)return;state.training.closed=true;render();await savePosAcademyTopic('pos-training','completed')});
+  document.getElementById('training-open')?.addEventListener('click',()=>{state.training.opened=true;trackTrainingProgress(1).catch(()=>{});render()});
+  document.getElementById('training-table')?.addEventListener('click',()=>{state.training.table=true;trackTrainingProgress(2).catch(()=>{});render()});
+  document.querySelectorAll('[data-training-product]').forEach(b=>b.addEventListener('click',()=>{const p=trainingProducts.find(x=>x.id===b.dataset.trainingProduct);if(!p||!state.training.table||state.training.sent)return;const existing=state.training.cart.find(x=>x.id===p.id);if(existing)existing.qty++;else state.training.cart.push({...p,qty:1,note:''});trackTrainingProgress(3).catch(()=>{});render()}));
+  document.getElementById('training-modifier')?.addEventListener('click',()=>{if(!state.training.cart.length||state.training.sent)return;const notes={fr:'Cuisson à point',en:'Medium cooking',de:'Medium',it:'Cottura media'};state.training.cart[0].note=notes[academyLocale()]||notes.fr;state.training.modified=true;trackTrainingProgress(4).catch(()=>{});render()});
+  document.getElementById('training-send')?.addEventListener('click',()=>{if(!state.training.cart.length)return;state.training.sent=true;trackTrainingProgress(5).catch(()=>{});render()});
+  document.querySelectorAll('[data-training-pay]').forEach(b=>b.addEventListener('click',()=>{if(!state.training.sent)return;state.training.paid=true;state.training.payment=b.dataset.trainingPay;trackTrainingProgress(6).catch(()=>{});render()}));
+  document.getElementById('training-close')?.addEventListener('click',async()=>{if(!state.training.paid)return;state.training.closed=true;await trackTrainingProgress(7,'completed');render()});
 }
 
 function loginView(){return `<div class="login-wrap"><form class="card" id="login-form"><h1>ReMaPro POS</h1><p>Caisse connectée à ReMaPro Hub.</p>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><p class="muted">v${APP_VERSION}</p></form></div>`}
