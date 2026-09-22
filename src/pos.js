@@ -1,7 +1,55 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='2';
+export const POS_BRIDGE_VERSION='3';
 
+const n=value=>Number.isFinite(Number(value))?Number(value):0;
+const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
+
+export function buildPosCatalogFromHubState(state){
+  const products=Array.isArray(state?.products)?state.products:[];
+  const recipes=Array.isArray(state?.recipes)?state.recipes:[];
+  const out=[];
+  products.forEach((item,index)=>{
+    const name=String(item?.name||'').trim();
+    if(!name)return;
+    out.push({
+      sourceKey:sourceKey('product',item,index),
+      sku:String(item?.sku||item?.code||'').trim(),
+      name,
+      category:String(item?.category||'Produits').trim(),
+      itemType:'product',
+      price:Math.max(0,n(item?.price)),
+      taxRate:Math.max(0,n(item?.taxRate??item?.vatRate??8.1)),
+      active:item?.active!==false,
+      sortOrder:index,
+      metadata:{hubSource:'products'}
+    });
+  });
+  recipes.forEach((item,index)=>{
+    const name=String(item?.name||'').trim();
+    if(!name)return;
+    const id=String(item?.id||'');
+    out.push({
+      sourceKey:sourceKey('recipe',item,index),
+      recipeId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)?id:undefined,
+      sku:String(item?.sku||item?.code||'').trim(),
+      name,
+      category:String(item?.category||'Recettes').trim(),
+      itemType:'recipe',
+      price:Math.max(0,n(item?.price??item?.sellingPrice)),
+      taxRate:Math.max(0,n(item?.taxRate??item?.vatRate??8.1)),
+      active:item?.active!==false,
+      sortOrder:10000+index,
+      metadata:{hubSource:'recipes'}
+    });
+  });
+  return out;
+}
+
+export async function publishPosCatalog(restaurantId,state,{replace=true}={}){
+  const items=buildPosCatalogFromHubState(state);
+  return cloudFunction('remapro-pos-sync',{action:'sync_catalog',restaurantId,items,replace});
+}
 export async function loadPosBootstrap(restaurantId,deviceId=''){
   return cloudFunction('remapro-pos-sync',{action:'bootstrap',restaurantId,deviceId});
 }

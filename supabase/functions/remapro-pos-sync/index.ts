@@ -30,12 +30,19 @@ export default {
         (m.restaurant_id===restaurantId || (!m.restaurant_id && ["network_admin","network_manager"].includes(m.role)))
       );
       if(!allowed)return json({error:"Restaurant access denied"},403);
+      const manager=(memberships||[]).some((m:any)=>
+        m.organization_id===restaurant.organization_id &&
+        (
+          (!m.restaurant_id && ["network_admin","network_manager"].includes(m.role)) ||
+          (m.restaurant_id===restaurantId && ["restaurant_admin","director","manager"].includes(m.role))
+        )
+      );
 
       if(action==="bootstrap"){
         const deviceId=clean(body.deviceId,64);
         const requests:any[]=[
           ctx.supabaseAdmin.from("pos_catalog_items")
-            .select("id,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
+            .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
             .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name"),
           ctx.supabaseAdmin.from("profiles").select("id,first_name,last_name,locale").eq("id",userId).maybeSingle(),
           ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle()
@@ -152,6 +159,70 @@ export default {
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,receipt:data});
+      }
+
+      if(action==="sync_catalog"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const raw=Array.isArray(body.items)?body.items:[];
+        if(raw.length>1000)return json({error:"Catalog limit exceeded"},400);
+        const rows:any[]=[];
+        const sourceKeys:string[]=[];
+        for(let i=0;i<raw.length;i++){
+          const item=raw[i]||{};
+          const sourceKey=clean(item.sourceKey,180);
+          const name=clean(item.name,240);
+          const price=Number(item.price);
+          const taxRate=Number(item.taxRate??8.1);
+          if(!sourceKey||!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100){
+            return json({error:`Invalid catalog item at index ${i}`},400);
+          }
+          sourceKeys.push(sourceKey);
+          const row:any={
+            organization_id:restaurant.organization_id,
+            restaurant_id:restaurantId,
+            source_key:sourceKey,
+            sku:clean(item.sku,120)||null,
+            name,
+            category:clean(item.category,120),
+            item_type:["product","recipe","modifier","service"].includes(clean(item.itemType,30))?clean(item.itemType,30):"product",
+            price:Math.round(price*100)/100,
+            tax_rate:Math.round(taxRate*1000)/1000,
+            active:item.active!==false,
+            sort_order:Math.trunc(Number(item.sortOrder)||0),
+            metadata:item.metadata&&typeof item.metadata==="object"?item.metadata:{},
+            version:Math.max(1,Math.trunc(Number(item.version)||1)),
+            updated_at:new Date().toISOString()
+          };
+          const recipeId=clean(item.recipeId,64);
+          if(validUuid(recipeId))row.recipe_id=recipeId;
+          rows.push(row);
+        }
+
+        if(rows.length){
+          const {error}=await ctx.supabaseAdmin.from("pos_catalog_items")
+            .upsert(rows,{onConflict:"restaurant_id,source_key"});
+          if(error)return json({error:error.message},500);
+        }
+
+        if(body.replace===true){
+          const {data:existing,error:existingError}=await ctx.supabaseAdmin.from("pos_catalog_items")
+            .select("id,source_key").eq("restaurant_id",restaurantId);
+          if(existingError)return json({error:existingError.message},500);
+          const keep=new Set(sourceKeys);
+          const deactivate=(existing||[]).filter((x:any)=>x.source_key&&!keep.has(x.source_key)).map((x:any)=>x.id);
+          for(let i=0;i<deactivate.length;i+=200){
+            const {error}=await ctx.supabaseAdmin.from("pos_catalog_items")
+              .update({active:false,updated_at:new Date().toISOString()})
+              .in("id",deactivate.slice(i,i+200));
+            if(error)return json({error:error.message},500);
+          }
+        }
+
+        const {data:catalog,error:catalogError}=await ctx.supabaseAdmin.from("pos_catalog_items")
+          .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
+          .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name");
+        if(catalogError)return json({error:catalogError.message},500);
+        return json({ok:true,count:catalog?.length||0,catalog:catalog||[]});
       }
 
       if(action==="recent_receipts"){
