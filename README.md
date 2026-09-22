@@ -1,25 +1,22 @@
 # ReMaPro POS
 
-Version actuelle: **0.13.0**  
+Version actuelle: **0.14.0**  
 Android package: **com.remapro.pos**
 
-## Nouveauté v0.13 — architecture terminaux
-- profils de terminaux Worldline, TWINT ou génériques ;
-- rattachement possible à un appareil POS ;
-- capacités Carte, TWINT, pourboire et remboursement ;
-- états de connexion séparés : non configuré, configuré, en ligne, hors ligne, erreur ;
-- intents de paiement/refund avec cycle `created → pending → authorized → captured/failed` ;
-- aucune vente n’est comptabilisée avant `captured` ;
-- les remboursements restent `pending_external` jusqu’à confirmation réelle ;
-- historique des intents visible dans l’onglet **Terminaux** ;
-- aucun secret/API key stocké dans les tables, le client ou GitHub.
+## Nouveauté v0.14 — flux terminal prêt
+L’interface sait maintenant gérer le cycle terminal complet dès qu’un connecteur prestataire sera activé :
+- création d’un intent pour la totalité restant due ;
+- écran **En attente du terminal** ;
+- actualisation automatique du statut toutes les 2 secondes ;
+- affichage de la référence prestataire ;
+- annulation d’un intent encore en cours ;
+- passage automatique au ticket uniquement après statut `captured` ;
+- échec/expiration visibles sans comptabiliser la vente ;
+- réconciliation des derniers intents dans l’onglet Terminaux.
 
-Tant qu’aucun connecteur prestataire réel n’est actif, Carte/TWINT est enregistré uniquement après confirmation explicite que le paiement a déjà été accepté sur un terminal externe indépendant.
+Le backend garde `paymentProviders:false` tant qu’aucun adaptateur Worldline/TWINT réel n’est configuré. Le flux automatique est donc dormant par sécurité ; Carte/TWINT reste en confirmation manuelle d’un paiement déjà accepté sur un terminal externe.
 
 ## Sécurité
-Les transitions `captured` ne sont pas exposées au client POS. Elles sont réservées au backend/prestataire futur. Les profils ne contiennent que des informations non secrètes.
-
-## Suite
-Adaptateur prestataire réel (Worldline ou TWINT selon le contrat choisi), webhooks signés, vérification de connexion et intégration directe des paiements/refunds au terminal.
+Aucun bouton client ne peut forcer un intent à `captured`. Cette transition reste exclusivement côté backend/prestataire.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

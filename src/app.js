@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.13.0';
+const APP_VERSION='0.14.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -11,6 +11,7 @@ const state={
   terminals:[],terminalIntents:[]
 };
 const app=document.querySelector('#app');
+let terminalPollTimer=null;
 const money=v=>new Intl.NumberFormat('fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -127,16 +128,130 @@ function terminalsView(){
         <div class="terminal-meta"><div>ID prestataire <strong>${esc(t.external_terminal_id||'—')}</strong></div><div>Devise <strong>${esc(t.currency||'CHF')}</strong></div><div>Profil <strong>${t.active?'Actif':'Inactif'}</strong></div></div>
         ${isManager()?'<button class="secondary wide" data-edit-terminal="'+t.id+'">Modifier</button>':''}
       </article>`).join(''):'<div class="empty"><h3>Aucun profil terminal</h3><p>Ajoutez Worldline, TWINT ou un profil générique. La connexion réelle sera activée séparément côté serveur.</p></div>'}</section>
-      <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><strong class="intent-status intent-${esc(i.status)}">${esc(i.status)}</strong></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
+      <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><div class="intent-control"><strong class="intent-status intent-${esc(i.status)}">${esc(terminalIntentText(i.status))}</strong>${['created','pending','authorized'].includes(i.status)?'<button class="secondary tiny" data-cancel-intent="'+i.id+'">Annuler</button>':''}</div></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
     </main></div>`;
+}
+
+function connectedTerminal(method){
+  return state.terminals.find(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint))||null;
+}
+async function prepareOrderForTerminalIntent(){
+  if(!state.online){alert('Une connexion est nécessaire pour le terminal.');return null}
+  if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
+  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours.':'Envoyez d’abord les nouveaux articles en production.');return null}
+  let order=currentServerOrder();
+  if(!order||order.status==='open'){
+    const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
+    const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
+    try{
+      await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
+      state.activeOrderId=orderId;
+      await refreshFloorData();
+      order=state.openOrders.find(x=>x.id===orderId)||null;
+    }catch(error){state.error=error.message||String(error);render();return null}
+  }
+  return order;
+}
+function normalizeIntentResult(value){
+  return value?.intent?.intent||value?.intent||value||null;
+}
+function stopTerminalPolling(){
+  if(terminalPollTimer){clearInterval(terminalPollTimer);terminalPollTimer=null}
+}
+function closeTerminalIntentModal(){
+  stopTerminalPolling();
+  document.querySelector('#terminal-intent-modal')?.remove();
+  document.body.classList.remove('modal-open');
+}
+function terminalIntentText(status){
+  return ({created:'Créé',pending:'En attente du terminal',authorized:'Autorisé',captured:'Payé',failed:'Échec',cancelled:'Annulé',expired:'Expiré'})[status]||status||'Inconnu';
+}
+async function finalizeTerminalUi(intent){
+  if(intent.status==='captured'){
+    closeTerminalIntentModal();
+    await Promise.all([refreshFloorData(),refreshReceipts(),refreshTerminals()]);
+    state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='tickets';
+    state.error='Paiement terminal confirmé.';
+    render();
+    return true;
+  }
+  if(['failed','cancelled','expired'].includes(intent.status)){
+    closeTerminalIntentModal();
+    await refreshTerminals();
+    state.error='Paiement terminal : '+terminalIntentText(intent.status)+(intent.error_message?' — '+intent.error_message:'');
+    render();
+    return true;
+  }
+  return false;
+}
+async function pollTerminalIntent(intentId,orderId){
+  try{
+    const r=await posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,orderId,limit:20});
+    const intent=(r.rows||[]).find(x=>x.id===intentId);
+    if(!intent)return;
+    const modal=document.querySelector('#terminal-intent-modal');
+    const status=modal?.querySelector('#terminal-live-status');
+    if(status)status.textContent=terminalIntentText(intent.status);
+    const ref=modal?.querySelector('#terminal-live-reference');
+    if(ref)ref.textContent=intent.provider_reference||'—';
+    await finalizeTerminalUi(intent);
+  }catch(error){
+    const modal=document.querySelector('#terminal-intent-modal');
+    const msg=modal?.querySelector('#terminal-live-error');
+    if(msg)msg.textContent=error.message||String(error);
+  }
+}
+function showTerminalIntentModal(order,intent,terminal){
+  closeTerminalIntentModal();
+  const modal=document.createElement('div');
+  modal.id='terminal-intent-modal';modal.className='modal-overlay';
+  modal.innerHTML='<div class="terminal-wait-dialog"><div class="terminal-wait-icon">⌁</div><h2>En attente du terminal</h2><p>'+esc(terminalProviderLabel(terminal.provider))+' · '+esc(terminal.label)+'</p>'
+    +'<div class="terminal-wait-amount">'+money(Number(intent.amount||0)+Number(intent.tip_amount||0))+'</div>'
+    +'<div class="terminal-live-grid"><span>Statut</span><strong id="terminal-live-status">'+esc(terminalIntentText(intent.status))+'</strong><span>Référence</span><strong id="terminal-live-reference">'+esc(intent.provider_reference||'—')+'</strong></div>'
+    +'<div class="terminal-live-error" id="terminal-live-error"></div>'
+    +'<div class="terminal-security-note">La vente ne sera comptabilisée que lorsque le backend recevra un statut <strong>captured</strong> signé/validé par le prestataire.</div>'
+    +'<div class="terminal-wait-actions"><button class="secondary" id="terminal-wait-cancel">Annuler l’intent</button></div></div>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  modal.querySelector('#terminal-wait-cancel')?.addEventListener('click',async()=>{
+    if(!confirm('Annuler cet intent de paiement ?'))return;
+    try{
+      await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId:intent.id});
+      closeTerminalIntentModal();await refreshTerminals();state.error='Intent terminal annulé.';render();
+    }catch(error){state.error=error.message||String(error);render();closeTerminalIntentModal()}
+  });
+  terminalPollTimer=setInterval(()=>pollTerminalIntent(intent.id,order.id),2000);
+  pollTerminalIntent(intent.id,order.id);
+}
+async function startTerminalPayment(method,terminal){
+  const order=await prepareOrderForTerminalIntent();if(!order)return;
+  const tip=askTip('0.00');if(tip===null)return;
+  const device=await ensureDevice();
+  try{
+    const r=await posFunction({
+      action:'create_terminal_intent',restaurantId:state.restaurant.id,
+      orderId:order.id,clientEventId:uuid(),terminalId:terminal.id,deviceId:device.id,
+      cashSessionId:state.cashSession.id,method,amount:Number(order.total)||cartTotal(),tipAmount:tip,
+      metadata:{source:'remapro-pos',appVersion:APP_VERSION}
+    });
+    const intent=normalizeIntentResult(r);
+    if(!intent?.id)throw new Error('Intent terminal invalide');
+    await refreshTerminals();
+    showTerminalIntentModal(order,intent,terminal);
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function cancelTerminalIntentFromList(intentId){
+  if(!confirm('Annuler cet intent terminal ?'))return;
+  try{
+    await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId});
+    await refreshTerminals();state.error='Intent terminal annulé.';render();
+  }catch(error){state.error=error.message||String(error);render()}
 }
 async function payByMethod(method){
   if(method==='cash')return checkout(method);
   if(!['card','twint'].includes(method))return checkout(method);
-  const matching=state.terminals.find(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint));
+  const matching=connectedTerminal(method);
   if(matching&&state.bootstrap?.capabilities?.paymentProviders===true){
-    alert('Le connecteur prestataire est prêt à être activé, mais aucune transaction réelle ne sera lancée tant que son adaptateur n’est pas installé.');
-    return;
+    return startTerminalPayment(method,matching);
   }
   const label=method==='twint'?'TWINT':'carte';
   const ok=confirm('ReMaPro POS n’est pas encore relié au prestataire '+label+'. Confirmez uniquement si le paiement a DÉJÀ été accepté sur un terminal externe. L’enregistrer manuellement ?');
@@ -1053,6 +1168,7 @@ function wire(){
   document.querySelector('#refresh-terminals')?.addEventListener('click',()=>refreshTerminals().then(render));
   document.querySelector('#add-terminal')?.addEventListener('click',()=>openTerminalEditor());
   document.querySelectorAll('[data-edit-terminal]').forEach(b=>b.addEventListener('click',()=>{const t=state.terminals.find(x=>x.id===b.dataset.editTerminal);if(t)openTerminalEditor(t)}));
+  document.querySelectorAll('[data-cancel-intent]').forEach(b=>b.addEventListener('click',()=>cancelTerminalIntentFromList(b.dataset.cancelIntent)));
   document.querySelector('#report-date')?.addEventListener('change',e=>{state.reportDate=e.target.value;refreshServiceReport(state.reportDate)});
   document.querySelector('#refresh-report')?.addEventListener('click',()=>refreshServiceReport(state.reportDate||dateKey()));
   document.querySelector('#print-report')?.addEventListener('click',()=>printServiceReport(state.serviceReport));
