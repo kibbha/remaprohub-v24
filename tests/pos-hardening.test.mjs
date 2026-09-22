@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
+const ui=fs.readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
+const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+
+assert.equal((app.match(/\bprompt\(/g)||[]).length,0,'native prompt() must not be used');
+assert.equal((app.match(/\bconfirm\(/g)||[]).length,0,'native confirm() must not be used');
+assert.equal((app.match(/\balert\(/g)||[]).length,0,'native alert() must not be used');
+assert.ok(app.includes("from './i18n.js'"),'runtime i18n imported');
+assert.ok(app.includes("from './ui.js'"),'touch dialog system imported');
+for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes(lang+':{'),lang+' dictionary required');
+assert.ok(i18n.includes('translateDom'),'rendered UI translation required');
+assert.ok(ui.includes('role="dialog"'),'accessible modal role required');
+assert.ok(ui.includes("aria-modal"),'modal aria semantics required');
+assert.ok(html.includes('Content-Security-Policy'),'POS CSP required');
+assert.ok(sw.includes('./src/i18n.js')&&sw.includes('./src/ui.js'),'offline shell must cache new runtime modules');
+assert.ok(sw.includes('skipWaiting')&&sw.includes('clients.claim'),'service worker update activation required');
+assert.ok(css.includes('min-height:44px'),'touch targets must have 44px minimum');
+assert.ok(css.includes('focus-visible'),'keyboard focus style required');
+console.log('POS beta hardening checks passed');
