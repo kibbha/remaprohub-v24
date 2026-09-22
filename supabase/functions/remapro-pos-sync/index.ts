@@ -68,6 +68,7 @@ export default {
             atomicCheckout:true,
             receiptNumbering:true,
             splitPayments:true,
+            itemSplitPayments:true,
             tips:true,
             tableTransfers:true,
             refunds:true,
@@ -358,6 +359,46 @@ export default {
         return json({ok:true,receipt:data});
       }
 
+      if(action==="settle_open_order_allocated"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),deviceId=clean(body.deviceId,64),sessionId=clean(body.cashSessionId,64);
+        const rawGroups=Array.isArray(body.groups)?body.groups:[];
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId)||!rawGroups.length||rawGroups.length>12){
+          return json({error:"Invalid allocated-payment payload"},400);
+        }
+        const groups:any[]=[];
+        for(let gi=0;gi<rawGroups.length;gi++){
+          const g=rawGroups[gi]||{};
+          const selections=Array.isArray(g.selections)?g.selections:[];
+          if(!selections.length||selections.length>300)return json({error:`Invalid selections for group ${gi+1}`},400);
+          const cleanSelections:any[]=[];
+          for(let si=0;si<selections.length;si++){
+            const s=selections[si]||{};
+            const itemId=clean(s.itemId,64),quantity=Number(s.quantity);
+            if(!validUuid(itemId)||!Number.isFinite(quantity)||quantity<=0)return json({error:`Invalid allocation in group ${gi+1}`},400);
+            cleanSelections.push({itemId,quantity:Math.round(quantity*1000)/1000});
+          }
+          groups.push({
+            label:clean(g.label,80)||`Personne ${gi+1}`,
+            method:clean(g.method,30),
+            tipAmount:Math.max(0,Math.round((Number(g.tipAmount)||0)*100)/100),
+            provider:clean(g.provider,80)||null,
+            providerReference:clean(g.providerReference,180)||null,
+            selections:cleanSelections
+          });
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_settle_open_order_allocated",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_device_id:deviceId,
+          p_cash_session_id:sessionId,
+          p_groups:groups,
+          p_actor_user_id:userId,
+          p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,receipt:data});
+      }
+
       if(action==="transfer_open_order"){
         const orderId=clean(body.orderId,64),targetTableId=clean(body.targetTableId,64);
         if(!validUuid(orderId)||!validUuid(targetTableId))return json({error:"Valid orderId and targetTableId required"},400);
@@ -508,7 +549,7 @@ export default {
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
           .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
