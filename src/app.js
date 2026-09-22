@@ -739,6 +739,11 @@ bindPosLayoutEditor(document.querySelector('#pos-layout-editor-root'),{
   onRender:()=>render()
 });
 document.getElementById('posAdminRefresh')?.addEventListener('click',()=>posAdminReload());
+document.getElementById('directChannelForm')?.addEventListener('submit',async e=>{e.preventDefault();const d=new FormData(e.currentTarget),modes=d.getAll('mode').map(String);if(!modes.length){alert(t('directModeRequired'));return}await createDirectOrderChannel({title:d.get('title'),slug:d.get('slug'),modes})});
+document.querySelectorAll('[data-direct-rotate]').forEach(b=>b.addEventListener('click',()=>rotateDirectOrderChannel(b.dataset.directRotate)));
+document.querySelectorAll('[data-direct-toggle]').forEach(b=>b.addEventListener('click',()=>setDirectOrderChannel(b.dataset.directToggle,b.dataset.active==='1')));
+document.getElementById('directOrderCopy')?.addEventListener('click',async()=>{const value=document.getElementById('directOrderUrl')?.value||'';try{await navigator.clipboard.writeText(value);alert(t('copied'))}catch{alert(value)}});
+document.getElementById('directOrderPrint')?.addEventListener('click',()=>{const share=posAdminState.directOrderShare;if(!share?.qrSvg)return;const w=window.open('','_blank','noopener,noreferrer');if(!w)return;w.document.write('<!doctype html><title>ReMaPro QR</title><body style="font-family:sans-serif;text-align:center;padding:32px"><h1>'+esc(activeRestaurant(state)?.name||'ReMaPro')+'</h1>'+share.qrSvg+'<p style="word-break:break-all">'+esc(share.url||'')+'</p><script>window.print()<\/script></body>');w.document.close()});
 document.getElementById('posPublishCatalog')?.addEventListener('click',()=>posAdminPublish());
 document.getElementById('posApplyInventory')?.addEventListener('click',()=>applyPosInventoryMovements());
 document.querySelectorAll('[data-pos-components]').forEach(b=>b.addEventListener('click',()=>{const [collection,index]=String(b.dataset.posComponents||'').split(':');openPosStockComponents(collection,Number(index))}));
