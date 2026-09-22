@@ -1,7 +1,15 @@
 # ReMaPro POS
 
-Version actuelle: **0.26.0**  
+Version actuelle: **0.27.0**  
 Android package: **com.remapro.pos**
+
+## v0.27.0 — Académie ReMaPro (issue #7)
+- centre d’aide commun Hub + POS, recherche, parcours par rôle et progression partagée ;
+- aide contextuelle et tours guidés ;
+- guides critiques disponibles offline ;
+- mode entraînement POS isolé : aucune vente, RPC ou impression réelle ;
+- dépannage guidé et architecture médias vidéo/GIF ;
+- contenu FR/EN/DE/IT.
 
 ## v0.26.0 — implantation caisse & modificateurs (issue #6)
 - implantation publiée depuis ReMaPro Hub > POS avec pages, catégories, sous-catégories et favoris ;

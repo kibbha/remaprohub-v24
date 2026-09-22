@@ -1,9 +1,11 @@
-import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction} from './cloud.js';
+import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 import {publishedLayout,productById,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
+import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
+import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 
-const APP_VERSION='0.26.0';
+const APP_VERSION='0.27.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -12,7 +14,7 @@ const state={
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],
-  pendingQueue:[],syncLastRun:'',layoutPageId:'',layoutCategoryId:'all'
+  pendingQueue:[],syncLastRun:'',layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -378,7 +380,7 @@ function operatorLoginView(){
   return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card"><h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
     ${!state.online?'<div class="terminal-warning"><strong>Hors ligne.</strong> Un PIN ne peut être revalidé sans serveur. Une session opérateur encore valide reste utilisable automatiquement.</div>':''}
     <form id="operator-login-form"><label>Profil<select name="operatorId" required>${state.operators.filter(x=>x.active!==false).map(o=>'<option value="'+o.id+'">'+esc(o.display_name)+' · '+esc(o.role)+'</option>').join('')}</select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label><button class="primary" type="submit" ${!state.online?'disabled':''}>Ouvrir ma session</button></form>
-    <button class="secondary wide" id="operator-account-logout">Changer de compte</button></div></div>`;
+    <button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary wide" id="operator-account-logout">Changer de compte</button></div></div>`;
 }
 function closeOperatorEditor(){document.querySelector('#operator-editor-modal')?.remove();document.body.classList.remove('modal-open')}
 function openOperatorEditor(existing=null){
@@ -659,6 +661,7 @@ async function executeQueued(item){
   throw new Error('UNKNOWN_QUEUE_ACTION');
 }
 async function flushQueue(){
+  if(state.trainingMode)return;
   if(!state.online||!state.restaurant)return;
   const list=await queueAll();
   let floorChanged=false,productionChanged=false;
@@ -685,6 +688,7 @@ async function flushQueue(){
   await updateQueueCount();render();
 }
 async function queueCommand(action,payload,options={}){
+  if(state.trainingMode)throw new Error('TRAINING_REAL_ACTION_BLOCKED');
   const item=queuedItem(action,state.restaurant.id,payload,options);
   await queuePut(item);await updateQueueCount();return item;
 }
@@ -1602,13 +1606,93 @@ function syncView(){
     </main></div>`;
 }
 
-function loginView(){return `<div class="login-wrap"><form class="card" id="login-form"><h1>ReMaPro POS</h1><p>Caisse connectée à ReMaPro Hub.</p>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><p class="muted">v${APP_VERSION}</p></form></div>`}
-function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Choisir le restaurant</h1><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary" id="logout">Déconnexion</button></div></div>`}
-function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
+
+const academyOrgId=()=>state.restaurant?.organization_id||state.identity?.memberships?.[0]?.organization_id||'';
+const academyUserId=()=>String(state.identity?.user?.id||'local');
+const academyLocale=()=>['fr','en','de','it'].includes(state.academyLocale)?state.academyLocale:'fr';
+const posAcademyRole=()=>isManager()?'manager':(['kitchen','bar'].includes(state.operator?.role)?'kitchen':'server');
+function posAcademyAutoRows(){
+  const rows=[],now=new Date().toISOString(),add=(id,yes)=>{if(yes)rows.push({application:'pos',topic_id:id,content_version:ACADEMY_CONTENT_VERSION,status:'completed',step_index:99,updated_at:now,metadata:{auto:true}})};
+  add('pos-first-use',!!state.restaurant&&!!state.bootstrap);
+  add('pos-operator',!state.operatorRequired||!!state.operator);
+  add('pos-cash-session',!!state.cashSession);
+  add('pos-printers',(state.printers||[]).length>0);
+  add('pos-terminals',(state.terminals||[]).length>0);
+  return rows;
+}
+function currentPosAcademyProgress(){return mergeAcademyProgress(mergeAcademyProgress(loadLocalAcademyProgress(academyUserId()),state.academy.progress),posAcademyAutoRows())}
+async function refreshPosAcademy(){
+  if(state.academy.loading)return;state.academy.loading=true;
+  try{
+    const org=academyOrgId();if(currentSession()&&org){
+      const data=await academyFunction({action:'load',organizationId:org,restaurantId:state.restaurant?.id||''});
+      state.academy.progress=mergeAcademyProgress(loadLocalAcademyProgress(academyUserId()),data.progress||[]);
+      state.academy.managerVisibility=!!data.managerVisibility;
+      if(data.manager&&data.managerVisibility){
+        const team=await academyFunction({action:'manager_progress',organizationId:org,restaurantId:state.restaurant?.id||''}).catch(()=>({rows:[]}));
+        state.academy.managerRows=team.rows||[];
+      }
+    }
+  }catch{}finally{state.academy.loading=false;state.academy.loaded=true;if(state.view==='academy')render()}
+}
+async function savePosAcademyTopic(topicId,status){
+  const topic=academyTopic(topicId);if(!topic)return;const row={application:topic.application,topic_id:topic.id,content_version:ACADEMY_CONTENT_VERSION,status,step_index:status==='completed'?topic.steps.length:0,updated_at:new Date().toISOString(),metadata:{}};
+  saveLocalAcademyProgress(academyUserId(),row);state.academy.progress=mergeAcademyProgress(state.academy.progress,[row]);render();
+  const org=academyOrgId();if(currentSession()&&org)try{await academyFunction({action:'save',organizationId:org,restaurantId:state.restaurant?.id||'',application:topic.application,topicId:topic.id,contentVersion:ACADEMY_CONTENT_VERSION,status:row.status,stepIndex:row.step_index,metadata:{}})}catch{}
+}
+function academyView(){
+  ensureAcademyStyles();if(!state.academy.loaded&&!state.academy.loading)setTimeout(()=>refreshPosAcademy(),0);
+  return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:isManager(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+'</main></div>';
+}
+function resetTraining(){state.training={opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}}
+const trainingProducts=[
+  {id:'demo-burger',name:'Burger ReMaPro',price:18.5,station:'kitchen'},
+  {id:'demo-fries',name:'Frites',price:6,station:'kitchen'},
+  {id:'demo-water',name:'Eau minérale',price:4.5,station:'bar'},
+  {id:'demo-coffee',name:'Café',price:4.2,station:'bar'}
+];
+function trainingTotal(){return(state.training.cart||[]).reduce((sum,x)=>sum+x.price*x.qty,0)}
+function trainingView(){
+  ensureAcademyStyles();const tr=state.training,steps=[['opened','1. Ouvrir la caisse'],['table','2. Ouvrir une table'],['cart','3. Saisir une commande'],['modified','4. Ajouter un modificateur'],['sent','5. Envoyer cuisine/bar'],['paid','6. Encaisser'],['closed','7. Clôturer']];
+  return '<div class="shell"><div class="academy-training-banner">MODE ENTRAÎNEMENT — aucune vente réelle, aucun RPC, aucun ticket réel <button id="training-exit" class="secondary">Quitter</button></div><main class="academy-pos-main"><div class="floor-head"><div><h1>Entraînement ReMaPro POS</h1><p>Données fictives. Recommencez autant de fois que nécessaire.</p></div><button id="training-reset" class="secondary">Réinitialiser</button></div><div class="academy-path-grid">'+steps.map(([k,label])=>'<div class="academy-path-card"><strong>'+label+'</strong><small>'+((k==='cart'?tr.cart.length>0:tr[k])?'✓ Terminé':'À faire')+'</small></div>').join('')+'</div><div class="academy-training-grid"><section class="academy-training-panel"><h2>Simulation</h2><div class="actions"><button id="training-open" '+(tr.opened?'disabled':'')+'>Ouvrir caisse CHF 100</button><button id="training-table" '+(!tr.opened||tr.table?'disabled':'')+'>Ouvrir table 12 · 2 couverts</button></div><h3>Produits fictifs</h3><div class="product-grid">'+trainingProducts.map(p=>'<button class="product" data-training-product="'+p.id+'" '+(!tr.table||tr.sent?'disabled':'')+'><strong>'+p.name+'</strong><small>'+p.station+'</small><span class="price">'+money(p.price)+'</span></button>').join('')+'</div><div class="actions"><button id="training-modifier" '+(!tr.cart.length||tr.sent?'disabled':'')+'>Ajouter “Cuisson à point”</button><button id="training-send" '+(!tr.cart.length||tr.sent?'disabled':'')+'>Envoyer cuisine/bar</button></div></section><aside class="academy-training-panel"><h2>Table 12</h2>'+(tr.cart.length?tr.cart.map(x=>'<div class="line"><div><strong>'+esc(x.name)+'</strong><small>'+x.qty+' × '+money(x.price)+(x.note?' · '+esc(x.note):'')+'</small></div></div>').join(''):'<p class="muted">Panier fictif vide.</p>')+'<div class="total-row"><span>Total démo</span><strong>'+money(trainingTotal())+'</strong></div><div class="payments"><button data-training-pay="cash" '+(!tr.sent||tr.paid?'disabled':'')+'>Espèces</button><button data-training-pay="card" '+(!tr.sent||tr.paid?'disabled':'')+'>Carte</button><button data-training-pay="twint" '+(!tr.sent||tr.paid?'disabled':'')+'>TWINT</button></div><button id="training-close" class="primary wide" '+(!tr.paid||tr.closed?'disabled':'')+'>Clôturer la caisse démo</button>'+(tr.closed?'<div class="notice"><strong>Exercice réussi.</strong> Aucune donnée réelle n’a été créée.</div>':'')+'</aside></div></main></div>';
+}
+function academyTourView(id){return id==='pos-floor'?'floor':id==='pos-production'?'production':id==='pos-sync'?'sync':'sale'}
+function bindPosAcademy(){
+  document.getElementById('academy-back')?.addEventListener('click',()=>{state.view=state.cashSession?'sale':'sale';render()});
+  document.getElementById('academy-locale')?.addEventListener('change',e=>{state.academyLocale=e.target.value;localStorage.setItem('remapro-academy-lang',state.academyLocale);render()});
+  const locale=document.getElementById('academy-locale');if(locale)locale.value=academyLocale();
+  document.getElementById('academy-search')?.addEventListener('input',e=>{state.academy.query=e.target.value;render()});
+  document.getElementById('academy-role')?.addEventListener('change',e=>{state.academy.role=e.target.value;render()});
+  document.getElementById('academy-module')?.addEventListener('change',e=>{state.academy.module=e.target.value;render()});
+  document.querySelectorAll('[data-academy-topic]').forEach(b=>b.addEventListener('click',()=>{state.academy.selectedTopic=b.dataset.academyTopic;state.academy.selectedPath='';state.academy.troubleshoot='';render()}));
+  document.querySelectorAll('[data-academy-path]').forEach(b=>b.addEventListener('click',()=>{state.academy.selectedPath=b.dataset.academyPath;state.academy.selectedTopic='';state.academy.troubleshoot='';render()}));
+  document.querySelectorAll('[data-academy-trouble]').forEach(b=>b.addEventListener('click',()=>{state.academy.troubleshoot=b.dataset.academyTrouble;state.academy.selectedTopic='';state.academy.selectedPath='';render()}));
+  document.querySelectorAll('[data-academy-close]').forEach(b=>b.addEventListener('click',()=>{state.academy.selectedTopic='';state.academy.selectedPath='';state.academy.troubleshoot='';render()}));
+  document.querySelectorAll('[data-academy-complete]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyComplete,'completed')));
+  document.querySelectorAll('[data-academy-restart]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyRestart,'in_progress')));
+  document.querySelectorAll('[data-academy-tour]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.academyTour;state.academy.selectedTopic='';state.view=academyTourView(id);render();setTimeout(()=>startAcademyTour(id,{locale:academyLocale()}),40)}));
+  document.getElementById('academy-training-start')?.addEventListener('click',()=>{state.trainingMode=true;resetTraining();state.view='training';render()});
+  document.getElementById('academy-manager-visibility')?.addEventListener('change',async e=>{const org=academyOrgId();if(!isManager()||!org)return;e.target.disabled=true;try{const data=await academyFunction({action:'set_manager_visibility',organizationId:org,enabled:e.target.checked});state.academy.managerVisibility=!!data.managerVisibility;state.academy.loaded=false;await refreshPosAcademy()}catch{e.target.checked=!e.target.checked}finally{e.target.disabled=false}});
+}
+function bindTraining(){
+  document.getElementById('training-exit')?.addEventListener('click',()=>{state.trainingMode=false;state.view='academy';render()});
+  document.getElementById('training-reset')?.addEventListener('click',()=>{resetTraining();render()});
+  document.getElementById('training-open')?.addEventListener('click',()=>{state.training.opened=true;render()});
+  document.getElementById('training-table')?.addEventListener('click',()=>{state.training.table=true;render()});
+  document.querySelectorAll('[data-training-product]').forEach(b=>b.addEventListener('click',()=>{const p=trainingProducts.find(x=>x.id===b.dataset.trainingProduct);if(!p||!state.training.table||state.training.sent)return;const existing=state.training.cart.find(x=>x.id===p.id);if(existing)existing.qty++;else state.training.cart.push({...p,qty:1,note:''});render()}));
+  document.getElementById('training-modifier')?.addEventListener('click',()=>{if(!state.training.cart.length||state.training.sent)return;state.training.cart[0].note='Cuisson à point';state.training.modified=true;render()});
+  document.getElementById('training-send')?.addEventListener('click',()=>{if(!state.training.cart.length)return;state.training.sent=true;render()});
+  document.querySelectorAll('[data-training-pay]').forEach(b=>b.addEventListener('click',()=>{if(!state.training.sent)return;state.training.paid=true;state.training.payment=b.dataset.trainingPay;render()}));
+  document.getElementById('training-close')?.addEventListener('click',async()=>{if(!state.training.paid)return;state.training.closed=true;render();await savePosAcademyTopic('pos-training','completed')});
+}
+
+function loginView(){return `<div class="login-wrap"><form class="card" id="login-form"><h1>ReMaPro POS</h1><p>Caisse connectée à ReMaPro Hub.</p>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><p class="muted">v${APP_VERSION}</p></form></div>`}
+function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Choisir le restaurant</h1><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary" id="logout">Déconnexion</button></div></div>`}
+function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
     <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
-    <div class="spacer"></div>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
+    <div class="spacer"></div><button class="secondary academy-help-context" id="academy-help-context" title="Aide contextuelle">?</button>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
 }
@@ -1707,14 +1791,20 @@ function mainView(){
     <div class="split-actions"><button class="split-pay" id="split-pay" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Partager par montants</button><button class="split-pay split-items-pay" id="split-items" ${!state.cart.length||!state.online||progressivePaymentActive()?'disabled':''}>Partager par articles</button></div><button class="progressive-pay" id="progressive-pay" ${!state.cart.length||!state.online?'disabled':''}>${progressivePaymentActive()?'Continuer le paiement par personne':'Encaisser une personne'}</button><div class="payments"><button data-pay="cash" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
 function render(){
+  if(state.view==='academy'){app.innerHTML=academyView();wire();return}
+  if(state.view==='training'){state.trainingMode=true;app.innerHTML=trainingView();wire();return}
+  state.trainingMode=false;
   if(!currentSession()){app.innerHTML=loginView();wire();return}
-  if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
+  if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<button class="secondary wide" id="open-academy">? Académie / Aide</button></div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
   app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():mainView();wire();
 }
 function wire(){
+  bindPosAcademy();bindTraining();
+  document.querySelectorAll('#open-academy').forEach(b=>b.addEventListener('click',()=>{state.view='academy';render()}));
+  document.getElementById('academy-help-context')?.addEventListener('click',()=>{const topic=academyContextTopics('pos',state.view)[0];state.academy.selectedTopic=topic?.id||'';state.academy.selectedPath='';state.academy.troubleshoot='';state.view='academy';render()});
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
   document.querySelector('#restaurant-select')?.addEventListener('change',async e=>{const r=(state.identity?.restaurants||[]).find(x=>x.id===e.target.value);if(r){await kvSet('restaurantId',r.id);await bootstrapRestaurant(r)}});
   document.querySelector('#logout')?.addEventListener('click',()=>logoutPos());
