@@ -172,11 +172,12 @@ function posAdmin(){
   return `<section class="artisan-page pos-admin-page">${head('ReMaPro POS','more')}
     <div class="artisan-hero artisan-hero-small"><div class="artisan-hero-mark">${icon('posAdmin')}</div><div><span class="artisan-eyebrow">${esc(venue)}</span><h2>Administration de la caisse</h2><p>Le Hub configure · le POS exécute.</p></div></div>
     ${posAdminState.error?'<div class="notice error">'+esc(posAdminState.error)+'</div>':''}
-    <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
+    <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
+    ${posAdminState.foodCost?`<div class="pos-foodcost-strip"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
     <div class="pos-admin-grid">
       <section class="card pos-admin-card pos-admin-catalog"><h2>Catalogue & routage</h2><p class="muted">Choisissez où chaque article doit partir avant publication.</p>
-        <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)}</small></span><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
+        <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)} · coût ${money(x.cost)} · ${x.components} composant(s) stock</small></span><span class="actions"><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select><button class="btn compact" data-pos-components="${x.collection}:${x.index}">Stock</button></span></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
       </section>
 
       <section class="card pos-admin-card"><h2>Plan de salle</h2>
@@ -436,6 +437,8 @@ document.querySelectorAll('[data-purchase-order]').forEach(b=>b.addEventListener
 
 document.getElementById('posAdminRefresh')?.addEventListener('click',()=>posAdminReload());
 document.getElementById('posPublishCatalog')?.addEventListener('click',()=>posAdminPublish());
+document.getElementById('posApplyInventory')?.addEventListener('click',()=>applyPosInventoryMovements());
+document.querySelectorAll('[data-pos-components]').forEach(b=>b.addEventListener('click',()=>{const [collection,index]=String(b.dataset.posComponents||'').split(':');openPosStockComponents(collection,Number(index))}));
 document.querySelectorAll('[data-pos-station]').forEach(el=>el.addEventListener('change',()=>{
   const [collection,indexRaw]=String(el.dataset.posStation||'').split(':'),index=Number(indexRaw);
   if(!['products','recipes'].includes(collection)||!state[collection]?.[index])return;
