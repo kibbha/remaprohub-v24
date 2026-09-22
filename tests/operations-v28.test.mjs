@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createPurchaseOrder,transitionPurchaseOrder,receivePurchaseOrder,createInventoryCount,countInventoryItem,finalizeInventoryCount,recordProductionBatch,stockAvailable} from '../src/store.js';
+import {menuEngineering,purchaseOrderSummary} from '../src/intelligence.js';
+const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const state={suppliers:[{name:'S'}],stock:[{id:'a',name:'Farine',unit:'kg',qty:10,price:2,min:0},{id:'b',name:'Sauce',unit:'kg',qty:0,price:5,min:0}],deliveries:[],waste:[],stockMoves:[],purchaseOrders:[],productionBatches:[],inventoryCounts:[],recipes:[{name:'Sauce maison',ingredients:[{stockId:'a',quantity:1}],price:15,cost:2}],sales:[],orders:[]};
+const po=createPurchaseOrder(state,{supplier:'S',items:[{stockId:'a',quantity:3,unitPrice:2}]});assert.ok(po);assert.ok(transitionPurchaseOrder(state,po.id,'sent'));assert.ok(transitionPurchaseOrder(state,po.id,'confirmed'));assert.ok(receivePurchaseOrder(state,po.id,[{stockId:'a',quantity:1}]));assert.equal(po.status,'partial');assert.ok(receivePurchaseOrder(state,po.id,[{stockId:'a',quantity:2}]));assert.equal(po.status,'received');assert.equal(purchaseOrderSummary(state).open,0);
+const inv=createInventoryCount(state,{name:'Test'});assert.ok(countInventoryItem(state,inv.id,{stockId:'a',quantity:12,countedBy:'Ana'}));assert.ok(finalizeInventoryCount(state,inv.id));assert.equal(inv.status,'closed');
+const before=stockAvailable(state,state.stock[0]);assert.ok(recordProductionBatch(state,{recipeIndex:0,outputStockId:'b',multiplier:2,outputQuantity:4}));assert.ok(stockAvailable(state,state.stock[0])<before);assert.ok(stockAvailable(state,state.stock[1])>=4);
+assert.ok(menuEngineering(state).items.length===1);
+for(const token of ['purchaseOrderPanel','inventoryCountPanel','productionBatchPanel','menuEngineeringPanel'])assert.ok(app.includes(token),token+' missing');
+console.log('Procurement, inventory, batch production and menu engineering checks passed');
