@@ -27,10 +27,10 @@ updateRecord(state,'waste',0,{qty:3});assert.equal(stockAvailable(state,item),6)
 removeRecord(state,'waste',0);assert.equal(stockAvailable(state,item),9);
 state.waste.push({product:'Legacy rice',qty:5});assert.equal(stockAvailable(state,item),9);
 assert.match(app,/function waste\(\)[\s\S]{0,550}<select name="stockId" required>/);
-const movements={stock:[{id:'rice',name:'Rice',qty:5}],deliveries:[],waste:[]};
+const movements={stock:[{id:'rice',name:'Rice',qty:5,price:2}],deliveries:[],waste:[]};
 assert.equal(recordWaste(movements,{stockId:'rice',qty:6}),false);
 assert.equal(movements.waste.length,0);
-assert.equal(recordWaste(movements,{stockId:'rice',qty:3}),true);
+assert.equal(recordWaste(movements,{stockId:'rice',qty:3}),true);assert.match(movements.waste[0].date,/^\d{4}-\d{2}-\d{2}$/);assert.equal(movements.waste[0].unitPrice,2);
 assert.equal(stockAvailable(movements,movements.stock[0]),2);
 assert.equal(updateWaste(movements,0,{stockId:'rice',qty:6}),false);
 assert.equal(updateWaste(movements,0,{stockId:'rice',qty:4}),true);
