@@ -27,9 +27,12 @@ The Release Candidate phase must now prioritize stability and store readiness ra
 - [x] public privacy and account-deletion URLs are documented
 
 ## Gate 2 — automated validation
-- [ ] Run the complete `npm test` suite on the exact candidate commit.
-- [ ] Resolve any regression before Android build.
-- [ ] Keep the final Android build sentinel untouched until this gate is green.
+- [x] Run the complete `npm test` suite on the exact candidate commit.
+- [x] Resolve any regression before Android build.
+- [x] Keep the final Android build sentinel untouched until this gate is green.
+
+
+Automated validation result: GitHub Actions `Test ReMaPro Hub V27.11.0` succeeded on commit `68b1025`.
 
 ## Gate 3 — backend / billing
 - [ ] Verify migrations 001 through 006 are applied to the production Supabase project.
