@@ -22,9 +22,10 @@ assert.equal(recordValidated(state,'stock',{name:'Bad',qty:-1,price:1,min:0}),fa
 assert.equal(recordValidated(state,'recipes',{name:'Soup',cost:1.5,price:6})?.name,'Soup');
 assert.equal(recordValidated(state,'recipes',{name:'Soup',cost:1.5,price:-2}),false);
 
-assert.equal(recordValidated(state,'reservations',{name:'Guest',time:'2026-09-20T19:00',covers:2})?.covers,2);
+assert.equal(recordValidated(state,'reservations',{name:'Guest',time:'2026-09-20T19:00',covers:2,status:'confirmed'})?.status,'confirmed');
 assert.equal(recordValidated(state,'reservations',{name:'Guest',time:'2026-09-20T19:00',covers:0}),false);
 assert.equal(recordValidated(state,'reservations',{name:'Guest',time:'',covers:2}),false);
+assert.equal(recordValidated(state,'reservations',{name:'Guest',time:'2026-09-20T19:00',covers:2,status:'invalid'}),false);
 
 assert.equal(recordValidated(state,'audits',{date:'2026-09-18',type:'internal',score:100,actions:''})?.score,100);
 assert.equal(recordValidated(state,'audits',{date:'2026-09-18',type:'internal',score:101}),false);
