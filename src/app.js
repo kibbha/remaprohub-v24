@@ -1,14 +1,15 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
+import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.14.0';
+const APP_VERSION='0.15.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
-  terminals:[],terminalIntents:[]
+  terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[]
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -22,6 +23,7 @@ const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
 const productionKey=id=>'production:'+id;
 const terminalsKey=id=>'terminals:'+id;
+const printersKey=id=>'printers:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -258,6 +260,136 @@ async function payByMethod(method){
   if(!ok)return;
   return checkout(method);
 }
+
+async function refreshPrinters(){
+  if(!state.restaurant)return;
+  if(!state.online){
+    state.printers=await kvGet(printersKey(state.restaurant.id))||state.printers||[];
+    return;
+  }
+  try{
+    const r=await posFunction({action:'list_printers',restaurantId:state.restaurant.id});
+    state.printers=r.rows||[];
+    await kvSet(printersKey(state.restaurant.id),state.printers);
+  }catch(error){state.error=error.message||String(error)}
+}
+function printerRoleLabel(role){return({receipt:'Ticket client',kitchen:'Cuisine',bar:'Bar'})[role]||role||'—'}
+function printerTypeLabel(type){return({bluetooth:'Bluetooth',usb:'USB',system:'Impression système',network:'Réseau/TCP'})[type]||type||'—'}
+function activePrinter(role){return state.printers.find(p=>p.active&&p.role===role)||null}
+async function markPrinter(printer,status){
+  if(!state.online||!printer?.id)return;
+  try{await posFunction({action:'set_printer_status',restaurantId:state.restaurant.id,printerId:printer.id,status})}catch{}
+}
+async function testPrinterProfile(printer){
+  if(!printer)return;
+  if(printer.connection_type==='system'){window.print();return}
+  if(printer.connection_type==='network'){
+    alert('Le profil réseau est conservé, mais le transport TCP natif sera activé lors de la future migration Capacitor 8. Utilisez Bluetooth/USB ou impression système pour cette version.');
+    return;
+  }
+  try{
+    await printEscPosText(printer,buildTestText(printer));
+    await markPrinter(printer,'online');
+    state.error='Test imprimante réussi : '+printer.label+'.';
+  }catch(error){
+    await markPrinter(printer,'error');
+    state.error='Échec imprimante '+printer.label+' : '+(error.message||String(error));
+  }
+  await refreshPrinters();render();
+}
+async function scanPrinters(){
+  if(!nativePrinterReady()){
+    state.error='Découverte native disponible uniquement dans l’application Android installée.';
+    render();return;
+  }
+  try{
+    state.discoveredPrinters=await discoverNativePrinters();
+    state.error=state.discoveredPrinters.length
+      ?state.discoveredPrinters.length+' imprimante(s) détectée(s).'
+      :'Aucune imprimante Bluetooth/USB détectée.';
+  }catch(error){state.error=error.message||String(error)}
+  render();
+}
+function closePrinterEditor(){
+  document.querySelector('#printer-editor-modal')?.remove();
+  document.body.classList.remove('modal-open');
+}
+function openPrinterEditor(existing=null,discovered=null){
+  if(!isManager()){alert('Accès manager requis.');return}
+  closePrinterEditor();
+  const p=existing||{};
+  const deviceAddress=discovered?.address||p.address||'';
+  const connectionType=discovered?.connectionType||p.connection_type||'system';
+  const modal=document.createElement('div');
+  modal.id='printer-editor-modal';modal.className='modal-overlay';
+  modal.innerHTML='<form class="printer-dialog" id="printer-editor-form">'
+    +'<div class="split-dialog-head"><div><h2>'+(existing?'Modifier l’imprimante':'Ajouter une imprimante')+'</h2><p>Profil synchronisé Hub ↔ POS.</p></div><button type="button" class="split-close" id="printer-editor-close">×</button></div>'
+    +'<div class="terminal-form-grid">'
+    +'<label>Nom<input name="label" required maxlength="120" value="'+esc(p.label||discovered?.name||'Imprimante principale')+'"></label>'
+    +'<label>Rôle<select name="role"><option value="receipt" '+((p.role||'receipt')==='receipt'?'selected':'')+'>Ticket client</option><option value="kitchen" '+(p.role==='kitchen'?'selected':'')+'>Cuisine</option><option value="bar" '+(p.role==='bar'?'selected':'')+'>Bar</option></select></label>'
+    +'<label>Connexion<select name="connectionType"><option value="bluetooth" '+(connectionType==='bluetooth'?'selected':'')+'>Bluetooth</option><option value="usb" '+(connectionType==='usb'?'selected':'')+'>USB</option><option value="system" '+(connectionType==='system'?'selected':'')+'>Système Android</option><option value="network" '+(connectionType==='network'?'selected':'')+'>Réseau/TCP (préparé)</option></select></label>'
+    +'<label>Adresse / ID<input name="address" maxlength="240" value="'+esc(deviceAddress)+'" placeholder="MAC Bluetooth / ID USB"></label>'
+    +'<label>Largeur caractères<input name="charsPerLine" type="number" min="24" max="80" value="'+Number(p.chars_per_line||42)+'"></label>'
+    +'<label>Codepage<input name="codepage" maxlength="40" value="'+esc(p.codepage||'ascii')+'"></label>'
+    +'<label class="terminal-check"><input type="checkbox" name="autoPrint" '+(p.auto_print?'checked':'')+'> Impression automatique</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="cutAfterPrint" '+(p.cut_after_print!==false?'checked':'')+'> Coupe papier</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="active" '+(p.active!==false?'checked':'')+'> Profil actif</label>'
+    +'</div><div class="terminal-security-note">Bluetooth/USB utilise le pilote ESC/POS natif. Le mode système utilise le dialogue d’impression Android.</div>'
+    +'<div class="split-footer"><button type="button" class="secondary" id="printer-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></div></form>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  modal.querySelector('#printer-editor-close')?.addEventListener('click',closePrinterEditor);
+  modal.querySelector('#printer-editor-cancel')?.addEventListener('click',closePrinterEditor);
+  modal.querySelector('#printer-editor-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.currentTarget);const device=await ensureDevice();
+    const printer={
+      id:p.id||'',deviceId:device.id,label:String(fd.get('label')||'').trim(),
+      role:String(fd.get('role')||'receipt'),connectionType:String(fd.get('connectionType')||'system'),
+      address:String(fd.get('address')||'').trim(),charsPerLine:Number(fd.get('charsPerLine'))||42,
+      codepage:String(fd.get('codepage')||'ascii').trim(),autoPrint:fd.get('autoPrint')==='on',
+      cutAfterPrint:fd.get('cutAfterPrint')==='on',active:fd.get('active')==='on',publicConfig:{}
+    };
+    try{
+      await posFunction({action:'upsert_printer',restaurantId:state.restaurant.id,printer});
+      await refreshPrinters();closePrinterEditor();state.error='Profil imprimante enregistré.';render();
+    }catch(error){state.error=error.message||String(error);render();closePrinterEditor()}
+  });
+}
+function printersView(){
+  const discovered=state.discoveredPrinters||[];
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="printers-page"><div class="floor-head"><div><h2>Imprimantes</h2><p>Tickets clients, cuisine et bar.</p></div><div class="terminal-head-actions"><button class="secondary" id="scan-printers">Détecter Bluetooth/USB</button><button class="secondary" id="refresh-printers" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-printer">+ Imprimante</button>':''}</div></div>
+      <div class="printer-note">Android natif : Bluetooth/USB ESC/POS. L’impression système reste disponible en secours. Le TCP réseau est préparé mais volontairement non activé sur Capacitor 7.</div>
+      ${discovered.length?'<section class="discovered-printers"><h3>Périphériques détectés</h3>'+discovered.map((d,i)=>'<button class="secondary discovered-printer" data-discovered-printer="'+i+'"><strong>'+esc(d.name)+'</strong><span>'+esc(printerTypeLabel(d.connectionType))+' · '+esc(d.detail||d.address)+'</span></button>').join('')+'</section>':''}
+      <section class="printer-grid">${state.printers.length?state.printers.map(p=>`<article class="printer-card"><div class="terminal-card-head"><div><strong>${esc(p.label)}</strong><small>${esc(printerRoleLabel(p.role))} · ${esc(printerTypeLabel(p.connection_type))}</small></div><span class="printer-status printer-${esc(p.status)}">${esc(p.status)}</span></div><div class="terminal-meta"><div>Adresse <strong>${esc(p.address||'—')}</strong></div><div>Largeur <strong>${Number(p.chars_per_line)||42} car.</strong></div><div>Auto <strong>${p.auto_print?'Oui':'Non'}</strong></div></div><div class="printer-actions"><button class="secondary" data-test-printer="${p.id}">Test</button>${isManager()?'<button class="secondary" data-edit-printer="'+p.id+'">Modifier</button>':''}</div></article>`).join(''):'<div class="empty"><h3>Aucune imprimante configurée</h3><p>Ajoutez une imprimante système ou détectez un périphérique Bluetooth/USB.</p></div>'}</section>
+    </main></div>`;
+}
+async function smartPrintReceipt(receipt){
+  const printer=activePrinter('receipt');
+  if(!printer||printer.connection_type==='system')return printReceipt(receipt);
+  try{
+    await printEscPosText(printer,buildReceiptText(receipt,{restaurantName:state.restaurant?.name||'ReMaPro POS',currency:state.restaurant?.currency||'CHF',width:printer.chars_per_line}));
+    await markPrinter(printer,'online');
+  }catch(error){
+    await markPrinter(printer,'error');
+    state.error='Impression ESC/POS impossible, bascule vers impression système : '+(error.message||String(error));
+    render();printReceipt(receipt);
+  }
+}
+async function smartPrintProduction(order){
+  const roles=[...new Set((order.items||[]).map(i=>i.station_snapshot).filter(x=>['kitchen','bar'].includes(x)))];
+  if(!roles.length)return printProductionOrder(order);
+  let nativeDone=false;
+  for(const role of roles){
+    const printer=activePrinter(role);
+    if(!printer||printer.connection_type==='system')continue;
+    try{
+      await printEscPosText(printer,buildProductionText(order,{station:role,width:printer.chars_per_line}));
+      await markPrinter(printer,'online');nativeDone=true;
+    }catch(error){await markPrinter(printer,'error');state.error='Impression '+printerRoleLabel(role)+' impossible : '+(error.message||String(error))}
+  }
+  if(!nativeDone)printProductionOrder(order);
+}
+
 async function refreshProductionQueue(){
   if(!state.restaurant)return;
   if(!state.online){
@@ -366,6 +498,7 @@ async function bootstrapRestaurant(restaurant){
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
+  state.printers=await kvGet(printersKey(restaurant.id))||[];
   state.cashSession=await kvGet(sessionKey(restaurant.id));
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   render();
@@ -382,7 +515,8 @@ async function bootstrapRestaurant(restaurant){
       await refreshFloorData();
       await refreshProductionQueue();
       await refreshReceipts();
-      await refreshTerminals()
+      await refreshTerminals();
+      await refreshPrinters()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -1061,7 +1195,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button>
     <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -1151,7 +1285,7 @@ function render(){
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -1165,6 +1299,13 @@ function wire(){
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#nav-report')?.addEventListener('click',()=>{state.view='report';state.reportDate=state.reportDate||dateKey();refreshServiceReport(state.reportDate)});
   document.querySelector('#nav-terminals')?.addEventListener('click',()=>{state.view='terminals';refreshTerminals().then(render)});
+  document.querySelector('#nav-printers')?.addEventListener('click',()=>{state.view='printers';refreshPrinters().then(render)});
+  document.querySelector('#refresh-printers')?.addEventListener('click',()=>refreshPrinters().then(render));
+  document.querySelector('#scan-printers')?.addEventListener('click',()=>scanPrinters());
+  document.querySelector('#add-printer')?.addEventListener('click',()=>openPrinterEditor());
+  document.querySelectorAll('[data-discovered-printer]').forEach(b=>b.addEventListener('click',()=>openPrinterEditor(null,state.discoveredPrinters[Number(b.dataset.discoveredPrinter)])));
+  document.querySelectorAll('[data-edit-printer]').forEach(b=>b.addEventListener('click',()=>{const p=state.printers.find(x=>x.id===b.dataset.editPrinter);if(p)openPrinterEditor(p)}));
+  document.querySelectorAll('[data-test-printer]').forEach(b=>b.addEventListener('click',()=>{const p=state.printers.find(x=>x.id===b.dataset.testPrinter);if(p)testPrinterProfile(p)}));
   document.querySelector('#refresh-terminals')?.addEventListener('click',()=>refreshTerminals().then(render));
   document.querySelector('#add-terminal')?.addEventListener('click',()=>openTerminalEditor());
   document.querySelectorAll('[data-edit-terminal]').forEach(b=>b.addEventListener('click',()=>{const t=state.terminals.find(x=>x.id===b.dataset.editTerminal);if(t)openTerminalEditor(t)}));
@@ -1185,9 +1326,9 @@ function wire(){
   document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
   document.querySelectorAll('[data-station]').forEach(b=>b.addEventListener('click',()=>{state.productionStation=b.dataset.station;render()}));
   document.querySelectorAll('[data-production-item]').forEach(b=>b.addEventListener('click',()=>updateProductionItem(b.dataset.productionItem,b.dataset.productionStatus)));
-  document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)printProductionOrder(o)}));
+  document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)smartPrintProduction(o)}));
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
-  document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)printReceipt(r)}));
+  document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)smartPrintReceipt(r)}));
   document.querySelectorAll('[data-print-split-payment]').forEach(b=>b.addEventListener('click',()=>{const [orderId,paymentId]=String(b.dataset.printSplitPayment||'').split(':');const r=state.receipts.find(x=>x.id===orderId);const p=r?.payments?.find(x=>x.id===paymentId);if(r&&p){if(p.metadata?.splitType==='progressive_items')printProgressivePayment(r,p);else printSplitPayment(r,p)}}));
   document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));

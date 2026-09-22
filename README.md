@@ -1,22 +1,23 @@
 # ReMaPro POS
 
-Version actuelle: **0.14.0**  
+Version actuelle: **0.15.0**  
 Android package: **com.remapro.pos**
 
-## Nouveauté v0.14 — flux terminal prêt
-L’interface sait maintenant gérer le cycle terminal complet dès qu’un connecteur prestataire sera activé :
-- création d’un intent pour la totalité restant due ;
-- écran **En attente du terminal** ;
-- actualisation automatique du statut toutes les 2 secondes ;
-- affichage de la référence prestataire ;
-- annulation d’un intent encore en cours ;
-- passage automatique au ticket uniquement après statut `captured` ;
-- échec/expiration visibles sans comptabiliser la vente ;
-- réconciliation des derniers intents dans l’onglet Terminaux.
+## v0.15 — impression ESC/POS native
+- profils synchronisés Ticket client / Cuisine / Bar ;
+- découverte des imprimantes Bluetooth et USB sur Android ;
+- impression ESC/POS native avec coupe papier ;
+- test d’impression par profil ;
+- impression ticket et bon production via le profil correspondant ;
+- fallback automatique vers le dialogue d’impression système ;
+- profils réseau/TCP déjà prévus dans le modèle, mais non déclarés opérationnels sur le pilote Capacitor 7 actuel.
 
-Le backend garde `paymentProviders:false` tant qu’aucun adaptateur Worldline/TWINT réel n’est configuré. Le flux automatique est donc dormant par sécurité ; Carte/TWINT reste en confirmation manuelle d’un paiement déjà accepté sur un terminal externe.
+Le pilote natif est fixé à **@fedejm/capacitor-esc-pos-printer 0.2.3**, compatible Capacitor 7. Le projet reste en Capacitor 7.4.3 pour éviter une migration Android prématurée.
 
 ## Sécurité
-Aucun bouton client ne peut forcer un intent à `captured`. Cette transition reste exclusivement côté backend/prestataire.
+Aucune donnée secrète n’est nécessaire pour une imprimante. Les profils ne contiennent que rôle, transport, adresse/ID matériel et préférences d’impression.
+
+## Suite
+Routage automatique exact des nouveaux tickets cuisine/bar, SQLite natif offline, utilisateurs/PIN et administration Hub.
 
 Aucun build Android automatique n’est lancé pendant cette phase.
