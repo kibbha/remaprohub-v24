@@ -11,12 +11,19 @@ export async function loadCachedCloudIdentity(){const plugin=secureStorage();let
 async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY=true;const plugin=secureStorage();if(plugin){await plugin.set({key:SESSION_KEY,value:JSON.stringify(session)});localStorage.removeItem(SESSION_KEY)}else localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session}
 export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
-export function cloudConfig(){
-  const runtimeUrl=String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,'');
-  const runtimeKey=String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim();
+function runtimeCloudConfig(){
   return {
-    url:String(localStorage.getItem(URL_KEY)||runtimeUrl).trim().replace(/\/+$/,''),
-    key:String(localStorage.getItem(KEY_KEY)||runtimeKey).trim()
+    url:String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,''),
+    key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()
+  };
+}
+const customBackendAllowed=()=>globalThis.REMAPRO_ALLOW_CUSTOM_BACKEND===true;
+export function cloudConfig(){
+  const runtime=runtimeCloudConfig();
+  if(runtime.url&&runtime.key&&!customBackendAllowed())return runtime;
+  return {
+    url:String(localStorage.getItem(URL_KEY)||runtime.url).trim().replace(/\/+$/,''),
+    key:String(localStorage.getItem(KEY_KEY)||runtime.key).trim()
   };
 }
 export function cloudConfigured(){
@@ -27,6 +34,10 @@ export function saveCloudConfig(url,key){
   const cleanUrl=String(url||'').trim().replace(/\/+$/,'');
   const cleanKey=String(key||'').trim();
   if(!/^https:\/\//i.test(cleanUrl)||!cleanKey)return false;
+  const runtime=runtimeCloudConfig();
+  if(runtime.url&&runtime.key&&!customBackendAllowed()){
+    return cleanUrl===runtime.url&&cleanKey===runtime.key;
+  }
   const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
