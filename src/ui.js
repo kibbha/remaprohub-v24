@@ -1,9 +1,9 @@
-import {t} from './i18n.js';
+import {t,translateText} from './i18n.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let toastTimer=null;
 export function uiAlert(message,{tone='info',timeout=3600}={}){
   let host=document.getElementById('pos-toast-host');if(!host){host=document.createElement('div');host.id='pos-toast-host';host.className='pos-toast-host';host.setAttribute('aria-live','polite');document.body.appendChild(host)}
-  const node=document.createElement('div');node.className='pos-toast '+tone;node.textContent=String(message||'');host.appendChild(node);
+  const node=document.createElement('div');node.className='pos-toast '+tone;node.textContent=translateText(String(message||''));host.appendChild(node);
   clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.remove(),timeout);return false;
 }
 function mountModal({title='',message='',fields=[],confirmLabel=t('confirm'),cancelLabel=t('cancel'),danger=false}={}){
