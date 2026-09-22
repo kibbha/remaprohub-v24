@@ -7,6 +7,7 @@ let sqliteUnavailable=false;
 let backend='indexeddb';
 
 const nativePlatform=()=>Boolean(globalThis.Capacitor?.isNativePlatform?.());
+const nativeSqlite=()=>globalThis.Capacitor?.Plugins?.CapacitorSQLite||null;
 
 function openIdb(){
   if(idbPromise)return idbPromise;
@@ -64,23 +65,31 @@ async function idbAllKv(){
   });
 }
 
+function nativeDb(sqlite){
+  return {
+    execute:statements=>sqlite.execute({database:SQLITE_DB,statements,transaction:true,readonly:false}),
+    query:(statement,values=[])=>sqlite.query({database:SQLITE_DB,statement,values,readonly:false}),
+    run:(statement,values=[])=>sqlite.run({database:SQLITE_DB,statement,values,transaction:true,readonly:false,returnMode:'no'})
+  };
+}
+
 async function initSqlite(){
   if(!nativePlatform()||sqliteUnavailable)return null;
   if(sqlitePromise)return sqlitePromise;
   sqlitePromise=(async()=>{
     try{
-      const mod=await import('@capacitor-community/sqlite');
-      const sqlite=new mod.SQLiteConnection(mod.CapacitorSQLite);
-      let db;
+      const sqlite=nativeSqlite();
+      if(!sqlite)throw new Error('CAPACITOR_SQLITE_PLUGIN_UNAVAILABLE');
       try{
-        const consistent=await sqlite.checkConnectionsConsistency();
-        const isConn=(await sqlite.isConnection(SQLITE_DB,false)).result;
-        if(consistent.result&&isConn)db=await sqlite.retrieveConnection(SQLITE_DB,false);
-        else db=await sqlite.createConnection(SQLITE_DB,false,'no-encryption',1,false);
-      }catch{
-        db=await sqlite.createConnection(SQLITE_DB,false,'no-encryption',1,false);
+        await sqlite.createConnection({
+          database:SQLITE_DB,encrypted:false,mode:'no-encryption',version:1,readonly:false
+        });
+      }catch(error){
+        const msg=String(error?.message||error||'');
+        if(!/already|exist|connection/i.test(msg))throw error;
       }
-      await db.open();
+      await sqlite.open({database:SQLITE_DB,readonly:false});
+      const db=nativeDb(sqlite);
       await db.execute(`
         CREATE TABLE IF NOT EXISTS kv (
           key TEXT PRIMARY KEY NOT NULL,

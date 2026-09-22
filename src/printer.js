@@ -1,6 +1,5 @@
-let pluginPromise=null;
-
 const nativePlatform=()=>Boolean(globalThis.Capacitor?.isNativePlatform?.());
+const nativePrinterPlugin=()=>globalThis.Capacitor?.Plugins?.EscPosPrinter||null;
 const safeAscii=value=>String(value??'')
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/[’‘]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-')
@@ -19,28 +18,29 @@ const center=(text,width)=>{
 };
 const line=width=>'-'.repeat(Math.max(24,width));
 
-async function printerModule(){
+function printerPlugin(){
   if(!nativePlatform())throw new Error('NATIVE_PRINTER_UNAVAILABLE');
-  if(!pluginPromise)pluginPromise=import('@fedejm/capacitor-esc-pos-printer');
-  return pluginPromise;
+  const plugin=nativePrinterPlugin();
+  if(!plugin)throw new Error('ESC_POS_PLUGIN_UNAVAILABLE');
+  return plugin;
 }
 
-export const nativePrinterReady=()=>nativePlatform();
+export const nativePrinterReady=()=>nativePlatform()&&Boolean(nativePrinterPlugin());
 
 export async function discoverNativePrinters(){
   if(!nativePlatform())return[];
-  const {EscPosPrinter}=await printerModule();
+  const plugin=printerPlugin();
   const found=[];
-  try{await EscPosPrinter.requestBluetoothEnable()}catch{}
+  try{await plugin.requestBluetoothEnable()}catch{}
   try{
-    const result=await EscPosPrinter.getBluetoothPrinterDevices();
+    const result=await plugin.getBluetoothPrinterDevices();
     for(const d of result?.devices||[])found.push({
       connectionType:'bluetooth',address:d.address,name:d.name||d.alias||d.address,
       detail:d.address
     });
   }catch{}
   try{
-    const result=await EscPosPrinter.getUsbPrinterDevices();
+    const result=await plugin.getUsbPrinterDevices();
     for(const d of result?.devices||[])found.push({
       connectionType:'usb',address:d.id,name:d.name||d.deviceName||d.id,
       detail:[d.manufacturerName,d.vendorId&&('VID '+d.vendorId),d.productId&&('PID '+d.productId)].filter(Boolean).join(' · '),
@@ -54,36 +54,31 @@ export async function printEscPosText(profile,text){
   if(!profile)throw new Error('PRINTER_PROFILE_REQUIRED');
   if(profile.connection_type==='system'||profile.connectionType==='system')return{system:true};
   const type=profile.connection_type||profile.connectionType;
-  if(type==='network')throw new Error('NETWORK_ESC_POS_NOT_AVAILABLE_ON_CAPACITOR7');
+  if(!['bluetooth','usb'].includes(type))throw new Error(type==='network'?'NETWORK_ESC_POS_NOT_AVAILABLE_ON_CAPACITOR7':'UNSUPPORTED_PRINTER_CONNECTION');
   const address=String(profile.address||'').trim();
   if(!address)throw new Error('PRINTER_ADDRESS_REQUIRED');
-  const mod=await printerModule();
-  let printer=null;
+  const plugin=printerPlugin();
+  let hashKey='';
   try{
-    if(type==='bluetooth'){
-      printer=new mod.BluetoothPrinter(address);
-    }else if(type==='usb'){
-      if(mod.EscPosPrinter?.getUsbPrinterDevices){
-        const devices=(await mod.EscPosPrinter.getUsbPrinterDevices())?.devices||[];
-        const device=devices.find(d=>d.id===address);
-        if(device&&!device.hasPermission){
-          const result=await mod.EscPosPrinter.requestUsbPermission({address});
-          if(!result?.value)throw new Error('USB_PERMISSION_DENIED');
-        }
+    if(type==='usb'){
+      const devices=(await plugin.getUsbPrinterDevices())?.devices||[];
+      const device=devices.find(d=>d.id===address);
+      if(device&&!device.hasPermission){
+        const permission=await plugin.requestUsbPermission({address});
+        if(!permission?.value)throw new Error('USB_PERMISSION_DENIED');
       }
-      printer=new mod.UsbPrinter(address);
-    }else{
-      throw new Error('UNSUPPORTED_PRINTER_CONNECTION');
     }
-    await printer.link();
-    await printer.connect();
+    const created=await plugin.createPrinter({connectionType:type,address});
+    hashKey=String(created?.value||'');
+    if(!hashKey)throw new Error('PRINTER_LINK_FAILED');
+    await plugin.connectPrinter({hashKey});
     const payload=escPosBytes(text,profile.cut_after_print!==false&&profile.cutAfterPrint!==false);
-    await printer.send(payload);
+    await plugin.sendToPrinter({hashKey,data:Array.from(payload)});
     return{ok:true,bytes:payload.length};
   }finally{
-    if(printer){
-      try{await printer.disconnect()}catch{}
-      try{await printer.dispose()}catch{}
+    if(hashKey){
+      try{await plugin.disconnectPrinter({hashKey})}catch{}
+      try{await plugin.disposePrinter({hashKey})}catch{}
     }
   }
 }
