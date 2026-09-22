@@ -16,7 +16,7 @@ const state={
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],
-  pendingQueue:[],syncLastRun:'',layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
+  pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -312,6 +312,11 @@ async function cancelTerminalIntentFromList(intentId){
     await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId});
     await refreshTerminals();state.error='Intent terminal annulé.';render();
   }catch(error){state.error=error.message||String(error);render()}
+}
+async function guardedPayment(task){
+  if(state.paymentBusy){uiAlert('Paiement déjà en cours.');return null}
+  state.paymentBusy=true;
+  try{return await task()}finally{state.paymentBusy=false}
 }
 async function payByMethod(method){
   if(method==='cash')return checkout(method);
@@ -1891,7 +1896,7 @@ function wire(){
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
   document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;const locked=o.status!=='open';state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''}));state.view='sale';render()}));
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());
-  document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
+  document.querySelector('#split-pay')?.addEventListener('click',()=>guardedPayment(()=>splitCheckout()));
   document.querySelector('#split-items')?.addEventListener('click',()=>openAllocatedSplit());
   document.querySelector('#progressive-pay')?.addEventListener('click',()=>openProgressivePayment());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
@@ -1904,7 +1909,7 @@ function wire(){
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
   document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)smartPrintReceipt(r)}));
   document.querySelectorAll('[data-print-split-payment]').forEach(b=>b.addEventListener('click',()=>{const [orderId,paymentId]=String(b.dataset.printSplitPayment||'').split(':');const r=state.receipts.find(x=>x.id===orderId);const p=r?.payments?.find(x=>x.id===paymentId);if(r&&p){if(p.metadata?.splitType==='progressive_items')printProgressivePayment(r,p);else printSplitPayment(r,p)}}));
-  document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
+  document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)guardedPayment(()=>refundReceipt(r))}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
   document.querySelector('#refresh-catalog')?.addEventListener('click',()=>{refreshCatalog();refreshFloorData().then(render)});
@@ -1920,7 +1925,7 @@ function wire(){
   document.querySelectorAll('[data-product]').forEach(b=>b.addEventListener('click',()=>{const p=(state.bootstrap?.catalog||[]).find(x=>x.id===b.dataset.product);if(p)addItem(p)}));
   document.querySelectorAll('[data-minus]').forEach(b=>b.addEventListener('click',()=>changeQty(b.dataset.minus,-1)));
   document.querySelectorAll('[data-plus]').forEach(b=>b.addEventListener('click',()=>changeQty(b.dataset.plus,1)));
-  document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>payByMethod(b.dataset.pay)));
+  document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>guardedPayment(()=>payByMethod(b.dataset.pay))));
 }
 async function init(){
   await initializePosSessionStorage();
