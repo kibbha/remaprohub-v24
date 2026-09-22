@@ -1,3 +1,4 @@
 ReMaPro POS Android validation trigger
-version=0.25.0
-source=e000edb116f5aee4e3ccf984dde6a0e3583bc8ed
+version=0.25.2
+source=c41dc4fa0eb5b59649485339acad1027a80540e6
+reason=runtime-config-and-native-bridge-fix
