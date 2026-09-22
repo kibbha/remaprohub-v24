@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {directOrderAge,directOrderCart,renderDirectOrders} from '../src/direct-orders.js';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+const sample={id:'1',status:'pending',created_at:new Date(Date.now()-120000).toISOString(),public_reference:'WEB-X',service_type:'takeaway',covers:0,total:20,direct_order_items:[{id:'i',catalog_item_id:'c',name_snapshot:'Burger',quantity:2,unit_price:10,tax_rate:8.1,line_total:20,station_snapshot:'kitchen',modifiers:[]}]};
+assert.ok(directOrderAge(sample)>=1);
+assert.equal(directOrderCart(sample)[0].qty,2);
+const html=renderDirectOrders({orders:[sample],money:x=>String(x),t:x=>x,esc:x=>String(x),online:true,topbar:'TOP'});
+assert.ok(html.includes('data-direct-accept'));
+for(const token of ['refreshDirectOrders','acceptDirectOrder','rejectDirectOrder','link_direct_order','nav-direct-orders'])assert.ok(app.includes(token),token+' missing');
+assert.ok(sw.includes('./src/direct-orders.js'),'direct-order module must be cached');
+console.log('Direct online order POS workflow checks passed');
