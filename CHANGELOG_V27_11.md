@@ -162,3 +162,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le calcul additionne les factures en retard, les factures arrivant à échéance sous 7 jours et le budget de réassort suggéré.
 - Les factures dues restent séparées du coût du personnel afin de ne pas mélanger trésorerie fournisseur et coût salarial planifié.
 - L’indicateur reste présenté comme une estimation opérationnelle et ne remplace pas un plan de trésorerie comptable.
+
+## Préparation des services – lot 23
+- Planning affiche désormais les prochains jours comportant des réservations ou des services planifiés.
+- ReMaPro croise les réservations avec le planning et signale les journées avec des couverts prévus mais aucun collaborateur planifié.
+- Ces journées remontent dans le cockpit manager comme point à traiter et renvoient directement vers Planning.
+- L’indicateur reste volontairement simple : il détecte l’absence totale d’équipe et n’invente pas un besoin d’effectif à partir d’un ratio arbitraire.
