@@ -32,3 +32,42 @@ export const language=()=>current;
 export function setLanguage(value){const next=LANGS.includes(value)?value:'fr';current=next;localStorage.setItem(STORAGE_KEY,next);document.documentElement.lang=next;window.dispatchEvent(new CustomEvent('remapro:language',{detail:{language:next}}));return next}
 export function t(key,vars={}){let value=D[current]?.[key]??D.fr[key]??key;for(const [k,v] of Object.entries(vars))value=String(value).replaceAll('{'+k+'}',String(v));return value}
 export function languageOptions(){return LANGS.map(x=>`<option value="${x}" ${x===current?'selected':''}>${x.toUpperCase()}</option>`).join('')}
+
+
+const PHRASES={
+en:{
+'En attente du terminal':'Waiting for terminal','Statut':'Status','Référence':'Reference','Annuler l’intent':'Cancel intent','Intent terminal annulé.':'Terminal intent cancelled.',
+'Ajouter un opérateur':'Add operator','Ajouter un profil terminal':'Add terminal profile','Ajouter une imprimante':'Add printer','Profil opérateur enregistré.':'Operator profile saved.','Profil terminal enregistré. Connexion prestataire toujours à configurer.':'Terminal profile saved. Provider connection still needs configuration.','Profil imprimante enregistré.':'Printer profile saved.',
+'Impression système':'System print','Réseau/TCP':'Network/TCP','Générique':'Generic','Configuré':'Configured','Non configuré':'Not configured','Autorisé':'Authorized','Désactivé':'Disabled','Prêt pour adaptateur':'Adapter ready',
+'Connexion au compte…':'Connecting to account…','Mode hors ligne':'Offline mode','Mode hors ligne — identité et restaurant chargés depuis SQLite.':'Offline mode — identity and restaurant loaded from SQLite.','Première connexion nécessaire : reconnectez Internet une fois pour initialiser ReMaPro POS.':'First sign-in required: reconnect once to initialize ReMaPro POS.',
+'Ouverture caisse':'Cash opening','Clôture caisse':'Cash closing','Vente comptoir':'Counter sale','Paiement fractionné':'Split payment','Statut production':'Production status','Payé':'Paid','Annulé':'Cancelled','Créé':'Created','Échec':'Failed','Expiré':'Expired',
+'Ajouter à la commande':'Add to order','Annuler':'Cancel','Actualiser':'Refresh','Imprimer':'Print','Indisponible':'Unavailable','Commande déjà en production.':'Order already in production.','Nouveaux articles envoyés en production.':'New items sent to production.','Aucun nouvel article à envoyer.':'No new items to send.','Enregistrez d’abord la note avant de l’envoyer en production.':'Save the check before sending it to production.',
+'Cette note a déjà été envoyée en production.':'This check has already been sent to production.','Aucun article à répartir.':'No items to split.','Cette note est déjà entièrement répartie.':'This check is already fully allocated.','Le partage par articles nécessite une connexion.':'Item splitting requires a connection.','Le paiement progressif nécessite une connexion.':'Progressive payment requires a connection.','Addition entièrement soldée.':'Check fully paid.',
+'Remboursement enregistré.':'Refund recorded.','Remboursement externe confirmé.':'External refund confirmed.','Remboursement externe marqué en échec.':'External refund marked failed.','Remboursement enregistré : confirmation du terminal/prestataire encore nécessaire.':'Refund recorded: terminal/provider confirmation is still required.',
+'Impossible de clôturer : il reste des notes ouvertes.':'Cannot close: open checks remain.','Les actions restent conservées localement dans SQLite jusqu’à confirmation serveur.':'Actions remain safely stored in SQLite until server confirmation.','Aucune action en attente.':'No pending action.',
+'La session opérateur a expiré ou manque. Reconnectez Internet pour valider le PIN.':'The operator session is missing or expired. Reconnect to validate the PIN.','l’opérateur d’origine':'the original operator',
+'Article':'Item','Contrôle':'Check','Répartir par unité':'Split by unit','Chaque quantité doit être attribuée entièrement.':'Each quantity must be fully allocated.','Encaisser la répartition':'Take split payment','Personne':'Person','Bon':'Voucher','Facture':'Invoice','Tip':'Tip'
+},
+de:{
+'En attente du terminal':'Warten auf Terminal','Statut':'Status','Référence':'Referenz','Annuler l’intent':'Vorgang abbrechen','Intent terminal annulé.':'Terminal-Vorgang abgebrochen.','Ajouter un opérateur':'Operator hinzufügen','Ajouter un profil terminal':'Terminalprofil hinzufügen','Ajouter une imprimante':'Drucker hinzufügen','Impression système':'Systemdruck','Réseau/TCP':'Netzwerk/TCP','Générique':'Generisch','Configuré':'Konfiguriert','Non configuré':'Nicht konfiguriert','Autorisé':'Autorisiert','Désactivé':'Deaktiviert','Connexion au compte…':'Konto wird verbunden…','Mode hors ligne':'Offline-Modus','Ouverture caisse':'Kassenöffnung','Clôture caisse':'Kassenschluss','Vente comptoir':'Thekenverkauf','Paiement fractionné':'Geteilte Zahlung','Statut production':'Produktionsstatus','Payé':'Bezahlt','Annulé':'Storniert','Créé':'Erstellt','Échec':'Fehler','Expiré':'Abgelaufen','Ajouter à la commande':'Zur Bestellung hinzufügen','Annuler':'Abbrechen','Actualiser':'Aktualisieren','Imprimer':'Drucken','Indisponible':'Nicht verfügbar','Addition entièrement soldée.':'Rechnung vollständig bezahlt.','Remboursement enregistré.':'Rückerstattung erfasst.','Impossible de clôturer : il reste des notes ouvertes.':'Schließen nicht möglich: offene Bons vorhanden.','Article':'Artikel','Contrôle':'Kontrolle','Répartir par unité':'Nach Einheit aufteilen','Encaisser la répartition':'Aufteilung kassieren','Personne':'Person','Bon':'Gutschein','Facture':'Rechnung','Tip':'Trinkgeld'
+},
+it:{
+'En attente du terminal':'In attesa del terminale','Statut':'Stato','Référence':'Riferimento','Annuler l’intent':'Annulla operazione','Intent terminal annulé.':'Operazione terminale annullata.','Ajouter un opérateur':'Aggiungi operatore','Ajouter un profil terminal':'Aggiungi profilo terminale','Ajouter une imprimante':'Aggiungi stampante','Impression système':'Stampa di sistema','Réseau/TCP':'Rete/TCP','Générique':'Generico','Configuré':'Configurato','Non configuré':'Non configurato','Autorisé':'Autorizzato','Désactivé':'Disattivato','Connexion au compte…':'Connessione all’account…','Mode hors ligne':'Modalità offline','Ouverture caisse':'Apertura cassa','Clôture caisse':'Chiusura cassa','Vente comptoir':'Vendita banco','Paiement fractionné':'Pagamento diviso','Statut production':'Stato produzione','Payé':'Pagato','Annulé':'Annullato','Créé':'Creato','Échec':'Errore','Expiré':'Scaduto','Ajouter à la commande':'Aggiungi all’ordine','Annuler':'Annulla','Actualiser':'Aggiorna','Imprimer':'Stampa','Indisponible':'Non disponibile','Addition entièrement soldée.':'Conto completamente saldato.','Remboursement enregistré.':'Rimborso registrato.','Impossible de clôturer : il reste des notes ouvertes.':'Impossibile chiudere: ci sono conti aperti.','Article':'Articolo','Contrôle':'Controllo','Répartir par unité':'Dividi per unità','Encaisser la répartition':'Incassa divisione','Personne':'Persona','Bon':'Buono','Facture':'Fattura','Tip':'Mancia'
+}
+};
+function translateValue(value){
+  if(current==='fr'||!value)return value;
+  const pairs=[];
+  for(const [key,fr] of Object.entries(D.fr))if(typeof fr==='string'&&fr.length>1)pairs.push([fr,D[current]?.[key]||fr]);
+  for(const [fr,target] of Object.entries(PHRASES[current]||{}))pairs.push([fr,target]);
+  pairs.sort((a,b)=>b[0].length-a[0].length);
+  let out=String(value);for(const [fr,target] of pairs)if(fr!==target&&out.includes(fr))out=out.split(fr).join(target);return out;
+}
+export function translateDom(root=document){
+  document.documentElement.lang=current;
+  if(current==='fr')return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  const nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);
+  for(const node of nodes){const parent=node.parentElement;if(!parent||['SCRIPT','STYLE'].includes(parent.tagName))continue;node.nodeValue=translateValue(node.nodeValue)}
+  for(const el of root.querySelectorAll?.('[placeholder],[title],[aria-label]')||[]){for(const attr of ['placeholder','title','aria-label'])if(el.hasAttribute(attr))el.setAttribute(attr,translateValue(el.getAttribute(attr)))}
+}
