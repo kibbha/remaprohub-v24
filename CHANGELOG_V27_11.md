@@ -180,3 +180,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - L’action demande une confirmation et enregistre la date/heure de paiement.
 - Une facture déjà payée ne peut pas être payée une seconde fois par cette action.
 - Le paiement retire immédiatement la facture des échéances et alertes fournisseurs sans créer artificiellement une nouvelle dépense comptable.
+
+## Export revue hebdomadaire – lot 26
+- La revue manager hebdomadaire peut maintenant être exportée en PDF directement depuis Finance.
+- Le document reprend CA, dépenses, résultat, couverts, ticket moyen, food cost, planning, pertes, échéances fournisseurs, préparation des services, HACCP et maintenance.
+- La comparaison avec la semaine précédente est ajoutée lorsqu’elle est disponible.
+- Aucun score opaque ni recommandation automatique n’est ajouté au document : il reste fondé sur les données enregistrées dans ReMaPro.
