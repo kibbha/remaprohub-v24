@@ -4,7 +4,7 @@ import{emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,renderPosLayou
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posLayoutSelectedButtonId='',posLayoutDirty=false,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutDirty=false,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
 const state=load(),persist=()=>{if(cloudSession()){const current=activeRestaurant(state);if(current?.cloudId)current.cloudDirty=true}save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -144,6 +144,7 @@ async function publishCurrentPosLayout(){
 function seedCurrentPosLayout(){
   if(posAdminState.layoutDraft?.document?.buttons?.length&&!confirm('Remplacer le brouillon actuel par une implantation générée depuis le catalogue ?'))return;
   const doc=seedPosLayoutFromCatalog(posAdminState.catalog||[]);
+  posLayoutSelectedPageId=doc.pages[0]?.id||'';
   posLayoutSelectedButtonId=doc.buttons[0]?.id||'';
   setPosLayoutDocument(doc);
 }
@@ -216,7 +217,7 @@ function posAdmin(){
     <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
     ${posAdminState.foodCost?`<div class="pos-foodcost-strip"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
-    <div id="pos-layout-editor-root">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,selectedButtonId:posLayoutSelectedButtonId})}</div>
+    <div id="pos-layout-editor-root">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,selectedButtonId:posLayoutSelectedButtonId,selectedPageId:posLayoutSelectedPageId})}</div>
     <div class="pos-admin-grid">
       <section class="card pos-admin-card pos-admin-catalog"><h2>Catalogue & routage</h2><p class="muted">Choisissez où chaque article doit partir avant publication.</p>
         <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)} · coût ${money(x.cost)} · ${x.components} composant(s) stock</small></span><span class="actions"><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select><button class="btn compact" data-pos-components="${x.collection}:${x.index}">Stock</button></span></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
@@ -497,11 +498,14 @@ bindPosLayoutEditor(document.querySelector('#pos-layout-editor-root'),{
   setLayout:doc=>setPosLayoutDocument(doc,{renderNow:false}),
   getSelected:()=>posLayoutSelectedButtonId,
   setSelected:id=>{posLayoutSelectedButtonId=id},
+  getPage:()=>posLayoutSelectedPageId,
+  setPage:id=>{posLayoutSelectedPageId=id},
   catalog:posAdminState.catalog||[],
   onDirty:(rerender=true)=>{posLayoutDirty=true;if(rerender!==false)render()},
   onSave:()=>saveCurrentPosLayout(),
   onPublish:()=>publishCurrentPosLayout(),
-  onSeed:()=>seedCurrentPosLayout()
+  onSeed:()=>seedCurrentPosLayout(),
+  onRender:()=>render()
 });
 document.getElementById('posAdminRefresh')?.addEventListener('click',()=>posAdminReload());
 document.getElementById('posPublishCatalog')?.addEventListener('click',()=>posAdminPublish());
