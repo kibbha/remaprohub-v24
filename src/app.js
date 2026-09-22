@@ -1,9 +1,10 @@
 import{cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,buildAiContext,callRemaproAi,fileToDataUrl}from'./ai.js';import{cloudSession,initializeCloudSessionStorage,loadCachedCloudIdentity,signInCloud,signUpCloud,signOutCloud,requestPasswordReset,loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,cloudWorkspaceReadKeys,cloudFunction}from'./cloud.js';import{LANGS,language,setLanguage,t}from'./i18n.js';import{securitySettings,updateSecuritySettings,rememberedSecurityEmail,rememberSecurityEmail,loadDeveloperAccess,saveDeveloperAccess,clearDeveloperAccess,developerAliasMatches,validDeveloperAlias,biometricAvailability,verifyBiometric,shouldRelock}from'./security.js';import{billingAvailable,configureBilling,purchasePlan,restorePurchases,customerInfo,entitlementPlan}from'./billing.js';import{LEGAL_COUNTRIES,legalPack,legalFieldsFor,isLegalHrDocument}from'./legal.js';import{load,save,storageScope,setStorageScope,exportWorkspace,applyWorkspaceData,restrictWorkspace,resetWorkspaceKeys,recordFinance,financeTotals,financeDayTotals,revenueSeries,localDate,recordRegistry,recordValidated,setStockPreferredSupplier,stockAvailable,recordStockMovement,recordWaste,updateWaste,recordDelivery,ensureDailyTasks,setDailyTaskCompletion,dailyRoutineStatus,updateRecord,removeRecord,updatePreferences,exportData,importData,resetState,saveDocument,updateDocument,recordOrder,updateOrder,removeOrder,recordInvoice,markInvoicePaid,integrateInvoiceReceipt,recordPurchase,updatePurchase,removePurchase,recordShift,copyPreviousWeekSchedule,recordLeave,recordTraining,leaveBusinessDays,calculateSwissPayroll,ccntMinimum,PLAN_CONFIG,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan,STAFF_PERMISSIONS,multiFeaturesEnabled,activeRestaurant,mergeCloudRestaurants,switchRestaurant,recordRestaurant,removeRestaurant,recordManager,removeManager,recordStaffAccess,removeStaffAccess}from'./store.js';
-import{publishPosCatalog,loadPosAdminSnapshot,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection}from'./pos.js';
+import{publishPosCatalog,loadPosAdminSnapshot,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout}from'./pos.js';
+import{emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,renderPosLayoutEditor,bindPosLayoutEditor}from'./pos-layout.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,posLayoutSelectedButtonId='',posLayoutDirty=false,posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
 const state=load(),persist=()=>{if(cloudSession()){const current=activeRestaurant(state);if(current?.cloudId)current.cloudDirty=true}save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -92,7 +93,7 @@ function ai(){const connected=cloudConfigured()&&!!cloudSession(),snapshot=manag
 async function loadPosAdminData(showError=false){
   const restaurantId=cloudRestaurantId();
   if(!restaurantId||!cloudSession()||!cloudManager()){
-    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
+    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
     if(showError)render();return false;
   }
   posAdminState={...posAdminState,restaurantId,loading:true,error:''};
@@ -107,6 +108,46 @@ async function loadPosAdminData(showError=false){
   }
 }
 function posAdminStation(value){return['kitchen','bar','none'].includes(String(value||''))?String(value):'kitchen'}
+function posLayoutDocument(){
+  return normalizePosLayout(posAdminState.layoutDraft?.document||posAdminState.layoutPublished?.document||emptyPosLayout());
+}
+function setPosLayoutDocument(document,{renderNow=true}={}){
+  const draft=posAdminState.layoutDraft||{schemaVersion:1,draftRevision:0,updatedAt:null};
+  posAdminState={...posAdminState,layoutDraft:{...draft,document:normalizePosLayout(document)}};
+  posLayoutDirty=true;
+  if(renderNow)render();
+}
+async function saveCurrentPosLayout(){
+  const rid=cloudRestaurantId();if(!rid||!cloudManager())return;
+  try{
+    const r=await savePosLayoutDraft(rid,posLayoutDocument());
+    posAdminState={...posAdminState,layoutDraft:r.draft||posAdminState.layoutDraft,error:''};
+    posLayoutDirty=false;render();
+  }catch(error){posAdminState={...posAdminState,error:error?.message||String(error)};render()}
+}
+async function publishCurrentPosLayout(){
+  if(posLayoutDirty){
+    const rid=cloudRestaurantId();if(!rid)return;
+    try{
+      const saved=await savePosLayoutDraft(rid,posLayoutDocument());
+      posAdminState={...posAdminState,layoutDraft:saved.draft||posAdminState.layoutDraft};
+      posLayoutDirty=false;
+    }catch(error){posAdminState={...posAdminState,error:error?.message||String(error)};render();return}
+  }
+  if(!confirm('Publier cette implantation vers toutes les caisses POS de ce restaurant ?'))return;
+  try{
+    const r=await publishPosLayout(cloudRestaurantId());
+    posAdminState={...posAdminState,layoutPublished:r.layout||null,error:''};
+    render();
+  }catch(error){posAdminState={...posAdminState,error:error?.message||String(error)};render()}
+}
+function seedCurrentPosLayout(){
+  if(posAdminState.layoutDraft?.document?.buttons?.length&&!confirm('Remplacer le brouillon actuel par une implantation générée depuis le catalogue ?'))return;
+  const doc=seedPosLayoutFromCatalog(posAdminState.catalog||[]);
+  posLayoutSelectedButtonId=doc.buttons[0]?.id||'';
+  setPosLayoutDocument(doc);
+}
+
 
 function closePosStockComponents(){document.querySelector('#pos-stock-components-modal')?.remove();document.body.classList.remove('modal-open')}
 function openPosStockComponents(collection,index){
@@ -157,7 +198,7 @@ async function applyPosInventoryMovements(){
 function posAdmin(){
   const restaurantId=cloudRestaurantId(),manager=cloudManager();
   if(restaurantId&&manager&&posAdminState.restaurantId!==restaurantId&&!posAdminState.loading){
-    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false};
+    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null};
     setTimeout(()=>loadPosAdminData(false),0);
   }
   const venue=activeRestaurant(state)?.name||state.preferences?.restaurant||'Restaurant';
@@ -175,6 +216,7 @@ function posAdmin(){
     <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
     ${posAdminState.foodCost?`<div class="pos-foodcost-strip"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
+    <div id="pos-layout-editor-root">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,selectedButtonId:posLayoutSelectedButtonId})}</div>
     <div class="pos-admin-grid">
       <section class="card pos-admin-card pos-admin-catalog"><h2>Catalogue & routage</h2><p class="muted">Choisissez où chaque article doit partir avant publication.</p>
         <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)} · coût ${money(x.cost)} · ${x.components} composant(s) stock</small></span><span class="actions"><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select><button class="btn compact" data-pos-components="${x.collection}:${x.index}">Stock</button></span></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
@@ -450,6 +492,17 @@ document.querySelectorAll('[data-purchase-order]').forEach(b=>b.addEventListener
   persist();editing={collection:'documentPreview',index:0};page='documents';globalThis.history?.pushState?.({remaproPage:'documents',remaproDocument:true},'');render()
 }));
 
+bindPosLayoutEditor(document.querySelector('#pos-layout-editor-root'),{
+  getLayout:()=>posLayoutDocument(),
+  setLayout:doc=>setPosLayoutDocument(doc,{renderNow:false}),
+  getSelected:()=>posLayoutSelectedButtonId,
+  setSelected:id=>{posLayoutSelectedButtonId=id},
+  catalog:posAdminState.catalog||[],
+  onDirty:(rerender=true)=>{posLayoutDirty=true;if(rerender!==false)render()},
+  onSave:()=>saveCurrentPosLayout(),
+  onPublish:()=>publishCurrentPosLayout(),
+  onSeed:()=>seedCurrentPosLayout()
+});
 document.getElementById('posAdminRefresh')?.addEventListener('click',()=>posAdminReload());
 document.getElementById('posPublishCatalog')?.addEventListener('click',()=>posAdminPublish());
 document.getElementById('posApplyInventory')?.addEventListener('click',()=>applyPosInventoryMovements());
