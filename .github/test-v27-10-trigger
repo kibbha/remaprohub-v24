@@ -102,3 +102,5 @@ V27.11 lot 30 allergen matrix coverage validation
 V27.11 rerun after allergen translation fix
 
 V27.11 lot 31 reservation confirmation workflow validation
+
+V27.11 rerun after richer reservation CRM guard update
