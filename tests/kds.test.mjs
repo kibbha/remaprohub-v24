@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
+for(const fn of ['productionAgeMinutes','productionUrgency','productionOrderAge','advanceProductionOrder'])assert.ok(app.includes('function '+fn),fn+' missing');
+assert.ok(app.includes("productionStation:'all'"),'production station state missing');
+assert.ok(app.includes('kdsWarnMinutes'),'KDS warning threshold missing');
+assert.ok(app.includes('kdsCriticalMinutes'),'KDS critical threshold missing');
+assert.ok(app.includes('data-station="expo"'),'Expo station missing');
+assert.ok(app.includes('data-kds-order-ready'),'bulk ready action missing');
+assert.ok(app.includes('data-kds-order-served'),'bulk served action missing');
+assert.ok(app.includes("created_at||order?.opened_at"),'KDS timer must use server timestamps');
+assert.ok(css.includes('.kds-ticket.critical'),'critical visual state missing');
+for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes('kdsTitle'),lang+' KDS labels missing');
+console.log('Advanced KDS static checks passed');
