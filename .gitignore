@@ -1,36 +1,6 @@
-# Dependencies and generated output
 node_modules/
-dist/
-www/
 android/
-coverage/
-*.log
-*.zip
-*.apk
-*.aab
-
-# Local application copies
-app/src/
-
-# Environment files and local tooling credentials
+dist/
 .env
-.env.*
-!.env.example
-.npmrc
-local.properties
-supabase/.temp/
-
-# Signing keys, certificates and private credentials
 *.jks
 *.keystore
-*.p12
-*.pfx
-*.pem
-*.key
-
-# Local databases and OS/editor files
-*.db
-*.sqlite
-.DS_Store
-.idea/
-.vscode/

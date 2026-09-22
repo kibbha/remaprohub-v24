@@ -1,0 +1,17 @@
+{
+  "name": "ReMaPro POS",
+  "short_name": "ReMaPro POS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3eee6",
+  "theme_color": "#352f2b",
+  "description": "Point of sale for restaurants connected to ReMaPro Hub",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

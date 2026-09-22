@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const pkg=JSON.parse(read('package.json'));
+assert.equal(pkg.name,'remapro-pos');
+assert.equal(pkg.version,'0.1.0');
+const cap=JSON.parse(read('capacitor.config.json'));
+assert.equal(cap.appId,'com.remapro.pos');
+const app=read('src/app.js');
+assert.match(app,/remapro-pos-sync|pushEvent/);
+assert.match(app,/IndexedDB|queuePut|queueCount/);
+const cloud=read('src/cloud.js');
+assert.doesNotMatch(cloud,/service[_-]?role/i);
+assert.doesNotMatch(read('runtime-config.js'),/sb_secret_|eyJ[A-Za-z0-9_-]{20,}/);
+assert.match(read('index.html'),/ReMaPro POS/);
+console.log('ReMaPro POS smoke checks passed');

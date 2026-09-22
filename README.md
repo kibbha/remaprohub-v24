@@ -1,24 +1,46 @@
-# ReMaPro Hub
+# ReMaPro POS
 
-Reconstruction propre de ReMaPro Hub.
+Application de caisse distincte de ReMaPro Hub, connectée à la même plateforme ReMaPro/Supabase.
 
-Architecture: PWA modulaire + Capacitor Android. Les traductions sont natives au rendu, sans traduction DOM a posteriori.
+Version initiale: **0.1.0**  
+Android package: **com.remapro.pos**
 
-Langues actives de release: fr, en, de, it.
-Langues legacy conservées dans le catalogue mais non proposées dans la sélection active: es, pt, nl, zh.
+## Objectif de cette branche
+Cette branche contient uniquement la codebase POS. Elle ne contient pas ReMaPro Hub.
 
-## Structure
-- `app/` application web packagée
-- `src/` logique modulaire
-- `.github/workflows/android.yml` build Android de validation/final (APK debug + AAB release signé si les secrets sont configurés)
-- `capacitor.config.json` configuration Android
-- `supabase/` migrations et Edge Functions backend
-- `docs/` préparation Google Play, sécurité des données et release candidate
+## État actuel
+- authentification avec le compte ReMaPro existant ;
+- sélection du restaurant autorisé ;
+- appel de l'Edge Function `remapro-pos-sync` ;
+- récupération et cache du catalogue POS ;
+- enregistrement/heartbeat d'un terminal ;
+- interface tablette avec catégories, produits et panier ;
+- cache IndexedDB et file d'événements hors ligne ;
+- paiement local de démonstration (espèces/carte/TWINT) mis en file de synchronisation ;
+- aucune donnée bancaire sensible n'est collectée.
 
-## PWA et Android
+## Configuration
+Les valeurs publiques Supabase sont injectées dans `runtime-config.js` pendant le build :
 
-Exécuter `npm run pack:web` après toute modification de `src/`, puis servir le dossier `app/` en HTTPS pour la PWA. Le workflow Android exécute cette même étape avant la synchronisation Capacitor. Le service worker garde seulement les fichiers de l’interface pour un démarrage hors connexion ; les données métier restent dans le stockage local de l’appareil.
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 
-Le workflow Android final reste volontairement déclenché manuellement ou par le sentinel `.github/final-build-trigger` afin d’éviter de consommer inutilement le quota GitHub Actions pendant le développement.
+Ne jamais ajouter de service role ou secret serveur dans cette application.
 
-Icônes Tabler Icons (licence MIT) intégrées localement dans `app/icons.svg` pour fonctionner hors connexion. Source : https://github.com/tabler/tabler-icons
+## Commandes
+```bash
+npm install
+npm test
+node scripts/inject-runtime-config.mjs
+npx cap add android
+npx cap sync android
+```
+
+## Prochaines étapes
+1. écriture atomique des commandes/paiements dans le ledger POS ;
+2. ouverture/clôture de caisse ;
+3. plan de salle ;
+4. routage cuisine/KDS ;
+5. numérotation et impression des tickets ;
+6. paiements terminaux Worldline/TWINT ;
+7. rapprochement et clôtures.
