@@ -104,7 +104,7 @@ export default {
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
-        commit_order:"sale",save_open_order:"sale",settle_open_order:"sale",settle_open_order_split:"sale",
+        commit_order:"sale",save_open_order:"sale",append_order_items:"sale",settle_open_order:"sale",settle_open_order_split:"sale",
         settle_open_order_allocated:"sale",pay_allocated_group:"sale",create_terminal_intent:"sale",
         refund_order:"refund",create_terminal_refund_intent:"refund",confirm_external_refund:"refund",
         cancel_open_order:"cancel",transfer_open_order:"transfer",
