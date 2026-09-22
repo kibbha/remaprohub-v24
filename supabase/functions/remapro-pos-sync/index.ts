@@ -69,6 +69,7 @@ export default {
             receiptNumbering:true,
             splitPayments:true,
             itemSplitPayments:true,
+            progressiveSplitPayments:true,
             tips:true,
             tableTransfers:true,
             refunds:true,
@@ -400,6 +401,69 @@ export default {
         return json({ok:true,receipt:data});
       }
 
+      if(action==="pay_allocated_group"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),deviceId=clean(body.deviceId,64),sessionId=clean(body.cashSessionId,64);
+        const selections=Array.isArray(body.selections)?body.selections:[];
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId)||!selections.length||selections.length>300){
+          return json({error:"Invalid progressive payment payload"},400);
+        }
+        const cleanSelections:any[]=[];
+        for(let i=0;i<selections.length;i++){
+          const s=selections[i]||{},itemId=clean(s.itemId,64),quantity=Number(s.quantity);
+          if(!validUuid(itemId)||!Number.isFinite(quantity)||quantity<=0)return json({error:`Invalid selection at index ${i}`},400);
+          cleanSelections.push({itemId,quantity:Math.round(quantity*1000)/1000});
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_pay_allocated_group",{
+          p_order_id:orderId,p_client_event_id:eventId,p_device_id:deviceId,p_cash_session_id:sessionId,
+          p_label:clean(body.label,80)||"Part",p_method:clean(body.method,30),p_selections:cleanSelections,
+          p_tip_amount:Math.max(0,Math.round((Number(body.tipAmount)||0)*100)/100),
+          p_provider:clean(body.provider,80)||null,p_provider_reference:clean(body.providerReference,180)||null,
+          p_actor_user_id:userId,p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,payment:data});
+      }
+
+      if(action==="order_payment_progress"){
+        const orderId=clean(body.orderId,64);
+        if(!validUuid(orderId))return json({error:"Valid orderId required"},400);
+        const {data:order,error:orderError}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,restaurant_id,receipt_number,status,total,tip_total,table_id,table_label,service_type,covers,business_date")
+          .eq("id",orderId).eq("restaurant_id",restaurantId).maybeSingle();
+        if(orderError)return json({error:orderError.message},500);
+        if(!order)return json({error:"Order not found"},404);
+
+        const [itemResult,allocationResult,paymentResult]=await Promise.all([
+          ctx.supabaseAdmin.from("pos_order_items")
+            .select("id,name_snapshot,quantity,unit_price,line_total,tax_rate,tax_amount,kitchen_status,note")
+            .eq("order_id",orderId).neq("kitchen_status","cancelled").order("created_at"),
+          ctx.supabaseAdmin.from("pos_payment_allocations")
+            .select("order_item_id,payment_id,quantity,amount,tax_amount").eq("order_id",orderId),
+          ctx.supabaseAdmin.from("pos_payments")
+            .select("id,method,amount,tip_amount,status,paid_at,metadata,receipt_number")
+            .eq("order_id",orderId).eq("status","captured").order("paid_at")
+        ]);
+        if(itemResult.error||allocationResult.error||paymentResult.error){
+          return json({error:itemResult.error?.message||allocationResult.error?.message||paymentResult.error?.message||"Unable to load payment progress"},500);
+        }
+        const payments=paymentResult.data||[],paidIds=new Set(payments.map((p:any)=>p.id));
+        const paidByItem=new Map<string,number>();
+        for(const a of allocationResult.data||[]){
+          if(!paidIds.has(a.payment_id))continue;
+          paidByItem.set(a.order_item_id,(paidByItem.get(a.order_item_id)||0)+Number(a.quantity||0));
+        }
+        let remainingAmount=0;
+        const items=(itemResult.data||[]).map((i:any)=>{
+          const paidQty=Math.round((paidByItem.get(i.id)||0)*1000)/1000;
+          const remainingQty=Math.max(0,Math.round((Number(i.quantity||0)-paidQty)*1000)/1000);
+          const qty=Number(i.quantity||0),lineTotal=Number(i.line_total||0);
+          const remainingLine=qty?Math.round((lineTotal/qty)*remainingQty*100)/100:0;
+          remainingAmount+=remainingLine;
+          return {...i,paidQty,remainingQty,remainingAmount:remainingLine};
+        });
+        return json({ok:true,order,items,payments,remainingAmount:Math.max(0,Math.round(remainingAmount*100)/100)});
+      }
+
       if(action==="transfer_open_order"){
         const orderId=clean(body.orderId,64),targetTableId=clean(body.targetTableId,64);
         if(!validUuid(orderId)||!validUuid(targetTableId))return json({error:"Valid orderId and targetTableId required"},400);
@@ -550,7 +614,7 @@ export default {
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata,receipt_number),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
           .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
