@@ -1,0 +1,84 @@
+name: Android ReMaPro POS V0.25 Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pos/remapro-pos]
+    paths:
+      - '.github/pos-android-validation.trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: pos/remapro-pos
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install exact POS dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Inject public Supabase runtime config
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run inject:config
+
+      - name: Run POS smoke tests
+        run: npm test
+
+      - name: Prepare packaged web runtime
+        run: |
+          npm run prepare:web
+          test -s app/index.html
+          test -s app/runtime-config.js
+          test -s app/src/app.js
+          test -s app/src/cloud.js
+          test -s app/src/db.js
+          test -s app/src/printer.js
+
+      - name: Generate Capacitor Android project
+        run: npx cap add android
+
+      - name: Synchronize native plugins
+        run: npx cap sync android
+
+      - name: Verify native plugin registration
+        run: |
+          test -s android/app/src/main/assets/public/index.html
+          test -s android/app/src/main/assets/public/src/app.js
+          grep -Rqi "sqlite" android/capacitor.settings.gradle android/app/capacitor.build.gradle
+          grep -Rqi "secure" android/capacitor.settings.gradle android/app/capacitor.build.gradle
+          grep -Rqi "printer\|esc" android/capacitor.settings.gradle android/app/capacitor.build.gradle
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Verify APK and 16 KB zip alignment
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)"
+          test -x "$ZIPALIGN"
+          "$ZIPALIGN" -c -P 16 -v 4 "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReMaPro-POS-V0.25.0-validation-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
