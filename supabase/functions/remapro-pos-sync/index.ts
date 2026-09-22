@@ -98,7 +98,8 @@ export default {
         "list_operators","upsert_operator",
         "list_tables","sync_tables","sync_catalog",
         "list_terminals","upsert_terminal",
-        "list_printers","upsert_printer"
+        "list_printers","upsert_printer",
+        "inventory_movements","ack_inventory_movements","food_cost_report"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -727,6 +728,41 @@ export default {
         if(error)return json({error:error.message},500);
         const events=data||[];
         return json({ok:true,events,nextCursor:events.length?Number(events[events.length-1].sequence):after});
+      }
+
+      if(action==="inventory_movements"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const after=Math.max(0,Math.trunc(Number(body.after)||0));
+        const limit=Math.max(1,Math.min(1000,Math.trunc(Number(body.limit)||300)));
+        let query=ctx.supabaseAdmin.from("pos_inventory_movements")
+          .select("id,sequence,order_id,order_item_id,catalog_item_id,hub_stock_id,stock_source_key,stock_name,unit,kind,quantity_delta,unit_cost,total_cost,business_date,receipt_number,acknowledged_at,created_at")
+          .eq("restaurant_id",restaurantId).gt("sequence",after).order("sequence").limit(limit);
+        if(body.unacknowledged!==false)query=query.is("acknowledged_at",null);
+        const {data,error}=await query;
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[],cursor:(data||[]).reduce((m:any,x:any)=>Math.max(m,Number(x.sequence)||0),after)});
+      }
+
+      if(action==="ack_inventory_movements"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const ids=(Array.isArray(body.movementIds)?body.movementIds:[]).map((x:any)=>clean(x,64)).filter(validUuid).slice(0,1000);
+        if(!ids.length)return json({ok:true,count:0});
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_ack_inventory_movements",{
+          p_restaurant_id:restaurantId,p_movement_ids:ids,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,count:Number(data)||0});
+      }
+
+      if(action==="food_cost_report"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const businessDate=clean(body.businessDate,10);
+        if(!validDate(businessDate))return json({error:"Valid businessDate required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_food_cost_report",{
+          p_restaurant_id:restaurantId,p_business_date:businessDate,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,report:data});
       }
 
       if(action==="list_printers"){
