@@ -38,6 +38,94 @@ export default {
         )
       );
 
+      if(action==="list_operators"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_operators")
+          .select("id,user_id,employee_id,display_name,role,permissions,active,last_login_at")
+          .eq("restaurant_id",restaurantId).eq("active",true).order("display_name");
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[],required:(data||[]).length>0});
+      }
+
+      if(action==="upsert_operator"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const op=body.operator||{},operatorId=clean(op.id,64),userIdValue=clean(op.userId,64),employeeId=clean(op.employeeId,64);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_operator",{
+          p_operator_id:validUuid(operatorId)?operatorId:null,
+          p_restaurant_id:restaurantId,
+          p_user_id:validUuid(userIdValue)?userIdValue:null,
+          p_employee_id:validUuid(employeeId)?employeeId:null,
+          p_display_name:clean(op.displayName,120),
+          p_role:clean(op.role,30).toLowerCase(),
+          p_pin:clean(op.pin,12),
+          p_active:op.active!==false,
+          p_permissions:op.permissions&&typeof op.permissions==="object"?op.permissions:{},
+          p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,operator:data});
+      }
+
+      if(action==="operator_login"){
+        const operatorId=clean(body.operatorId,64),deviceId=clean(body.deviceId,64),pin=clean(body.pin,12);
+        if(!validUuid(operatorId)||!validUuid(deviceId)||!/^[0-9]{4,8}$/.test(pin))return json({error:"Valid operator, device and PIN required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_operator_login",{
+          p_restaurant_id:restaurantId,p_operator_id:operatorId,p_pin:pin,p_device_id:deviceId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},403);
+        return json({ok:true,session:data});
+      }
+
+      if(action==="operator_current"){
+        const token=clean(body.operatorSessionToken,128);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_operator_authorize",{
+          p_restaurant_id:restaurantId,p_token:token,p_permission:"",p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},403);
+        return json({ok:true,authorization:data});
+      }
+
+      if(action==="operator_logout"){
+        const token=clean(body.operatorSessionToken,128);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_operator_logout",{
+          p_restaurant_id:restaurantId,p_token:token,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},500);
+        return json({ok:true,loggedOut:data===true});
+      }
+
+      const operatorExempt=new Set(["bootstrap","heartbeat","list_operators","upsert_operator","operator_login","operator_current","operator_logout"]);
+      const permissionMap:Record<string,string>={
+        open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
+        commit_order:"sale",save_open_order:"sale",settle_open_order:"sale",settle_open_order_split:"sale",
+        settle_open_order_allocated:"sale",pay_allocated_group:"sale",create_terminal_intent:"sale",
+        refund_order:"refund",create_terminal_refund_intent:"refund",confirm_external_refund:"refund",
+        cancel_open_order:"cancel",transfer_open_order:"transfer",
+        send_to_production:"production",update_production_item:"production",
+        sync_catalog:"settings",sync_tables:"settings",upsert_terminal:"settings",set_terminal_connection:"settings",
+        upsert_printer:"settings",set_printer_status:"settings"
+      };
+      let operatorContext:any=null;
+      if(!operatorExempt.has(action)){
+        const operatorToken=clean(body.operatorSessionToken,128);
+        const {data:operatorAuth,error:operatorAuthError}=await ctx.supabaseAdmin.rpc("pos_operator_authorize",{
+          p_restaurant_id:restaurantId,p_token:operatorToken,p_permission:permissionMap[action]||"",p_actor_user_id:userId
+        });
+        if(operatorAuthError)return json({error:operatorAuthError.message},403);
+        operatorContext=operatorAuth;
+        if(operatorAuth?.required===true&&operatorAuth?.authorized!==true){
+          return json({error:operatorAuth?.error||"OPERATOR_REQUIRED",operatorRequired:true},403);
+        }
+        if(operatorAuth?.required===true&&operatorAuth?.operator?.id){
+          const candidates=[body.orderId,body.refundId,body.itemId,body.sessionId,body.terminalId,body.printerId];
+          const entityValue=candidates.find((x:any)=>validUuid(x));
+          ctx.supabaseAdmin.rpc("pos_log_operator_action",{
+            p_restaurant_id:restaurantId,p_token:operatorToken,p_actor_user_id:userId,
+            p_action:action,p_entity_type:"request",p_entity_id:entityValue||null,
+            p_metadata:{clientEventId:validUuid(body.clientEventId)?body.clientEventId:null}
+          }).then(()=>{}).catch(()=>{});
+        }
+      }
+
       if(action==="bootstrap"){
         const deviceId=clean(body.deviceId,64);
         const requests:any[]=[
@@ -78,6 +166,8 @@ export default {
             serviceReports:true,
             paymentTerminalProfiles:true,
             terminalIntents:true,
+            operatorPins:true,
+            operatorPermissions:true,
             paymentProviders:false
           }
         });
