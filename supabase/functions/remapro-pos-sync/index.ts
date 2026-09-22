@@ -99,7 +99,8 @@ export default {
         "list_tables","sync_tables","sync_catalog",
         "list_terminals","upsert_terminal",
         "list_printers","upsert_printer",
-        "inventory_movements","ack_inventory_movements","food_cost_report"
+        "inventory_movements","ack_inventory_movements","food_cost_report",
+        "list_provider_connections","upsert_provider_connection"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -172,6 +173,7 @@ export default {
             kitchen:true,
             serviceReports:true,
             paymentTerminalProfiles:true,
+            providerConnectionRegistry:true,
             terminalIntents:true,
             operatorPins:true,
             operatorPermissions:true,
@@ -728,6 +730,42 @@ export default {
         if(error)return json({error:error.message},500);
         const events=data||[];
         return json({ok:true,events,nextCursor:events.length?Number(events[events.length-1].sequence):after});
+      }
+
+      if(action==="list_provider_connections"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const {data,error}=await ctx.supabaseAdmin.from("pos_provider_connections")
+          .select("id,provider,integration_mode,environment,status,merchant_reference,public_config,secret_version,notes,created_at,updated_at")
+          .eq("restaurant_id",restaurantId).order("provider").order("environment");
+        if(error)return json({error:error.message},500);
+        return json({
+          ok:true,
+          rows:data||[],
+          automaticTransactions:false,
+          officialPaths:{
+            worldline:["terminal_api_cloud","tim"],
+            twint:["direct","terminal_psp"]
+          }
+        });
+      }
+
+      if(action==="upsert_provider_connection"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const c=body.connection||{},connectionId=clean(c.id,64);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_provider_connection",{
+          p_connection_id:validUuid(connectionId)?connectionId:null,
+          p_restaurant_id:restaurantId,
+          p_provider:clean(c.provider,30).toLowerCase(),
+          p_integration_mode:clean(c.integrationMode,40).toLowerCase(),
+          p_environment:clean(c.environment,20).toLowerCase()||"test",
+          p_status:clean(c.status,40).toLowerCase()||"not_configured",
+          p_merchant_reference:clean(c.merchantReference,180)||null,
+          p_public_config:c.publicConfig&&typeof c.publicConfig==="object"?c.publicConfig:{},
+          p_notes:clean(c.notes,1000)||null,
+          p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,connection:data,automaticTransactions:false});
       }
 
       if(action==="inventory_movements"){
