@@ -213,3 +213,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Aucun allergène n’est déduit automatiquement à partir d’un ingrédient : le système contrôle uniquement la cohérence des données réellement saisies.
 - Une recette absente peut préremplir la fiche allergènes ; une incohérence peut être synchronisée depuis la recette uniquement après confirmation.
 - Les incohérences remontent dans le cockpit manager et sont transmises au Manager Copilot.
+
+## Confirmation des réservations – lot 31
+- Les réservations possèdent désormais un statut simple : à confirmer, confirmée, annulée ou no-show.
+- Les réservations « à confirmer » prévues dans les prochaines 24 heures remontent dans le cockpit manager.
+- Une réservation peut être confirmée en un clic depuis sa ligne, après confirmation de l’action.
+- Les réservations annulées et no-show sont exclues des couverts utilisés pour préparer les prochains services et les briefings.
+- Les anciennes réservations sans statut restent compatibles et sont considérées comme « à confirmer ».
