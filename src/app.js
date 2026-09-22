@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.7.0';
+const APP_VERSION='0.8.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -253,6 +253,51 @@ async function saveOpenOrder(){
   await saveFloorCache();state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
+
+function cleanupPrintSheet(){
+  document.body.classList.remove('print-mode');
+  document.querySelector('#print-sheet')?.remove();
+}
+function printHtml(title,bodyHtml){
+  cleanupPrintSheet();
+  const sheet=document.createElement('section');
+  sheet.id='print-sheet';sheet.className='print-sheet';
+  sheet.innerHTML='<header class="print-head"><strong>'+esc(title)+'</strong></header>'+bodyHtml;
+  document.body.appendChild(sheet);document.body.classList.add('print-mode');
+  window.addEventListener('afterprint',cleanupPrintSheet,{once:true});
+  setTimeout(()=>{try{window.print()}catch{cleanupPrintSheet()}},80);
+  setTimeout(()=>{if(document.querySelector('#print-sheet'))cleanupPrintSheet()},30000);
+}
+function printReceipt(receipt){
+  const items=Array.isArray(receipt.items)?receipt.items:[];
+  const payments=Array.isArray(receipt.payments)?receipt.payments:[];
+  const refunds=Array.isArray(receipt.refunds)?receipt.refunds.filter(r=>r.status==='completed'):[];
+  const taxGroups=new Map();
+  for(const item of items){
+    const rate=Number(item.tax_rate)||0;
+    taxGroups.set(rate,(taxGroups.get(rate)||0)+Number(item.tax_amount||0));
+  }
+  const refundTotal=refunds.reduce((s,r)=>s+Number(r.amount||0),0);
+  const tip=Number(receipt.tip_total||0);
+  const when=receipt.closed_at?new Date(receipt.closed_at).toLocaleString('fr-CH'):'';
+  const itemRows=items.map(i=>'<div class="print-line"><span>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</span><span>'+money(i.line_total)+'</span></div>').join('')||'<div>Détail indisponible</div>';
+  const taxRows=[...taxGroups.entries()].map(([rate,tax])=>'<div class="print-line"><span>TVA '+rate+'%</span><span>'+money(tax)+'</span></div>').join('');
+  const paymentRows=payments.map(p=>'<div class="print-line"><span>'+esc(String(p.method||'').toUpperCase())+'</span><span>'+money(Number(p.amount||0)+Number(p.tip_amount||0))+'</span></div>').join('');
+  const tipRow=tip?'<div class="print-line"><span>Pourboire</span><span>'+money(tip)+'</span></div>':'';
+  const refundRow=refundTotal?'<div class="print-line refund"><span>Remboursé</span><span>− '+money(refundTotal)+'</span></div>':'';
+  const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div>'+esc(receipt.receipt_number||receipt.receiptNumber||'')+'</div><div>'+esc(when)+'</div><div>'+esc(receipt.table_label||receipt.service_type||'')+'</div></div>'
+    +'<hr><div class="print-lines">'+itemRows+'</div><hr>'
+    +'<div class="print-line total"><span>Total TTC</span><span>'+money(receipt.total)+'</span></div>'
+    +tipRow+refundRow+'<div class="print-taxes">'+taxRows+'</div><hr><div class="print-payments">'+paymentRows+'</div>'
+    +'<p class="print-thanks">Merci et à bientôt.</p>';
+  printHtml(state.restaurant?.name||'ReMaPro POS',body);
+}
+function printProductionOrder(order){
+  const items=Array.isArray(order.items)?order.items:[];
+  const itemRows=items.map(i=>'<div class="print-production-line"><strong>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</strong><small>'+(i.station_snapshot==='bar'?'BAR':'CUISINE')+' · '+esc(i.kitchen_status)+(i.note?' · '+esc(i.note):'')+'</small></div>').join('');
+  const body='<div class="print-meta"><div class="production-title">'+esc(order.table_label||order.service_type||'Commande')+'</div><div>'+new Date().toLocaleString('fr-CH')+'</div></div><hr><div class="print-lines">'+itemRows+'</div>';
+  printHtml('BON PRODUCTION',body);
+}
 function parseMoneyInput(value){
   const n=Number(String(value??'').trim().replace(',','.'));return Number.isFinite(n)?Math.round(n*100)/100:NaN;
 }
@@ -500,7 +545,7 @@ function productionView(){
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="production-page"><div class="floor-head"><div><h2>Production</h2><p>${filtered.length} commande${filtered.length>1?'s':''} en cours</p></div>
       <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">Tout</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">Cuisine</button><button data-station="bar" class="${station==='bar'?'active':''}">Bar</button><button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>Actualiser</button></div></div>
-      <div class="production-grid">${filtered.length?filtered.map(o=>`<article class="production-ticket"><header><strong>${esc(o.table_label||o.service_type||'Commande')}</strong><span>${esc(o.status)}</span></header>
+      <div class="production-grid">${filtered.length?filtered.map(o=>`<article class="production-ticket"><header><strong>${esc(o.table_label||o.service_type||'Commande')}</strong><div class="production-head-actions"><span>${esc(o.status)}</span><button data-print-production="${o.id}">Imprimer</button></div></header>
         <div class="production-items">${o.items.map(i=>{const a=action(i);return `<div class="production-item status-${i.kitchen_status}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)}${i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div></article>`).join(''):'<div class="empty">Aucune commande en préparation.</div>'}</div>
     </main></div>`;
 }
@@ -516,7 +561,7 @@ function ticketsView(){
       return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
         <div class="receipt-payments">${payments.map(p=>`<span>${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
-        <div class="receipt-actions">${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
+        <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Imprimer</button>${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
           ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
     }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
@@ -564,7 +609,9 @@ function wire(){
   document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
   document.querySelectorAll('[data-station]').forEach(b=>b.addEventListener('click',()=>{state.productionStation=b.dataset.station;render()}));
   document.querySelectorAll('[data-production-item]').forEach(b=>b.addEventListener('click',()=>updateProductionItem(b.dataset.productionItem,b.dataset.productionStatus)));
+  document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)printProductionOrder(o)}));
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
+  document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)printReceipt(r)}));
   document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
