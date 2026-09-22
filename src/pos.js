@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='20';
+export const POS_BRIDGE_VERSION='21';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -201,7 +201,7 @@ export async function savePosOperator(restaurantId,operator){
 }
 export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
   const date=businessDate||new Date().toISOString().slice(0,10);
-  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers]=await Promise.all([
+  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers,layoutAdmin]=await Promise.all([
     loadPosBootstrap(restaurantId),
     loadPosTables(restaurantId),
     loadPosOperators(restaurantId),
@@ -209,7 +209,8 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     loadPosPaymentTerminals(restaurantId),
     loadPosInventoryMovements(restaurantId,{unacknowledged:true,limit:500}),
     loadPosFoodCostReport(restaurantId,date),
-    loadPosProviderConnections(restaurantId)
+    loadPosProviderConnections(restaurantId),
+    loadPosLayoutAdmin(restaurantId)
   ]);
   return {
     bootstrap,
@@ -223,7 +224,9 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     foodCost:foodCost?.report||null,
     providerConnections:providers?.rows||[],
     paymentOfficialPaths:providers?.officialPaths||{},
-    automaticTransactions:providers?.automaticTransactions===true
+    automaticTransactions:providers?.automaticTransactions===true,
+    layoutDraft:layoutAdmin?.draft||null,
+    layoutPublished:layoutAdmin?.published||null
   };
 }
 
@@ -242,4 +245,17 @@ export async function loadPosProviderConnections(restaurantId){
 }
 export async function savePosProviderConnection(restaurantId,connection){
   return cloudFunction('remapro-pos-sync',{action:'upsert_provider_connection',restaurantId,connection});
+}
+
+export async function loadPosLayoutAdmin(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'layout_admin',restaurantId});
+}
+export async function savePosLayoutDraft(restaurantId,document){
+  return cloudFunction('remapro-pos-sync',{action:'save_layout_draft',restaurantId,document});
+}
+export async function publishPosLayout(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'publish_layout',restaurantId});
+}
+export async function loadPosCurrentLayout(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'layout_current',restaurantId});
 }
