@@ -1,19 +1,19 @@
 # ReMaPro POS
 
-Version actuelle: **0.24.0**  
+Version actuelle: **0.25.0**  
 Android package: **com.remapro.pos**
 
-## v0.24 — sessions sécurisées Android
-- session Supabase ReMaPro stockée dans Secure Storage sur Android ;
-- session opérateur PIN stockée dans Secure Storage sur Android ;
-- migration automatique des anciennes sessions depuis localStorage au premier lancement ;
-- suppression de la copie localStorage après migration native ;
-- fallback localStorage conservé uniquement pour l’exécution web ;
-- la déconnexion efface session ReMaPro et session opérateur du stockage sécurisé.
+## v0.25 — packaging Android propre
+- le runtime web est préparé dans `app/` avant synchronisation Capacitor ;
+- `capacitor.config.json` utilise désormais `webDir: "app"` ;
+- le projet Android est généré à la volée pendant les builds, sans être commité ;
+- `app/` et `android/` sont ignorés par Git ;
+- le build n’embarque plus par erreur tout le dépôt ou ses futurs fichiers Android.
 
-Le POS utilise la même dépendance que ReMaPro Hub : **capacitor-secure-storage-plugin 0.12.0** sur Capacitor 7.4.3.
+Commande locale :
+`npm run prepare:web && npx cap add android && npm run android`
 
-## v0.23
-Redémarrage hors ligne depuis le cache SQLite après une première connexion réussie.
+## v0.24
+Sessions Supabase et opérateur stockées dans Secure Storage sur Android.
 
-Aucun build Android automatique n’est lancé pendant cette phase.
+Aucun build Android automatique n’est lancé hors du workflow de validation dédié.

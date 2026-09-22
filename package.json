@@ -1,12 +1,13 @@
 {
   "name": "remapro-pos",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node tests/smoke.test.mjs",
     "inject:config": "node scripts/inject-runtime-config.mjs",
-    "android": "npx cap sync android"
+    "android": "npm run prepare:web && npx cap sync android",
+    "prepare:web": "node scripts/prepare-web.mjs"
   },
   "dependencies": {
     "@capacitor/android": "7.4.3",

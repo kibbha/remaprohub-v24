@@ -1,7 +1,7 @@
 {
   "appId": "com.remapro.pos",
   "appName": "ReMaPro POS",
-  "webDir": ".",
+  "webDir": "app",
   "server": {
     "androidScheme": "https"
   }
