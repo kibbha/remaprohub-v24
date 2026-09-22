@@ -112,8 +112,8 @@ assert.match(app,/function orders\(\)\{const total=\(state\.orders\|\|\[\]\)\.fi
 // Delivery creation must use the guarded store path instead of direct array mutation.
 assert.match(app,/form\('deliveryForm',f=>recordDelivery\(state,/);
 
-// Supplier invoices must expose both aggregate and row-level overdue signals.
-assert.match(app,/pendingRows\.filter\(x=>x\.date&&x\.date<today\(\)\)\.length/);assert.match(app,/x\.status!=='paid'&&x\.date&&x\.date<today\(\)/);assert.match(app,/t\('overdue'\)/);
+// Supplier invoices must expose due-date based aggregate and row-level overdue signals.
+assert.match(app,/invoicePayables\(state\)/);assert.match(app,/x\.status!=='paid'&&\(x\.dueDate\|\|x\.date\)/);assert.match(app,/t\('overdue'\)/);
 
 // Supplier edits must remain tied to the supplier registry too.
 assert.match(app,/data-edit-form="purchases"[\s\S]{0,500}<select name="supplier" required>[\s\S]{0,300}state\.suppliers\.map/);
