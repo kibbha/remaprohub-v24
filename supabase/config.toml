@@ -15,3 +15,6 @@ verify_jwt = false
 
 [functions.remapro-bootstrap]
 verify_jwt = true
+
+[functions.remapro-auth-return]
+verify_jwt = false
