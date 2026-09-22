@@ -1,6 +1,6 @@
 {
   "name": "remapro-pos",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "@capacitor/cli": "7.4.3",
     "@capacitor/core": "7.4.3",
     "@fedejm/capacitor-esc-pos-printer": "0.2.3",
-    "@capacitor-community/sqlite": "7.0.3"
+    "@capacitor-community/sqlite": "7.0.3",
+    "capacitor-secure-storage-plugin": "0.12.0"
   },
   "engines": {
     "node": ">=20"

@@ -1,17 +1,19 @@
 # ReMaPro POS
 
-Version actuelle: **0.23.0**  
+Version actuelle: **0.24.0**  
 Android package: **com.remapro.pos**
 
-## v0.23 — redémarrage hors ligne
-- après la première connexion réussie, l’identité ReMaPro et les restaurants autorisés sont mis en cache local ;
-- un redémarrage du téléphone sans réseau recharge le dernier restaurant depuis SQLite ;
-- catalogue, tables, commandes ouvertes, caisse, opérateur encore valide, imprimantes et file de synchronisation restent disponibles ;
-- si le serveur est momentanément indisponible alors que le réseau existe, le POS retombe sur le cache local au lieu de devenir inutilisable ;
-- la déconnexion explicite efface le cache d’identité ;
-- si une session PIN a expiré, le PIN n’est jamais vérifié localement : Internet est requis pour l’authentifier à nouveau.
+## v0.24 — sessions sécurisées Android
+- session Supabase ReMaPro stockée dans Secure Storage sur Android ;
+- session opérateur PIN stockée dans Secure Storage sur Android ;
+- migration automatique des anciennes sessions depuis localStorage au premier lancement ;
+- suppression de la copie localStorage après migration native ;
+- fallback localStorage conservé uniquement pour l’exécution web ;
+- la déconnexion efface session ReMaPro et session opérateur du stockage sécurisé.
 
-## v0.22
-Centre de synchronisation avec erreurs, tentatives et relance manuelle.
+Le POS utilise la même dépendance que ReMaPro Hub : **capacitor-secure-storage-plugin 0.12.0** sur Capacitor 7.4.3.
+
+## v0.23
+Redémarrage hors ligne depuis le cache SQLite après une première connexion réussie.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

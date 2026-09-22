@@ -1,8 +1,8 @@
-import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction} from './cloud.js';
+import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.23.0';
+const APP_VERSION='0.24.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -1663,6 +1663,7 @@ function wire(){
   document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>payByMethod(b.dataset.pay)));
 }
 async function init(){
+  await initializePosSessionStorage();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('online',()=>{state.online=true;render();flushQueue().catch(()=>{})});
   window.addEventListener('offline',()=>{state.online=false;render()});

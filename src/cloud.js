@@ -1,22 +1,68 @@
 const SESSION_KEY='remapro-pos-session';
 const OPERATOR_KEY='remapro-pos-operator-session';
+let SESSION_CACHE=null,SESSION_READY=false,OPERATOR_CACHE=null,OPERATOR_READY=false;
+
 const config=()=>({url:String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,''),key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()});
 export const cloudConfigured=()=>{const c=config();return /^https:\/\//.test(c.url)&&!!c.key};
-const parseSession=()=>{try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}};
-const saveSession=session=>{localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session};
-export const currentSession=()=>parseSession();
-export const currentOperatorSession=()=>{try{return JSON.parse(localStorage.getItem(OPERATOR_KEY)||'null')}catch{return null}};
-export const saveOperatorSession=session=>{localStorage.setItem(OPERATOR_KEY,JSON.stringify(session));return session};
-export const clearOperatorSession=()=>localStorage.removeItem(OPERATOR_KEY);
-export const signOut=()=>localStorage.removeItem(SESSION_KEY);
+const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
+const parseSession=raw=>{try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}};
+const parseOperator=raw=>{try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.token&&value.operator?value:null}catch{return null}};
+
+async function persistSession(session){
+  SESSION_CACHE=session;SESSION_READY=true;
+  const plugin=secureStorage(),raw=JSON.stringify(session);
+  if(plugin){await plugin.set({key:SESSION_KEY,value:raw});localStorage.removeItem(SESSION_KEY)}
+  else localStorage.setItem(SESSION_KEY,raw);
+  return session;
+}
+function persistOperator(session){
+  OPERATOR_CACHE=session;OPERATOR_READY=true;
+  const plugin=secureStorage(),raw=JSON.stringify(session);
+  if(plugin){plugin.set({key:OPERATOR_KEY,value:raw}).catch(()=>{});localStorage.removeItem(OPERATOR_KEY)}
+  else localStorage.setItem(OPERATOR_KEY,raw);
+  return session;
+}
+async function removeStoredSession(){
+  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);
+  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:SESSION_KEY})}catch{}
+}
+function removeStoredOperator(){
+  OPERATOR_CACHE=null;OPERATOR_READY=true;localStorage.removeItem(OPERATOR_KEY);
+  const plugin=secureStorage();if(plugin)plugin.remove({key:OPERATOR_KEY}).catch(()=>{});
+}
+export async function initializePosSessionStorage(){
+  if(!SESSION_READY){
+    const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();let secureRaw='';
+    if(plugin)try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}
+    SESSION_CACHE=parseSession(secureRaw||legacy);
+    if(plugin&&SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}
+    if(plugin)localStorage.removeItem(SESSION_KEY);
+    SESSION_READY=true;
+  }
+  if(!OPERATOR_READY){
+    const legacy=localStorage.getItem(OPERATOR_KEY),plugin=secureStorage();let secureRaw='';
+    if(plugin)try{secureRaw=String((await plugin.get({key:OPERATOR_KEY}))?.value||'')}catch{}
+    OPERATOR_CACHE=parseOperator(secureRaw||legacy);
+    if(plugin&&OPERATOR_CACHE&&!secureRaw)try{await plugin.set({key:OPERATOR_KEY,value:JSON.stringify(OPERATOR_CACHE)})}catch{}
+    if(plugin)localStorage.removeItem(OPERATOR_KEY);
+    OPERATOR_READY=true;
+  }
+  return{session:SESSION_CACHE,operator:OPERATOR_CACHE};
+}
+export const currentSession=()=>SESSION_READY?SESSION_CACHE:parseSession(localStorage.getItem(SESSION_KEY)||'null');
+export const currentOperatorSession=()=>OPERATOR_READY?OPERATOR_CACHE:parseOperator(localStorage.getItem(OPERATOR_KEY)||'null');
+export const saveOperatorSession=session=>persistOperator(session);
+export const clearOperatorSession=()=>removeStoredOperator();
+export const signOut=()=>{removeStoredSession().catch(()=>{});removeStoredOperator();};
+
 async function auth(path,body){
   const {url,key}=config();if(!url||!key)throw new Error('Configuration Supabase manquante');
   const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key},body:JSON.stringify(body)});
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.msg||data?.message||data?.error_description||'Connexion impossible');return data;
 }
-export async function signIn(email,password){return saveSession(await auth('/auth/v1/token?grant_type=password',{email:String(email).trim().toLowerCase(),password:String(password)}))}
-export async function refreshSession(){const s=parseSession();if(!s?.refresh_token)throw new Error('Session expirée');return saveSession(await auth('/auth/v1/token?grant_type=refresh_token',{refresh_token:s.refresh_token}))}
-async function fresh(){let s=parseSession();if(!s)return null;const exp=Number(s.expires_at||0)*1000;if(exp&&exp-Date.now()<60000)s=await refreshSession();return s}
+export async function signIn(email,password){return persistSession(await auth('/auth/v1/token?grant_type=password',{email:String(email).trim().toLowerCase(),password:String(password)}))}
+export async function refreshSession(){const s=currentSession();if(!s?.refresh_token)throw new Error('Session expirée');return persistSession(await auth('/auth/v1/token?grant_type=refresh_token',{refresh_token:s.refresh_token}))}
+async function fresh(){let s=currentSession();if(!s)return null;const exp=Number(s.expires_at||0)*1000;if(exp&&exp-Date.now()<60000)s=await refreshSession();return s}
 async function request(path){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
   let r=await fetch(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}});
