@@ -45,6 +45,9 @@ for(const locale of ['fr','en','de','it']){
   assert.match(html,/academy-training-start/,'training '+locale);
   assert.doesNotMatch(html,/undefined/,'no undefined '+locale);
 }
+const partial=renderAcademyCenter({application:'pos',locale:'fr',selectedTopic:'pos-ordering',progressRows:[{application:'pos',topic_id:'pos-ordering',status:'in_progress',step_index:1,content_version:ACADEMY_CONTENT_VERSION,updated_at:new Date().toISOString()}]});
+assert.match(partial,/data-academy-step="pos-ordering"/,'per-step controls');
+assert.match(partial,/data-step-index="2"/,'resume from exact tutorial step');
 const stale=renderAcademyCenter({application:'hub',locale:'fr',progressRows:[{application:'hub',topic_id:'hub-stock',status:'completed',content_version:'old',updated_at:new Date().toISOString()}]});
 assert.match(stale,/Guide mis à jour/,'outdated content signaled');
 const common=renderAcademyCenter({application:'hub',scope:'all',locale:'fr',progressRows:[]});
