@@ -14,7 +14,7 @@ const state={
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
-  productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
+  productionQueue:[],productionStation:'all',productionSort:'oldest',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
@@ -1758,16 +1758,70 @@ function floorView(){
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
     </main></div>`;
 }
+function productionAgeMinutes(item,order,now=Date.now()){
+  const raw=item?.created_at||order?.opened_at||order?.updated_at||'';
+  const at=Date.parse(raw);return Number.isFinite(at)?Math.max(0,Math.floor((now-at)/60000)):0;
+}
+function productionUrgency(age){
+  if(age>=state.kdsCriticalMinutes)return'critical';
+  if(age>=state.kdsWarnMinutes)return'warning';
+  return'on-time';
+}
+function productionAgeLabel(age){return age<1?'<1 min':age+' min'}
+function productionOrderAge(order,now=Date.now()){
+  const ages=(order.items||[]).map(item=>productionAgeMinutes(item,order,now));return ages.length?Math.max(...ages):0;
+}
+async function updateKdsThresholds(warn,critical){
+  const w=Math.max(1,Math.min(120,Math.trunc(Number(warn)||12))),c=Math.max(w+1,Math.min(180,Math.trunc(Number(critical)||20)));
+  state.kdsWarnMinutes=w;state.kdsCriticalMinutes=c;
+  localStorage.setItem('remapro-kds-warn',String(w));localStorage.setItem('remapro-kds-critical',String(c));render();
+}
+async function advanceProductionOrder(order,target){
+  if(!order||!state.online){uiAlert(t('connectionRequired'));return}
+  const eligible=(order.items||[]).filter(i=>{
+    if(target==='ready')return['sent','preparing'].includes(i.kitchen_status);
+    if(target==='served')return i.kitchen_status==='ready';
+    return false;
+  });
+  if(!eligible.length)return;
+  for(const item of eligible)await updateProductionItem(item.id,target,{renderAfter:false});
+  await refreshProductionQueue();render();
+}
 function productionView(){
-  const station=state.productionStation;
-  const filtered=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||i.station_snapshot===station||modifierRoutesToStation(i.modifiers,station))})).filter(o=>o.items.length);
-  const label=s=>s==='bar'?'Bar':'Cuisine';
-  const action=i=>i.kitchen_status==='sent'?['preparing','Préparer']:i.kitchen_status==='preparing'?['ready','Prêt']:i.kitchen_status==='ready'?['served','Servi']:null;
+  const station=state.productionStation,now=Date.now();
+  const source=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||station==='expo'||i.station_snapshot===station||modifierRoutesToStation(i.modifiers,station))})).filter(o=>o.items.length);
+  const filtered=[...source].sort((a,b)=>{
+    const aa=productionOrderAge(a,now),bb=productionOrderAge(b,now);
+    return state.productionSort==='newest'?aa-bb:bb-aa;
+  });
+  const label=s=>s==='bar'?t('bar'):t('kitchen');
+  const action=i=>i.kitchen_status==='sent'?['preparing',t('prepare')]:i.kitchen_status==='preparing'?['ready',t('ready')]:i.kitchen_status==='ready'?['served',t('served')]:null;
+  const ages=filtered.map(o=>productionOrderAge(o,now)),late=ages.filter(x=>x>=state.kdsWarnMinutes).length,critical=ages.filter(x=>x>=state.kdsCriticalMinutes).length,avg=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):0;
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
-    <main class="production-page"><div class="floor-head"><div><h2>Production</h2><p>${filtered.length} commande${filtered.length>1?'s':''} en cours</p></div>
-      <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">Tout</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">Cuisine</button><button data-station="bar" class="${station==='bar'?'active':''}">Bar</button><button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>Actualiser</button></div></div>
-      <div class="production-grid">${filtered.length?filtered.map(o=>`<article class="production-ticket"><header><strong>${esc(o.table_label||o.service_type||'Commande')}</strong><div class="production-head-actions"><span>${esc(o.status)}</span><button data-print-production="${o.id}">Imprimer</button></div></header>
-        <div class="production-items">${o.items.map(i=>{const a=action(i);return `<div class="production-item status-${i.kitchen_status}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)}${productionModifierSummary(i.modifiers,station==='all'?'':station)?' · '+esc(productionModifierSummary(i.modifiers,station==='all'?'':station)):i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div></article>`).join(''):'<div class="empty">Aucune commande en préparation.</div>'}</div>
+    <main class="production-page kds-page">
+      <div class="kds-summary">
+        <article><span>${t('kdsOpen')}</span><strong>${filtered.length}</strong></article>
+        <article><span>${t('kdsAverage')}</span><strong>${avg} min</strong></article>
+        <article class="${late?'kds-warning':''}"><span>${t('kdsLate')}</span><strong>${late}</strong></article>
+        <article class="${critical?'kds-critical':''}"><span>${t('kdsCritical')}</span><strong>${critical}</strong></article>
+      </div>
+      <div class="floor-head kds-head"><div><h2>${t('kdsTitle')}</h2><p>${filtered.length} ${t('ordersInProgress')}</p></div>
+        <div class="kds-controls">
+          <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">${t('all')}</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">${t('kitchen')}</button><button data-station="bar" class="${station==='bar'?'active':''}">${t('bar')}</button><button data-station="expo" class="${station==='expo'?'active':''}">Expo</button></div>
+          <label>${t('kdsSort')}<select id="kds-sort"><option value="oldest" ${state.productionSort==='oldest'?'selected':''}>${t('kdsOldest')}</option><option value="newest" ${state.productionSort==='newest'?'selected':''}>${t('kdsNewest')}</option></select></label>
+          <label>${t('kdsWarn')}<input id="kds-warn" type="number" min="1" max="120" value="${state.kdsWarnMinutes}"></label>
+          <label>${t('kdsCriticalAt')}<input id="kds-critical" type="number" min="2" max="180" value="${state.kdsCriticalMinutes}"></label>
+          <button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>${t('refresh')}</button>
+        </div>
+      </div>
+      <div class="production-grid kds-grid">${filtered.length?filtered.map(o=>{
+        const age=productionOrderAge(o,now),urgency=productionUrgency(age),readyCount=(o.items||[]).filter(i=>i.kitchen_status==='ready').length,activeCount=(o.items||[]).filter(i=>['sent','preparing'].includes(i.kitchen_status)).length;
+        return `<article class="production-ticket kds-ticket ${urgency}">
+          <header><div><strong>${esc(o.table_label||o.service_type||t('order'))}</strong><small>${Number(o.covers)||0} ${t('covers')}</small></div><div class="production-head-actions"><span class="kds-age">${productionAgeLabel(age)}</span><button data-print-production="${o.id}">${t('print')}</button></div></header>
+          <div class="kds-order-actions">${activeCount?'<button class="secondary" data-kds-order-ready="'+o.id+'">✓ '+t('kdsMarkReady')+'</button>':''}${readyCount?'<button class="primary compact" data-kds-order-served="'+o.id+'">✓ '+t('kdsServeReady')+'</button>':''}</div>
+          <div class="production-items">${o.items.map(i=>{const a=action(i),itemAge=productionAgeMinutes(i,o,now),itemUrgency=productionUrgency(itemAge),course=i.course?'<span class="kds-course">'+esc(i.course)+'</span>':'';return `<div class="production-item status-${i.kitchen_status} ${itemUrgency}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)} ${course}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)} · ${productionAgeLabel(itemAge)}${productionModifierSummary(i.modifiers,station==='all'||station==='expo'?'':station)?' · '+esc(productionModifierSummary(i.modifiers,station==='all'||station==='expo'?'':station)):i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div>
+        </article>`;
+      }).join(''):'<div class="empty">'+t('noProduction')+'</div>'}</div>
     </main></div>`;
 }
 function ticketsView(){
