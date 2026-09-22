@@ -119,8 +119,8 @@ export function trendSignals(state,now=new Date()){
 }
 
 export function managementOutlook(state,now=new Date()){
-  const finance=financeTotals(state,'week',now),labor=plannedLabor(state,now,7),purchases=purchasePlan(state),currentResult=finance.revenue-finance.expenses,plannedCommitments=labor.cost+purchases.estimatedCost;
-  return{weekRevenue:round(finance.revenue,2),weekExpenses:round(finance.expenses,2),currentResult:round(currentResult,2),plannedLaborCost:round(labor.cost,2),reorderBudget:round(purchases.estimatedCost,2),plannedCommitments:round(plannedCommitments,2),commitmentsToRevenuePct:finance.revenue?round(plannedCommitments/finance.revenue*100,1):0};
+  const finance=financeTotals(state,'week',now),labor=plannedLabor(state,now,7),purchases=purchasePlan(state),payables=invoicePayables(state,now,7),currentResult=finance.revenue-finance.expenses,plannedCommitments=labor.cost+purchases.estimatedCost,supplierNeeds7d=payables.overdueAmount+payables.dueSoonAmount+purchases.estimatedCost;
+  return{weekRevenue:round(finance.revenue,2),weekExpenses:round(finance.expenses,2),currentResult:round(currentResult,2),plannedLaborCost:round(labor.cost,2),reorderBudget:round(purchases.estimatedCost,2),plannedCommitments:round(plannedCommitments,2),commitmentsToRevenuePct:finance.revenue?round(plannedCommitments/finance.revenue*100,1):0,supplierInvoicesDue7d:round(payables.overdueAmount+payables.dueSoonAmount,2),supplierNeeds7d:round(supplierNeeds7d,2),supplierNeedsToRevenuePct:finance.revenue?round(supplierNeeds7d/finance.revenue*100,1):0};
 }
 
 export function haccpRoutinePresets(state,limit=8){
