@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const telemetry=readFileSync(new URL('../src/telemetry.js',import.meta.url),'utf8');
+const sw=readFileSync(new URL('../app/sw.js',import.meta.url),'utf8');
+assert.match(app,/from'\.\/telemetry\.js'/);
+for(const event of ['sync.pull_error','sync.push_error','runtime.error','runtime.unhandled_rejection','network.offline','network.online'])assert.ok(app.includes(event),event+' diagnostic missing');
+for(const secret of ['password','pin','authorization','accessToken','refreshToken'])assert.ok(telemetry.includes(secret),secret+' redaction guard missing');
+assert.ok(telemetry.includes('[email]'),'email redaction missing');
+assert.ok(sw.includes('./src/telemetry.js'),'telemetry must be cached offline');
+console.log('Hub privacy-safe diagnostics wiring OK');
