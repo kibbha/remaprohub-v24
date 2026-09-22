@@ -736,7 +736,11 @@ async function closeSession(countedCash){
   render();flushQueue().catch(()=>{});
 }
 function linePayload(x){
-  return {id:uuid(),catalog_item_id:x.quick?null:(x.catalog_item_id||x.id),recipe_id:x.recipe_id,sku:x.sku,name:x.name,quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate};
+  return {
+    id:uuid(),catalog_item_id:x.quick?null:(x.catalog_item_id||x.id),recipe_id:x.recipe_id,sku:x.sku,name:x.name,
+    quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate,
+    production_station:x.production_station||'kitchen',note:x.note||''
+  };
 }
 function orderLines(){return state.cart.map(linePayload)}
 function deltaLines(){return state.cart.filter(x=>x.delta).map(linePayload)}
