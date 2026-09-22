@@ -74,6 +74,7 @@ export default {
             refunds:true,
             productionRouting:true,
             kitchen:true,
+            serviceReports:true,
             paymentProviders:false
           }
         });
@@ -564,6 +565,18 @@ export default {
         if(error)return json({error:error.message},500);
         const events=data||[];
         return json({ok:true,events,nextCursor:events.length?Number(events[events.length-1].sequence):after});
+      }
+
+      if(action==="service_report"){
+        const businessDate=clean(body.businessDate,10);
+        if(!validDate(businessDate))return json({error:"Valid businessDate required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_service_report",{
+          p_restaurant_id:restaurantId,
+          p_business_date:businessDate,
+          p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,report:data});
       }
 
       if(action==="daily_summary"){
