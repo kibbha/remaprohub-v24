@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='19';
+export const POS_BRIDGE_VERSION='20';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -201,14 +201,15 @@ export async function savePosOperator(restaurantId,operator){
 }
 export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
   const date=businessDate||new Date().toISOString().slice(0,10);
-  const [bootstrap,tables,operators,printers,terminals,movements,foodCost]=await Promise.all([
+  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers]=await Promise.all([
     loadPosBootstrap(restaurantId),
     loadPosTables(restaurantId),
     loadPosOperators(restaurantId),
     loadPosPrinters(restaurantId),
     loadPosPaymentTerminals(restaurantId),
     loadPosInventoryMovements(restaurantId,{unacknowledged:true,limit:500}),
-    loadPosFoodCostReport(restaurantId,date)
+    loadPosFoodCostReport(restaurantId,date),
+    loadPosProviderConnections(restaurantId)
   ]);
   return {
     bootstrap,
@@ -219,7 +220,10 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     terminals:terminals?.rows||[],
     inventoryMovements:movements?.rows||[],
     inventoryCursor:Number(movements?.cursor)||0,
-    foodCost:foodCost?.report||null
+    foodCost:foodCost?.report||null,
+    providerConnections:providers?.rows||[],
+    paymentOfficialPaths:providers?.officialPaths||{},
+    automaticTransactions:providers?.automaticTransactions===true
   };
 }
 
@@ -231,4 +235,11 @@ export async function ackPosInventoryMovements(restaurantId,movementIds){
 }
 export async function loadPosFoodCostReport(restaurantId,businessDate){
   return cloudFunction('remapro-pos-sync',{action:'food_cost_report',restaurantId,businessDate});
+}
+
+export async function loadPosProviderConnections(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_provider_connections',restaurantId});
+}
+export async function savePosProviderConnection(restaurantId,connection){
+  return cloudFunction('remapro-pos-sync',{action:'upsert_provider_connection',restaurantId,connection});
 }
