@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='6';
+export const POS_BRIDGE_VERSION='7';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -121,4 +121,8 @@ export async function loadPosProductionQueue(restaurantId,station=''){
 }
 export async function updatePosProductionItem(restaurantId,itemId,status){
   return cloudFunction('remapro-pos-sync',{action:'update_production_item',restaurantId,itemId,status});
+}
+
+export async function appendPosOrderItems(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'append_order_items',restaurantId,...payload});
 }

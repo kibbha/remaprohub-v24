@@ -441,6 +441,23 @@ export default {
         return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]}))});
       }
 
+      if(action==="append_order_items"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64);
+        const lines=Array.isArray(body.lines)?body.lines:[];
+        if(!validUuid(orderId)||!validUuid(eventId)||!lines.length){
+          return json({error:"Valid orderId, clientEventId and lines required"},400);
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_append_order_items",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_lines:lines,
+          p_actor_user_id:userId,
+          p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
       if(action==="send_to_production"){
         const orderId=clean(body.orderId,64);
         if(!validUuid(orderId))return json({error:"Valid orderId required"},400);
