@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const cloud=fs.readFileSync(new URL('../src/cloud.js',import.meta.url),'utf8');
+const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+for(const token of ['function trainingView','MODE ENTRAÎNEMENT','TRAINING_REAL_ACTION_BLOCKED','if(state.trainingMode)return;','academy-help-context','academyFunction'])assert.ok((app+cloud).includes(token),token);
+const a=app.indexOf('function trainingView'),b=app.indexOf('function academyTourView',a),training=app.slice(a,b);
+assert.doesNotMatch(training,/posFunction\(|queueCommand\(|printEscPosText\(/,'training sandbox must not call real sale or printer');
+assert.ok(sw.includes('./src/academy-content.js'));assert.ok(sw.includes('./src/academy.js'));
+assert.equal(JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version,'0.27.0');
+console.log('POS Academy training isolation checks passed');
