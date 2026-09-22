@@ -197,11 +197,12 @@ export function dailyManagerReportData(state,now=new Date()){
 }
 
 export function managerReadyActions(state,now=new Date()){
-  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),maintenanceTasks=maintenanceTaskDrafts(state,now),recipes=recipePortfolio(state),supplierSavings=supplierPriceOpportunities(state),briefing=serviceBriefingData(state,now),report=dailyManagerReportData(state,now),briefingNeeded=briefing.meaningful&&!(state?.briefings||[]).some(x=>String(x?.date||'')===briefing.day),dailyReportNeeded=report.meaningful&&now.getHours()>=17&&String(state?.preferences?.lastManagementReportDate||'')!==report.day;
+  const purchases=purchasePlan(state),haccpTasks=haccpCorrectiveTaskDrafts(state,now),maintenanceTasks=maintenanceTaskDrafts(state,now),recipes=recipePortfolio(state),supplierSavings=supplierPriceOpportunities(state),payables=invoicePayables(state,now,7),supplierPayments={count:payables.overdueCount+payables.dueSoonCount,amount:round(payables.overdueAmount+payables.dueSoonAmount,2),overdueCount:payables.overdueCount,overdueAmount:payables.overdueAmount,dueSoonCount:payables.dueSoonCount,dueSoonAmount:payables.dueSoonAmount},briefing=serviceBriefingData(state,now),report=dailyManagerReportData(state,now),briefingNeeded=briefing.meaningful&&!(state?.briefings||[]).some(x=>String(x?.date||'')===briefing.day),dailyReportNeeded=report.meaningful&&now.getHours()>=17&&String(state?.preferences?.lastManagementReportDate||'')!==report.day;
   return{
     purchaseOrders:purchases.groups.filter(x=>x.supplier).map(x=>({supplier:x.supplier,items:x.items.length,estimatedCost:x.estimatedCost})),
     haccpTasks,
     maintenanceTasks,
+    supplierPayments,
     supplierSavings,
     briefingNeeded,
     dailyReportNeeded,
