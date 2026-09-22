@@ -401,9 +401,10 @@ async function refreshAcademyProgress(){
     }
   }catch{}finally{academyState.loading=false;academyState.loaded=true;if(page==='help')render()}
 }
-async function saveAcademyTopic(topicId,status){
+async function saveAcademyTopic(topicId,status,stepIndex=null){
   const topic=academyTopic(topicId);if(!topic)return;
-  const row={application:topic.application,topic_id:topic.id,content_version:ACADEMY_CONTENT_VERSION,status,step_index:status==='completed'?topic.steps.length:0,updated_at:new Date().toISOString(),metadata:{}};
+  const resolvedStep=stepIndex==null?(status==='completed'?topic.steps.length:0):Math.max(0,Math.min(topic.steps.length,Math.trunc(Number(stepIndex)||0)));
+  const row={application:topic.application,topic_id:topic.id,content_version:ACADEMY_CONTENT_VERSION,status,step_index:resolvedStep,updated_at:new Date().toISOString(),metadata:{}};
   saveLocalAcademyProgress(academyUserId(),row);academyState.progress=mergeAcademyProgress(academyState.progress,[row]);render();
   if(cloudSession()&&cloudOrganizationId())try{await cloudFunction('remapro-academy',{action:'save',organizationId:cloudOrganizationId(),restaurantId:cloudRestaurantId(),application:topic.application,topicId:topic.id,contentVersion:ACADEMY_CONTENT_VERSION,status:row.status,stepIndex:row.step_index,metadata:{}},{attempts:2})}catch{}
 }
@@ -419,6 +420,7 @@ function bindHubAcademy(){
   document.querySelectorAll('[data-academy-close]').forEach(b=>b.addEventListener('click',()=>{academyState.selectedTopic='';academyState.selectedPath='';academyState.troubleshoot='';render()}));
   document.querySelectorAll('[data-academy-complete]').forEach(b=>b.addEventListener('click',()=>saveAcademyTopic(b.dataset.academyComplete,'completed')));
   document.querySelectorAll('[data-academy-restart]').forEach(b=>b.addEventListener('click',()=>saveAcademyTopic(b.dataset.academyRestart,'in_progress')));
+  document.querySelectorAll('[data-academy-step]').forEach(b=>b.addEventListener('click',()=>saveAcademyTopic(b.dataset.academyStep,b.dataset.stepStatus||'in_progress',Number(b.dataset.stepIndex)||0)));
   document.querySelectorAll('[data-academy-tour]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.academyTour;academyState.selectedTopic='';page=academyTourPage(id);render();setTimeout(()=>startAcademyTour(id,{locale:language()}),40)}));
   document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro Hub',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:page,online:navigator.onLine,syncState:cloudSyncState};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);alert('Contexte technique copié.')}catch{alert(value)}});
   document.getElementById('academy-manager-visibility')?.addEventListener('change',async e=>{if(!cloudOrgAdmin()||!cloudOrganizationId())return;e.target.disabled=true;try{const data=await cloudFunction('remapro-academy',{action:'set_manager_visibility',organizationId:cloudOrganizationId(),enabled:e.target.checked},{attempts:1});academyState.managerVisibility=!!data.managerVisibility;academyState.loaded=false;await refreshAcademyProgress()}catch{e.target.checked=!e.target.checked}finally{e.target.disabled=false}});
