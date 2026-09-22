@@ -21,6 +21,7 @@ create table if not exists public.delivery_ai_analyses(
   updated_at timestamptz not null default now()
 );
 create index if not exists delivery_ai_analyses_restaurant_created_idx on public.delivery_ai_analyses(restaurant_id,created_at desc);
+create index if not exists delivery_ai_analyses_organization_idx on public.delivery_ai_analyses(organization_id);
 create index if not exists delivery_ai_analyses_actor_idx on public.delivery_ai_analyses(actor_user_id);
 
 create table if not exists public.delivery_ai_analysis_events(
@@ -35,6 +36,7 @@ create table if not exists public.delivery_ai_analysis_events(
 );
 create index if not exists delivery_ai_events_analysis_idx on public.delivery_ai_analysis_events(analysis_id,created_at);
 create index if not exists delivery_ai_events_restaurant_idx on public.delivery_ai_analysis_events(restaurant_id,created_at desc);
+create index if not exists delivery_ai_events_organization_idx on public.delivery_ai_analysis_events(organization_id);
 create index if not exists delivery_ai_events_actor_idx on public.delivery_ai_analysis_events(actor_user_id);
 
 alter table public.delivery_ai_analyses enable row level security;
