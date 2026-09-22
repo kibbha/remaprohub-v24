@@ -150,3 +150,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le changement de fournisseur recalcule la proposition tant que l’utilisateur n’a pas saisi manuellement une autre échéance.
 - Les factures issues d’un scan ou d’un import sans échéance explicite utilisent également le délai fournisseur connu.
 - Les délais incohérents ou hors plage 0–180 jours sont refusés.
+
+## Paiements fournisseurs proactifs – lot 21
+- Les factures en retard et celles arrivant à échéance sous 7 jours deviennent une action prête dans le cockpit manager.
+- Le cockpit affiche directement le montant fournisseur à traiter et signale l’action comme urgente lorsqu’une échéance est dépassée.
+- Les alertes manager optionnelles comptabilisent aussi ces paiements fournisseurs.
+- ReMaPro AI connaît désormais l’action « vérifier les paiements fournisseurs » et peut la proposer sans prétendre l’avoir exécutée.
