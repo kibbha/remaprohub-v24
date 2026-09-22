@@ -220,3 +220,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Une réservation peut être confirmée en un clic depuis sa ligne, après confirmation de l’action.
 - Les réservations annulées et no-show sont exclues des couverts utilisés pour préparer les prochains services et les briefings.
 - Les anciennes réservations sans statut restent compatibles et sont considérées comme « à confirmer ».
+
+## Suivi des livraisons refusées – lot 32
+- Les livraisons refusées remontent désormais dans le cockpit manager et dans Contrôle des livraisons.
+- ReMaPro peut créer en un clic les tâches de suivi correspondantes, après confirmation.
+- Les tâches reprennent le fournisseur, le produit, la date, le lot et la température lorsqu’ils sont disponibles.
+- Une même livraison refusée ne génère pas plusieurs tâches de suivi.
+- Le Manager Copilot reçoit ce signal afin de l’intégrer aux priorités opérationnelles.
