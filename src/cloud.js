@@ -1,9 +1,13 @@
 const SESSION_KEY='remapro-pos-session';
+const OPERATOR_KEY='remapro-pos-operator-session';
 const config=()=>({url:String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,''),key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()});
 export const cloudConfigured=()=>{const c=config();return /^https:\/\//.test(c.url)&&!!c.key};
 const parseSession=()=>{try{return JSON.parse(localStorage.getItem(SESSION_KEY)||'null')}catch{return null}};
 const saveSession=session=>{localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session};
 export const currentSession=()=>parseSession();
+export const currentOperatorSession=()=>{try{return JSON.parse(localStorage.getItem(OPERATOR_KEY)||'null')}catch{return null}};
+export const saveOperatorSession=session=>{localStorage.setItem(OPERATOR_KEY,JSON.stringify(session));return session};
+export const clearOperatorSession=()=>localStorage.removeItem(OPERATOR_KEY);
 export const signOut=()=>localStorage.removeItem(SESSION_KEY);
 async function auth(path,body){
   const {url,key}=config();if(!url||!key)throw new Error('Configuration Supabase manquante');
@@ -28,7 +32,9 @@ export async function loadIdentity(){
 }
 export async function posFunction(payload){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
-  const call=()=>fetch(url+'/functions/v1/remapro-pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(payload)});
+  const op=currentOperatorSession();
+  const body=op?.token?{...payload,operatorSessionToken:op.token}:payload;
+  const call=()=>fetch(url+'/functions/v1/remapro-pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(body)});
   let r=await call();if(r.status===401){s=await refreshSession();r=await call()}
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||'POS_SYNC_FAILED');return data;
 }

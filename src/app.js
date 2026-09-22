@@ -1,15 +1,16 @@
-import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
+import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.16.0';
+const APP_VERSION='0.17.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
-  terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:''
+  terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
+  operators:[],operator:null,operatorRequired:false
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
@@ -24,6 +25,7 @@ const openOrdersKey=id=>'openOrders:'+id;
 const productionKey=id=>'production:'+id;
 const terminalsKey=id=>'terminals:'+id;
 const printersKey=id=>'printers:'+id;
+const operatorsKey=id=>'operators:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -259,6 +261,95 @@ async function payByMethod(method){
   const ok=confirm('ReMaPro POS n’est pas encore relié au prestataire '+label+'. Confirmez uniquement si le paiement a DÉJÀ été accepté sur un terminal externe. L’enregistrer manuellement ?');
   if(!ok)return;
   return checkout(method);
+}
+
+
+function operatorSessionUsable(session,restaurantId){
+  if(!session?.token||session.restaurantId!==restaurantId||!session.operator)return false;
+  const exp=Date.parse(session.expiresAt||'');return !Number.isNaN(exp)&&exp>Date.now()+15000;
+}
+async function refreshOperators(){
+  if(!state.restaurant)return;
+  if(!state.online){
+    state.operators=await kvGet(operatorsKey(state.restaurant.id))||state.operators||[];
+    state.operatorRequired=state.operators.some(x=>x.active!==false);
+    const cached=currentOperatorSession();
+    state.operator=state.operatorRequired&&operatorSessionUsable(cached,state.restaurant.id)?cached.operator:null;
+    return;
+  }
+  try{
+    const r=await posFunction({action:'list_operators',restaurantId:state.restaurant.id});
+    state.operators=r.rows||[];state.operatorRequired=r.required===true;
+    await kvSet(operatorsKey(state.restaurant.id),state.operators);
+    if(!state.operatorRequired){
+      state.operator=null;clearOperatorSession();return;
+    }
+    const cached=currentOperatorSession();
+    if(!operatorSessionUsable(cached,state.restaurant.id)){state.operator=null;clearOperatorSession();return}
+    const current=await posFunction({action:'operator_current',restaurantId:state.restaurant.id});
+    if(current.authorization?.authorized===true){
+      state.operator=current.authorization.operator;
+      saveOperatorSession({...cached,operator:state.operator,expiresAt:state.operator.expiresAt||cached.expiresAt});
+    }else{
+      state.operator=null;clearOperatorSession();
+    }
+  }catch(error){state.error=error.message||String(error)}
+}
+async function refreshOperationalData(){
+  if(state.operatorRequired&&!state.operator)return;
+  await Promise.all([refreshFloorData(),refreshProductionQueue(),refreshReceipts(),refreshTerminals(),refreshPrinters()]);
+}
+async function operatorLogin(operatorId,pin){
+  const op=state.operators.find(x=>x.id===operatorId);
+  if(!op)return;
+  const device=await ensureDevice();
+  try{
+    const r=await posFunction({action:'operator_login',restaurantId:state.restaurant.id,operatorId:op.id,pin:String(pin||''),deviceId:device.id});
+    const session=r.session;
+    saveOperatorSession({token:session.token,expiresAt:session.expiresAt,restaurantId:state.restaurant.id,operator:session.operator});
+    state.operator=session.operator;state.error='';
+    await refreshOperationalData();render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function switchOperator(){
+  try{if(state.online&&currentOperatorSession()?.token)await posFunction({action:'operator_logout',restaurantId:state.restaurant.id})}catch{}
+  clearOperatorSession();state.operator=null;state.view='sale';render();
+}
+function canManageSettings(){
+  return isManager()&&(!state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.settings===true);
+}
+function operatorLoginView(){
+  return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card"><h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
+    <form id="operator-login-form"><label>Profil<select name="operatorId" required>${state.operators.filter(x=>x.active!==false).map(o=>'<option value="'+o.id+'">'+esc(o.display_name)+' · '+esc(o.role)+'</option>').join('')}</select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label><button class="primary" type="submit">Ouvrir ma session</button></form>
+    <button class="secondary wide" id="operator-account-logout">Changer de compte</button></div></div>`;
+}
+function closeOperatorEditor(){document.querySelector('#operator-editor-modal')?.remove();document.body.classList.remove('modal-open')}
+function openOperatorEditor(existing=null){
+  if(!canManageSettings()){alert('Droits manager requis.');return}
+  closeOperatorEditor();const o=existing||{};
+  const modal=document.createElement('div');modal.id='operator-editor-modal';modal.className='modal-overlay';
+  modal.innerHTML='<form class="terminal-dialog" id="operator-editor-form"><div class="split-dialog-head"><div><h2>'+(existing?'Modifier le profil':'Ajouter un opérateur')+'</h2><p>Le PIN est hashé côté serveur et n’est jamais relu.</p></div><button type="button" class="split-close" id="operator-editor-close">×</button></div>'
+    +'<div class="terminal-form-grid"><label>Nom affiché<input name="displayName" required maxlength="120" value="'+esc(o.display_name||'')+'"></label>'
+    +'<label>Rôle<select name="role"><option value="manager" '+(o.role==='manager'?'selected':'')+'>Manager</option><option value="cashier" '+(o.role==='cashier'?'selected':'')+'>Caissier</option><option value="server" '+(!o.role||o.role==='server'?'selected':'')+'>Serveur</option><option value="bar" '+(o.role==='bar'?'selected':'')+'>Bar</option><option value="kitchen" '+(o.role==='kitchen'?'selected':'')+'>Cuisine</option></select></label>'
+    +'<label>PIN '+(existing?'(laisser vide pour conserver)':'')+'<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" '+(existing?'':'required')+' maxlength="8"></label>'
+    +'<label class="terminal-check"><input type="checkbox" name="active" '+(o.active!==false?'checked':'')+'> Profil actif</label></div>'
+    +'<div class="split-footer"><button type="button" class="secondary" id="operator-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></div></form>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  modal.querySelector('#operator-editor-close')?.addEventListener('click',closeOperatorEditor);
+  modal.querySelector('#operator-editor-cancel')?.addEventListener('click',closeOperatorEditor);
+  modal.querySelector('#operator-editor-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();const fd=new FormData(e.currentTarget);
+    try{
+      await posFunction({action:'upsert_operator',restaurantId:state.restaurant.id,operator:{
+        id:o.id||'',displayName:String(fd.get('displayName')||'').trim(),role:String(fd.get('role')||'server'),
+        pin:String(fd.get('pin')||''),active:fd.get('active')==='on',permissions:{}
+      }});
+      await refreshOperators();closeOperatorEditor();state.error='Profil opérateur enregistré.';render();
+    }catch(error){state.error=error.message||String(error);render();closeOperatorEditor()}
+  });
+}
+function teamView(){
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}<main class="team-page"><div class="floor-head"><div><h2>Équipe POS</h2><p>PIN, rôles et permissions de caisse.</p></div>${canManageSettings()?'<button class="primary compact" id="add-operator">+ Opérateur</button>':''}</div><section class="operator-grid">${state.operators.length?state.operators.map(o=>`<article class="operator-card"><div><strong>${esc(o.display_name)}</strong><small>${esc(o.role)} · ${o.active?'Actif':'Inactif'}</small></div><div class="operator-perms">${Object.entries(o.permissions||{}).filter(([,v])=>v===true).map(([k])=>'<span>'+esc(k)+'</span>').join('')}</div>${canManageSettings()?'<button class="secondary" data-edit-operator="'+o.id+'">Modifier</button>':''}</article>`).join(''):'<div class="empty"><h3>Aucun opérateur</h3><p>Créez le premier profil pour activer les PIN sur cette caisse.</p></div>'}</section></main></div>`;
 }
 
 async function refreshPrinters(){
@@ -528,6 +619,10 @@ async function bootstrapRestaurant(restaurant){
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
   state.printers=await kvGet(printersKey(restaurant.id))||[];
+  state.operators=await kvGet(operatorsKey(restaurant.id))||[];
+  state.operatorRequired=state.operators.some(x=>x.active!==false);
+  const cachedOperator=currentOperatorSession();
+  state.operator=state.operatorRequired&&operatorSessionUsable(cachedOperator,restaurant.id)?cachedOperator.operator:null;
   state.cashSession=await kvGet(sessionKey(restaurant.id));
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   render();
@@ -541,11 +636,8 @@ async function bootstrapRestaurant(restaurant){
         state.cashSession={id:data.openSession.id,businessDate:data.openSession.business_date||data.openSession.businessDate,status:'open',openingCash:Number(data.openSession.opening_cash??data.openSession.openingCash)||0,synced:true};
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
-      await refreshFloorData();
-      await refreshProductionQueue();
-      await refreshReceipts();
-      await refreshTerminals();
-      await refreshPrinters()
+      await refreshOperators();
+      await refreshOperationalData()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -1225,8 +1317,8 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button>
-    <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
+    <div class="spacer"></div>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
 }
@@ -1314,13 +1406,17 @@ function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();return}
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
+  if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
   document.querySelector('#restaurant-select')?.addEventListener('change',async e=>{const r=(state.identity?.restaurants||[]).find(x=>x.id===e.target.value);if(r){await kvSet('restaurantId',r.id);await bootstrapRestaurant(r)}});
-  document.querySelector('#logout')?.addEventListener('click',()=>{signOut();state.identity=null;state.restaurant=null;render()});
+  document.querySelector('#logout')?.addEventListener('click',()=>{signOut();clearOperatorSession();state.identity=null;state.restaurant=null;state.operator=null;render()});
+  document.querySelector('#operator-account-logout')?.addEventListener('click',()=>{signOut();clearOperatorSession();state.identity=null;state.restaurant=null;state.operator=null;render()});
+  document.querySelector('#operator-login-form')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await operatorLogin(String(fd.get('operatorId')||''),String(fd.get('pin')||''))});
+  document.querySelector('#switch-operator')?.addEventListener('click',()=>switchOperator());
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
@@ -1330,6 +1426,9 @@ function wire(){
   document.querySelector('#nav-report')?.addEventListener('click',()=>{state.view='report';state.reportDate=state.reportDate||dateKey();refreshServiceReport(state.reportDate)});
   document.querySelector('#nav-terminals')?.addEventListener('click',()=>{state.view='terminals';refreshTerminals().then(render)});
   document.querySelector('#nav-printers')?.addEventListener('click',()=>{state.view='printers';refreshPrinters().then(render)});
+  document.querySelector('#nav-team')?.addEventListener('click',()=>{state.view='team';refreshOperators().then(render)});
+  document.querySelector('#add-operator')?.addEventListener('click',()=>openOperatorEditor());
+  document.querySelectorAll('[data-edit-operator]').forEach(b=>b.addEventListener('click',()=>{const o=state.operators.find(x=>x.id===b.dataset.editOperator);if(o)openOperatorEditor(o)}));
   document.querySelector('#refresh-printers')?.addEventListener('click',()=>refreshPrinters().then(render));
   document.querySelector('#scan-printers')?.addEventListener('click',()=>scanPrinters());
   document.querySelector('#add-printer')?.addEventListener('click',()=>openPrinterEditor());
