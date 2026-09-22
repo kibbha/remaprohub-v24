@@ -143,3 +143,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - L’écran Factures affiche le montant total restant, le montant à payer sous 7 jours et le montant réellement en retard.
 - Le cockpit et les alertes de factures en retard utilisent maintenant l’échéance plutôt que la date d’émission.
 - Le rapport manager quotidien intègre les montants à payer prochainement et en retard.
+
+## Conditions de paiement fournisseurs – lot 20
+- Chaque fournisseur peut maintenant définir son délai de paiement en jours, avec 30 jours par défaut.
+- Lors de la création d’une facture, ReMaPro propose automatiquement l’échéance à partir du délai du fournisseur sélectionné.
+- Le changement de fournisseur recalcule la proposition tant que l’utilisateur n’a pas saisi manuellement une autre échéance.
+- Les factures issues d’un scan ou d’un import sans échéance explicite utilisent également le délai fournisseur connu.
+- Les délais incohérents ou hors plage 0–180 jours sont refusés.
