@@ -1402,7 +1402,7 @@ async function sendCurrentOrderProduction(){
     render();
   }catch(error){state.error=error.message||String(error);render()}
 }
-async function updateProductionItem(itemId,status){
+async function updateProductionItem(itemId,status,{renderAfter=true,refreshAfter=true}={}){
   if(!state.online){
     const patchItems=order=>({...order,items:(order.items||[]).map(i=>String(i.id)===String(itemId)?{...i,kitchen_status:status}:i),updated_at:new Date().toISOString()});
     state.productionQueue=state.productionQueue.map(patchItems);
@@ -1410,13 +1410,13 @@ async function updateProductionItem(itemId,status){
     await queueCommand('update_production_item',{itemId,status});
     await persistLocalProduction();
     state.error='Statut production enregistré hors ligne.';
-    render();return;
+    if(renderAfter)render();return true;
   }
   try{
     await posFunction({action:'update_production_item',restaurantId:state.restaurant.id,itemId,status});
-    await Promise.all([refreshProductionQueue(),refreshFloorData()]);
-    state.error='';render();
-  }catch(error){state.error=error.message||String(error);render()}
+    if(refreshAfter)await Promise.all([refreshProductionQueue(),refreshFloorData()]);
+    state.error='';if(renderAfter)render();return true;
+  }catch(error){state.error=error.message||String(error);recordDiagnostic('production.update_error',{status,message:state.error});if(renderAfter)render();return false}
 }
 
 function activeLayout(){
@@ -1784,7 +1784,7 @@ async function advanceProductionOrder(order,target){
     return false;
   });
   if(!eligible.length)return;
-  for(const item of eligible)await updateProductionItem(item.id,target,{renderAfter:false});
+  for(const item of eligible)await updateProductionItem(item.id,target,{renderAfter:false,refreshAfter:false});
   await refreshProductionQueue();render();
 }
 function productionView(){
@@ -1959,6 +1959,11 @@ function wire(){
   document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
   document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
   document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
+  document.querySelector('#kds-sort')?.addEventListener('change',e=>{state.productionSort=e.target.value==='newest'?'newest':'oldest';render()});
+  document.querySelector('#kds-warn')?.addEventListener('change',e=>updateKdsThresholds(e.target.value,state.kdsCriticalMinutes));
+  document.querySelector('#kds-critical')?.addEventListener('change',e=>updateKdsThresholds(state.kdsWarnMinutes,e.target.value));
+  document.querySelectorAll('[data-kds-order-ready]').forEach(b=>b.addEventListener('click',()=>advanceProductionOrder(state.productionQueue.find(x=>x.id===b.dataset.kdsOrderReady),'ready')));
+  document.querySelectorAll('[data-kds-order-served]').forEach(b=>b.addEventListener('click',()=>advanceProductionOrder(state.productionQueue.find(x=>x.id===b.dataset.kdsOrderServed),'served')));
   document.querySelectorAll('[data-station]').forEach(b=>b.addEventListener('click',()=>{state.productionStation=b.dataset.station;render()}));
   document.querySelectorAll('[data-production-item]').forEach(b=>b.addEventListener('click',()=>updateProductionItem(b.dataset.productionItem,b.dataset.productionStatus)));
   document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)smartPrintProduction(o)}));
