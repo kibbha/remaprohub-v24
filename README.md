@@ -1,6 +1,6 @@
 # ReMaPro POS
 
-Version actuelle: **0.12.1**  
+Version actuelle: **0.12.2**  
 Android package: **com.remapro.pos**
 
 ## Nouveauté v0.12 — paiement progressif
