@@ -1,23 +1,20 @@
 # ReMaPro POS
 
-Version actuelle: **0.9.0**  
+Version actuelle: **0.10.0**  
 Android package: **com.remapro.pos**
 
-## Nouveauté v0.9 — partage par articles/personnes
-- répartition d'une addition entre **2 à 8 personnes/groupes** ;
-- attribution de quantités d’articles à chaque personne ;
-- contrôle automatique : aucune quantité oubliée ou attribuée deux fois ;
-- moyen de paiement et pourboire propres à chaque personne ;
-- montant de chaque groupe recalculé côté serveur depuis les lignes de commande ;
-- encaissement final atomique : soit toute la répartition passe, soit aucune écriture financière n’est créée ;
-- libellé de la personne conservé dans les métadonnées de paiement et affiché sur le ticket.
-
-Le partage simple par montants reste disponible pour les cas rapides.
+## Nouveauté v0.10 — sous-tickets individuels
+Lorsqu’une addition est partagée par articles/personnes :
+- le ticket maître de la table reste conservé ;
+- chaque personne dispose d’un bouton d’impression portant son libellé ;
+- son sous-ticket affiche uniquement ses articles et quantités ;
+- son montant, son moyen de paiement, son pourboire et sa TVA incluse sont affichés ;
+- le numéro du ticket maître reste visible pour rattacher toutes les parts à la même vente.
 
 ## Socle
-Caisse, salle, notes ouvertes, Cuisine/Bar, ajouts après envoi, impressions 80 mm, paiements multiples, pourboires, transferts, annulations, remboursements et synchronisation Hub ↔ POS.
+Caisse, salle, Cuisine/Bar, ajouts incrémentaux, impression 80 mm, partage par montants ou articles, pourboires, transferts, annulations et remboursements.
 
 ## Suite
-Tickets séparés par personne, partage progressif (une personne paie avant les autres), pilotes ESC/POS Android, Worldline/TWINT et stockage SQLite natif.
+Rapport de service/Z, partage progressif, pilotes ESC/POS Android, Worldline/TWINT et SQLite natif.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.9.0';
+const APP_VERSION='0.10.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -291,6 +291,29 @@ function printReceipt(receipt){
     +tipRow+refundRow+'<div class="print-taxes">'+taxRows+'</div><hr><div class="print-payments">'+paymentRows+'</div>'
     +'<p class="print-thanks">Merci et à bientôt.</p>';
   printHtml(state.restaurant?.name||'ReMaPro POS',body);
+}
+
+function printSplitPayment(receipt,payment){
+  const meta=payment?.metadata||{};
+  const allocations=Array.isArray(meta.allocations)?meta.allocations:[];
+  if(!allocations.length){alert('Aucun détail de partage disponible pour ce paiement.');return}
+  const label=meta.splitLabel||'Part individuelle';
+  const taxGroups=new Map();
+  for(const a of allocations){
+    const tax=Number(a.tax)||0,amount=Number(a.amount)||0;
+    const key=amount>0?Math.round((tax/(Math.max(amount-tax,0.0001)))*10000)/100:0;
+    taxGroups.set(key,(taxGroups.get(key)||0)+tax);
+  }
+  const itemRows=allocations.map(a=>'<div class="print-line"><span>'+Number(a.quantity||0)+'× '+esc(a.name||'Article')+'</span><span>'+money(a.amount)+'</span></div>').join('');
+  const taxTotal=allocations.reduce((s,a)=>s+Number(a.tax||0),0);
+  const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div><strong>'+esc(label)+'</strong></div><div>Ticket maître '+esc(receipt.receipt_number||receipt.receiptNumber||'')+'</div><div>'+esc(receipt.table_label||receipt.service_type||'')+'</div></div>'
+    +'<hr><div class="print-lines">'+itemRows+'</div><hr>'
+    +'<div class="print-line total"><span>Part</span><span>'+money(payment.amount)+'</span></div>'
+    +(Number(payment.tip_amount)?'<div class="print-line"><span>Pourboire</span><span>'+money(payment.tip_amount)+'</span></div>':'')
+    +'<div class="print-line"><span>TVA incluse</span><span>'+money(taxTotal)+'</span></div>'
+    +'<hr><div class="print-line"><span>'+esc(String(payment.method||'').toUpperCase())+'</span><span>'+money(Number(payment.amount||0)+Number(payment.tip_amount||0))+'</span></div>'
+    +'<p class="print-thanks">Sous-ticket de partage · ticket maître conservé.</p>';
+  printHtml(label,body);
 }
 function printProductionOrder(order){
   const items=Array.isArray(order.items)?order.items:[];
@@ -699,7 +722,7 @@ function ticketsView(){
       return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
         <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
-        <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Imprimer</button>${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
+        <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Ticket maître</button>${payments.filter(p=>p.metadata?.splitType==='items').map(p=>`<button class="secondary split-ticket-btn" data-print-split-payment="${r.id}:${p.id}">${esc(p.metadata?.splitLabel||'Part')}</button>`).join('')}${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
           ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
     }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
@@ -751,6 +774,7 @@ function wire(){
   document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)printProductionOrder(o)}));
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
   document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)printReceipt(r)}));
+  document.querySelectorAll('[data-print-split-payment]').forEach(b=>b.addEventListener('click',()=>{const [orderId,paymentId]=String(b.dataset.printSplitPayment||'').split(':');const r=state.receipts.find(x=>x.id===orderId);const p=r?.payments?.find(x=>x.id===paymentId);if(r&&p)printSplitPayment(r,p)}));
   document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
