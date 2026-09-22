@@ -1,0 +1,58 @@
+name: Deploy ReMaPro Hub to Infomaniak
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remaprohub-infomaniak-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout rebuild branch
+        uses: actions/checkout@v4
+        with:
+          ref: rebuild/remaprohub-clean
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Inject production runtime config
+        env:
+          REVENUECAT_ANDROID_API_KEY: ${{ secrets.REVENUECAT_ANDROID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/inject-runtime-config.mjs
+
+      - name: Package web runtime
+        run: npm run pack:web
+
+      - name: Verify deployable web files
+        shell: bash
+        run: |
+          test -s app/index.html
+          test -s app/sw.js
+          test -s app/src/app.js
+          test -s app/src/cloud.js
+          test -s app/runtime-config.js
+
+      - name: Deploy app to Infomaniak FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.6
+        with:
+          server: ${{ secrets.INFOMANIAK_FTP_HOST }}
+          username: ${{ secrets.INFOMANIAK_FTP_USER }}
+          password: ${{ secrets.INFOMANIAK_FTP_PASSWORD }}
+          protocol: ftp
+          port: ${{ secrets.INFOMANIAK_FTP_PORT }}
+          local-dir: ./app/
+          server-dir: ./
+          log-level: standard
