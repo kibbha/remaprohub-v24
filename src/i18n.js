@@ -63,6 +63,7 @@ function translateValue(value){
   pairs.sort((a,b)=>b[0].length-a[0].length);
   let out=String(value);for(const [fr,target] of pairs)if(fr!==target&&out.includes(fr))out=out.split(fr).join(target);return out;
 }
+export const translateText=translateValue;
 export function translateDom(root=document){
   document.documentElement.lang=current;
   if(current==='fr')return;
