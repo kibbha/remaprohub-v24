@@ -129,3 +129,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le contrôle propose un accès direct à la transmission de service.
 - Le rapport manager quotidien reprend désormais l’état de fermeture et le nombre de points bloquants.
 - ReMaPro AI inspecte aussi cet état avant de formuler ses recommandations de fin de service.
+
+## Analyse automatique des pertes – lot 18
+- Chaque nouvelle perte est désormais datée automatiquement et mémorise le coût unitaire du produit au moment de la saisie, sans ajouter de champ à remplir.
+- L’écran Pertes affiche le coût estimé sur 7 jours, le nombre de saisies et les produits qui représentent le plus de pertes.
+- Lorsque la période précédente contient des données, ReMaPro affiche l’évolution du coût des pertes.
+- Le rapport manager quotidien intègre le coût des pertes sur 7 jours.
+- Le Manager Copilot reçoit cette analyse et peut signaler les principaux produits concernés sans inventer de chiffres.
