@@ -2,7 +2,7 @@ import {cloudConfigured,signIn,signOut,currentSession,currentOperatorSession,sav
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 
-const APP_VERSION='0.22.0';
+const APP_VERSION='0.23.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -356,6 +356,7 @@ async function refreshOperationalData(){
 async function operatorLogin(operatorId,pin){
   const op=state.operators.find(x=>x.id===operatorId);
   if(!op)return;
+  if(!state.online){state.error='La session opérateur a expiré ou manque. Reconnectez Internet pour valider le PIN.';render();return}
   const device=await ensureDevice();
   try{
     const r=await posFunction({action:'operator_login',restaurantId:state.restaurant.id,operatorId:op.id,pin:String(pin||''),deviceId:device.id});
@@ -374,7 +375,8 @@ function canManageSettings(){
 }
 function operatorLoginView(){
   return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card"><h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
-    <form id="operator-login-form"><label>Profil<select name="operatorId" required>${state.operators.filter(x=>x.active!==false).map(o=>'<option value="'+o.id+'">'+esc(o.display_name)+' · '+esc(o.role)+'</option>').join('')}</select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label><button class="primary" type="submit">Ouvrir ma session</button></form>
+    ${!state.online?'<div class="terminal-warning"><strong>Hors ligne.</strong> Un PIN ne peut être revalidé sans serveur. Une session opérateur encore valide reste utilisable automatiquement.</div>':''}
+    <form id="operator-login-form"><label>Profil<select name="operatorId" required>${state.operators.filter(x=>x.active!==false).map(o=>'<option value="'+o.id+'">'+esc(o.display_name)+' · '+esc(o.role)+'</option>').join('')}</select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label><button class="primary" type="submit" ${!state.online?'disabled':''}>Ouvrir ma session</button></form>
     <button class="secondary wide" id="operator-account-logout">Changer de compte</button></div></div>`;
 }
 function closeOperatorEditor(){document.querySelector('#operator-editor-modal')?.remove();document.body.classList.remove('modal-open')}
@@ -716,15 +718,41 @@ async function bootstrapRestaurant(restaurant){
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
+async function openCachedIdentity(cached,message=''){
+  if(!cached?.restaurants?.length)return false;
+  state.identity=cached;
+  const preferred=await kvGet('restaurantId'),restaurants=cached.restaurants||[];
+  const target=restaurants.find(r=>r.id===preferred)||restaurants[0]||null;
+  if(target){await kvSet('restaurantId',target.id);await bootstrapRestaurant(target)}
+  if(message)state.error=message;
+  return true;
+}
 async function loadAccount(){
   state.busy=true;state.error='';render();
+  const cached=await kvGet('identity');
+  if(!state.online){
+    const ok=await openCachedIdentity(cached,'Mode hors ligne — identité et restaurant chargés depuis SQLite.');
+    if(!ok)state.error='Première connexion nécessaire : reconnectez Internet une fois pour initialiser ReMaPro POS.';
+    state.busy=false;render();return;
+  }
   try{
     state.identity=await loadIdentity();
+    await kvSet('identity',state.identity);
     const preferred=await kvGet('restaurantId'),restaurants=state.identity.restaurants||[];
     const target=restaurants.find(r=>r.id===preferred)||restaurants[0]||null;
     if(target){await kvSet('restaurantId',target.id);await bootstrapRestaurant(target)}
-  }catch(error){state.error=error.message||String(error);if(/AUTH/.test(state.error))signOut()}
-  finally{state.busy=false;render()}
+  }catch(error){
+    const message=error.message||String(error);
+    if(/AUTH/.test(message)){
+      signOut();await kvDelete('identity');state.identity=null;state.error=message;
+    }else if(!(await openCachedIdentity(cached,'Serveur indisponible — mode cache local actif.'))){
+      state.error=message;
+    }
+  }finally{state.busy=false;render()}
+}
+async function logoutPos(){
+  signOut();clearOperatorSession();await kvDelete('identity');
+  state.identity=null;state.restaurant=null;state.operator=null;state.cashSession=null;state.view='sale';render();
 }
 async function openSession(openingCash){
   const device=await ensureDevice();
@@ -1570,8 +1598,8 @@ function render(){
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
   document.querySelector('#restaurant-select')?.addEventListener('change',async e=>{const r=(state.identity?.restaurants||[]).find(x=>x.id===e.target.value);if(r){await kvSet('restaurantId',r.id);await bootstrapRestaurant(r)}});
-  document.querySelector('#logout')?.addEventListener('click',()=>{signOut();clearOperatorSession();state.identity=null;state.restaurant=null;state.operator=null;render()});
-  document.querySelector('#operator-account-logout')?.addEventListener('click',()=>{signOut();clearOperatorSession();state.identity=null;state.restaurant=null;state.operator=null;render()});
+  document.querySelector('#logout')?.addEventListener('click',()=>logoutPos());
+  document.querySelector('#operator-account-logout')?.addEventListener('click',()=>logoutPos());
   document.querySelector('#operator-login-form')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await operatorLogin(String(fd.get('operatorId')||''),String(fd.get('pin')||''))});
   document.querySelector('#switch-operator')?.addEventListener('click',()=>switchOperator());
   document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
