@@ -1639,8 +1639,10 @@ async function refreshPosAcademy(){
     }
   }catch{}finally{state.academy.loading=false;state.academy.loaded=true;if(state.view==='academy')render()}
 }
-async function savePosAcademyTopic(topicId,status){
-  const topic=academyTopic(topicId);if(!topic)return;const row={application:topic.application,topic_id:topic.id,content_version:ACADEMY_CONTENT_VERSION,status,step_index:status==='completed'?topic.steps.length:0,updated_at:new Date().toISOString(),metadata:{}};
+async function savePosAcademyTopic(topicId,status,stepIndex=null){
+  const topic=academyTopic(topicId);if(!topic)return;
+  const resolvedStep=stepIndex==null?(status==='completed'?topic.steps.length:0):Math.max(0,Math.min(topic.steps.length,Math.trunc(Number(stepIndex)||0)));
+  const row={application:topic.application,topic_id:topic.id,content_version:ACADEMY_CONTENT_VERSION,status,step_index:resolvedStep,updated_at:new Date().toISOString(),metadata:{}};
   saveLocalAcademyProgress(academyUserId(),row);state.academy.progress=mergeAcademyProgress(state.academy.progress,[row]);render();
   const org=academyOrgId();if(currentSession()&&org)try{await academyFunction({action:'save',organizationId:org,restaurantId:state.restaurant?.id||'',application:topic.application,topicId:topic.id,contentVersion:ACADEMY_CONTENT_VERSION,status:row.status,stepIndex:row.step_index,metadata:{}})}catch{}
 }
@@ -1682,6 +1684,7 @@ function bindPosAcademy(){
   document.querySelectorAll('[data-academy-close]').forEach(b=>b.addEventListener('click',()=>{state.academy.selectedTopic='';state.academy.selectedPath='';state.academy.troubleshoot='';render()}));
   document.querySelectorAll('[data-academy-complete]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyComplete,'completed')));
   document.querySelectorAll('[data-academy-restart]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyRestart,'in_progress')));
+  document.querySelectorAll('[data-academy-step]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyStep,b.dataset.stepStatus||'in_progress',Number(b.dataset.stepIndex)||0)));
   document.querySelectorAll('[data-academy-tour]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.academyTour;state.academy.selectedTopic='';state.view=academyTourView(id);render();setTimeout(()=>startAcademyTour(id,{locale:academyLocale()}),40)}));
   document.getElementById('academy-training-start')?.addEventListener('click',()=>{state.trainingMode=true;resetTraining();state.view='training';render()});
   document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro POS',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:state.view,online:state.online,pendingSync:state.queueCount};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);alert('Context copied.')}catch{alert(value)}});
