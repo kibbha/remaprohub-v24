@@ -774,13 +774,32 @@ export default {
         const ids=(orders||[]).map((x:any)=>x.id);
         let items:any[]=[];
         if(ids.length){
-          let itemQuery=ctx.supabaseAdmin.from("pos_order_items")
+          const itemQuery=ctx.supabaseAdmin.from("pos_order_items")
             .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,modifiers,created_at")
-            .in("order_id",ids).in("kitchen_status",["sent","preparing","ready"]).neq("station_snapshot","none").order("created_at");
-          if(["kitchen","bar"].includes(station))itemQuery=itemQuery.eq("station_snapshot",station);
+            .in("order_id",ids).in("kitchen_status",["sent","preparing","ready"]).order("created_at");
           const itemResult=await itemQuery;
           if(itemResult.error)return json({error:itemResult.error.message},500);
-          items=itemResult.data||[];
+          const routedTo=(item:any,target:string)=>{
+            if(item.station_snapshot===target)return true;
+            const mods=Array.isArray(item.modifiers)?item.modifiers:[];
+            for(const entry of mods){
+              for(const option of Array.isArray(entry?.options)?entry.options:[]){
+                if(String(option?.station||entry?.station||"")===target)return true;
+              }
+              if(entry?.kind==="menu"){
+                for(const choice of Array.isArray(entry?.choices)?entry.choices:[]){
+                  for(const product of Array.isArray(choice?.products)?choice.products:[]){
+                    if(String(product?.station||"")===target)return true;
+                  }
+                }
+              }
+            }
+            return false;
+          };
+          const hasAnyProduction=(item:any)=>routedTo(item,"kitchen")||routedTo(item,"bar");
+          items=(itemResult.data||[]).filter((item:any)=>
+            ["kitchen","bar"].includes(station)?routedTo(item,station):hasAnyProduction(item)
+          );
         }
         const byOrder=new Map<string,any[]>();
         for(const item of items){
