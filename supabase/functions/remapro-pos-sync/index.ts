@@ -633,6 +633,48 @@ export default {
         return json({ok:true,events,nextCursor:events.length?Number(events[events.length-1].sequence):after});
       }
 
+      if(action==="list_printers"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_printers")
+          .select("id,device_id,label,role,connection_type,address,chars_per_line,codepage,auto_print,cut_after_print,active,status,last_tested_at,public_config,created_at,updated_at")
+          .eq("restaurant_id",restaurantId).order("role").order("label");
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
+      if(action==="upsert_printer"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const p=body.printer||{};
+        const printerId=clean(p.id,64),deviceId=clean(p.deviceId,64);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_printer",{
+          p_printer_id:validUuid(printerId)?printerId:null,
+          p_restaurant_id:restaurantId,
+          p_device_id:validUuid(deviceId)?deviceId:null,
+          p_label:clean(p.label,120),
+          p_role:clean(p.role,30).toLowerCase(),
+          p_connection_type:clean(p.connectionType,30).toLowerCase(),
+          p_address:clean(p.address,240)||null,
+          p_chars_per_line:Math.max(24,Math.min(80,Math.trunc(Number(p.charsPerLine)||42))),
+          p_codepage:clean(p.codepage,40)||"ascii",
+          p_auto_print:p.autoPrint===true,
+          p_cut_after_print:p.cutAfterPrint!==false,
+          p_active:p.active!==false,
+          p_public_config:p.publicConfig&&typeof p.publicConfig==="object"?p.publicConfig:{},
+          p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,printer:data});
+      }
+
+      if(action==="set_printer_status"){
+        const printerId=clean(body.printerId,64),status=clean(body.status,20).toLowerCase();
+        if(!validUuid(printerId))return json({error:"Valid printerId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_set_printer_status",{
+          p_printer_id:printerId,p_status:status,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,printer:data});
+      }
+
       if(action==="list_terminals"){
         const {data,error}=await ctx.supabaseAdmin.from("pos_payment_terminals")
           .select("id,device_id,label,provider,integration_mode,external_terminal_id,currency,supports_card,supports_twint,supports_tips,supports_refunds,active,connection_status,last_seen_at,created_at,updated_at")

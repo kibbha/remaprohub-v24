@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='13';
+export const POS_BRIDGE_VERSION='15';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -159,4 +159,14 @@ export async function createPosTerminalRefundIntent(restaurantId,payload){
 }
 export async function cancelPosTerminalIntent(restaurantId,intentId){
   return cloudFunction('remapro-pos-sync',{action:'cancel_terminal_intent',restaurantId,intentId});
+}
+
+export async function loadPosPrinters(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_printers',restaurantId});
+}
+export async function savePosPrinter(restaurantId,printer){
+  return cloudFunction('remapro-pos-sync',{action:'upsert_printer',restaurantId,printer});
+}
+export async function setPosPrinterStatus(restaurantId,printerId,status){
+  return cloudFunction('remapro-pos-sync',{action:'set_printer_status',restaurantId,printerId,status});
 }
