@@ -22,3 +22,5 @@ const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
 for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes('academyContextHelp:'),lang+' contextual help key');
 assert.ok(app.includes("t('academyContextHelp')"));
 assert.ok(app.includes("t('academyContextCopied')"));
+
+assert.ok(sw.includes('remaprohub-v27-shell-academy-final-20260923'),'Academy service worker cache bumped');
