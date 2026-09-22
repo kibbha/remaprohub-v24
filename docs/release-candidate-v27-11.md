@@ -41,7 +41,27 @@ Automated validation result: GitHub Actions `Test ReMaPro Hub V27.11.0` succeede
 - [ ] Verify the RevenueCat webhook secret and OpenAI server secret are configured.
 - [ ] Confirm Standard / Pro access from a real authenticated account.
 
-Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY; migrations 001–007 and required Edge Functions were verified; migration 008 aligns the live plans with the public launch pricing and 14-day trial. The two server-only tables intentionally use RLS without client policies.
+Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY; migrations 001–008 are applied. Live plans are Standard CHF 19.90/month or CHF 199/year and Pro CHF 39.90/month or CHF 399/year, with a 14-day trial and a five-restaurant Pro limit. Updated remapro-admin and remapro-bootstrap functions match the repository source exactly. The two server-only tables intentionally use RLS without client policies.
+
+## Release Candidate Android build
+
+GitHub Actions run `35711717482` succeeded on commit `653204a`.
+- full npm test suite: success
+- Capacitor packaging: success
+- target / compile API 36 hardening: success
+- debug APK build: success
+- 16 KB zip alignment verification: success
+- APK artifact: `ReMaPro-Hub-V27.11.0-debug-apk`
+- APK SHA-256 after extraction: `d727f00fbb279035bf8f56c69477a18ca3e469829ae205c6686518524c436514`
+- RevenueCat Android SDK key was not present in GitHub Actions secrets, so billing is disabled in this RC APK.
+- Android signing secrets were not present, so the signed release AAB was skipped.
+
+## Remaining external launch blockers
+- Configure `REVENUECAT_ANDROID_API_KEY` in GitHub Actions.
+- Verify/create the Google Play + RevenueCat Standard and Pro products/offers using internal entitlement/offering codes `standard` and `multi`.
+- Configure Android upload signing secrets before the production AAB build.
+- Enable Supabase Auth leaked-password protection in the Supabase dashboard.
+- Founder launch pricing requires dedicated Google Play / RevenueCat offers; do not simulate it locally.
 
 ## Gate 4 — physical Android validation
 - [ ] Sign-in / sign-out / password reset.
