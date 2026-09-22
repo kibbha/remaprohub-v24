@@ -1053,7 +1053,7 @@ export default {
       if(action==="list_direct_orders"){
         const statuses=(Array.isArray(body.statuses)?body.statuses:["pending","accepted"]).map((x:any)=>clean(x,30)).filter((x:string)=>["pending","accepted","imported","preparing","ready"].includes(x)).slice(0,10);
         const {data,error}=await ctx.supabaseAdmin.from("direct_orders")
-          .select("id,public_reference,service_type,status,payment_status,payment_method,customer_name,customer_phone,customer_email,marketing_consent,table_label,requested_for,note,subtotal,tax_total,total,currency,created_at,accepted_at,pos_order_id,direct_order_items(id,catalog_item_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,station_snapshot,note,modifiers)")
+          .select("id,public_reference,service_type,status,payment_status,payment_method,customer_name,customer_phone,customer_email,marketing_consent,table_label,covers,requested_for,note,subtotal,tax_total,total,currency,created_at,accepted_at,pos_order_id,direct_order_items(id,catalog_item_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,station_snapshot,note,modifiers)")
           .eq("restaurant_id",restaurantId).in("status",statuses.length?statuses:["pending","accepted"]).order("created_at",{ascending:true}).limit(200);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
