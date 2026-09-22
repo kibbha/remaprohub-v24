@@ -199,3 +199,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Les suggestions excluent automatiquement la personne absente, les collaborateurs également en congé approuvé et ceux déjà occupés sur un horaire qui chevauche le service.
 - Les collaborateurs ayant le même rôle sont proposés en priorité, puis ceux ayant le moins d’heures planifiées sur les sept jours suivants.
 - Le manager peut remplacer le collaborateur directement depuis Planning, après confirmation ; aucun service n’est modifié automatiquement.
+
+## Renouvellement des formations – lot 29
+- Une formation peut maintenant comporter une date de validité/renouvellement facultative.
+- ReMaPro signale les formations expirées et celles arrivant à échéance dans les 30 jours, sans inventer de durée réglementaire.
+- Les alertes remontent dans le cockpit manager et dans l’écran Formation.
+- Un bouton permet de créer les tâches de renouvellement correspondantes sans doublons, après confirmation.
+- La date de renouvellement ne peut pas être antérieure à la date de formation.
