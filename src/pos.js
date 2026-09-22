@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='15';
+export const POS_BRIDGE_VERSION='18';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -169,4 +169,28 @@ export async function savePosPrinter(restaurantId,printer){
 }
 export async function setPosPrinterStatus(restaurantId,printerId,status){
   return cloudFunction('remapro-pos-sync',{action:'set_printer_status',restaurantId,printerId,status});
+}
+
+export async function loadPosOperators(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_operators',restaurantId});
+}
+export async function savePosOperator(restaurantId,operator){
+  return cloudFunction('remapro-pos-sync',{action:'upsert_operator',restaurantId,operator});
+}
+export async function loadPosAdminSnapshot(restaurantId){
+  const [bootstrap,tables,operators,printers,terminals]=await Promise.all([
+    loadPosBootstrap(restaurantId),
+    loadPosTables(restaurantId),
+    loadPosOperators(restaurantId),
+    loadPosPrinters(restaurantId),
+    loadPosPaymentTerminals(restaurantId)
+  ]);
+  return {
+    bootstrap,
+    catalog:bootstrap?.catalog||[],
+    tables:tables?.rows||[],
+    operators:operators?.rows||[],
+    printers:printers?.rows||[],
+    terminals:terminals?.rows||[]
+  };
 }
