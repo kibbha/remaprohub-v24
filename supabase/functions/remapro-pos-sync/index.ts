@@ -626,7 +626,7 @@ export default {
 
         const [itemResult,allocationResult,paymentResult]=await Promise.all([
           ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,name_snapshot,quantity,unit_price,line_total,tax_rate,tax_amount,kitchen_status,note")
+            .select("id,name_snapshot,quantity,unit_price,line_total,tax_rate,tax_amount,kitchen_status,note,modifiers")
             .eq("order_id",orderId).neq("kitchen_status","cancelled").order("created_at"),
           ctx.supabaseAdmin.from("pos_payment_allocations")
             .select("order_item_id,payment_id,quantity,amount,tax_amount").eq("order_id",orderId),
@@ -725,7 +725,7 @@ export default {
         let items:any[]=[];
         if(ids.length){
           const itemResult=await ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,station_snapshot,kitchen_status,note")
+            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,station_snapshot,kitchen_status,note,modifiers")
             .in("order_id",ids).order("created_at");
           if(itemResult.error)return json({error:itemResult.error.message},500);
           items=itemResult.data||[];
@@ -775,7 +775,7 @@ export default {
         let items:any[]=[];
         if(ids.length){
           let itemQuery=ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,created_at")
+            .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,modifiers,created_at")
             .in("order_id",ids).in("kitchen_status",["sent","preparing","ready"]).neq("station_snapshot","none").order("created_at");
           if(["kitchen","bar"].includes(station))itemQuery=itemQuery.eq("station_snapshot",station);
           const itemResult=await itemQuery;
@@ -805,7 +805,7 @@ export default {
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata,receipt_number),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note,modifiers),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata,receipt_number),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
           .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
