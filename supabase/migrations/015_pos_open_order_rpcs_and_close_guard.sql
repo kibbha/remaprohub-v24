@@ -23,6 +23,7 @@ set search_path=public
 as $$
 declare
   v_order public.pos_orders%rowtype;
+  v_order_exists boolean:=false;
   v_session public.pos_cash_sessions%rowtype;
   v_line jsonb;
   v_line_id uuid;
@@ -70,8 +71,9 @@ begin
   ) then raise exception 'POS_TABLE_INVALID'; end if;
 
   select * into v_order from public.pos_orders where id=p_order_id for update;
-  if found and v_order.status in ('paid','refunded','cancelled') then raise exception 'ORDER_LOCKED'; end if;
-  if found and v_order.restaurant_id<>p_restaurant_id then raise exception 'ORDER_ID_CONFLICT'; end if;
+  v_order_exists:=found;
+  if v_order_exists and v_order.status in ('paid','refunded','cancelled') then raise exception 'ORDER_LOCKED'; end if;
+  if v_order_exists and v_order.restaurant_id<>p_restaurant_id then raise exception 'ORDER_ID_CONFLICT'; end if;
 
   for v_line in select value from jsonb_array_elements(p_lines)
   loop
@@ -90,7 +92,7 @@ begin
     v_line_count:=v_line_count+1;
   end loop;
 
-  if found then
+  if v_order_exists then
     update public.pos_orders
     set device_id=p_device_id,cash_session_id=p_cash_session_id,business_date=p_business_date,
         table_id=p_table_id,table_label=nullif(left(trim(coalesce(p_table_label,'')),80),''),
