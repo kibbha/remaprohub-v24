@@ -22,4 +22,8 @@ assert.ok(sw.includes('./src/i18n.js')&&sw.includes('./src/ui.js'),'offline shel
 assert.ok(sw.includes('skipWaiting')&&sw.includes('clients.claim'),'service worker update activation required');
 assert.ok(css.includes('min-height:44px'),'touch targets must have 44px minimum');
 assert.ok(css.includes('focus-visible'),'keyboard focus style required');
+assert.ok(app.includes('paymentBusy:false'),'payment double-tap lock state required');
+assert.ok(app.includes('guardedPayment'),'critical payment guard required');
+assert.ok(sw.includes("url.origin!==self.location.origin"),'service worker must ignore cross-origin requests');
+assert.ok(sw.includes("runtime-config.js"),'runtime config must remain network-first');
 console.log('POS beta hardening checks passed');
