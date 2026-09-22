@@ -168,3 +168,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - ReMaPro croise les réservations avec le planning et signale les journées avec des couverts prévus mais aucun collaborateur planifié.
 - Ces journées remontent dans le cockpit manager comme point à traiter et renvoient directement vers Planning.
 - L’indicateur reste volontairement simple : il détecte l’absence totale d’équipe et n’invente pas un besoin d’effectif à partir d’un ratio arbitraire.
+
+## Revue manager hebdomadaire – lot 24
+- Finance affiche désormais une revue manager synthétique de la semaine : CA, résultat, couverts et points à surveiller.
+- La revue consolide également food cost, coût de planning, pertes, échéances fournisseurs, HACCP, maintenance et préparation des prochains services.
+- Les signaux ne créent pas de score opaque : ReMaPro conserve les indicateurs factuels et les alertes déjà calculées.
+- Le Manager Copilot reçoit cette revue ainsi que la préparation des services afin de prioriser ses réponses à partir des données réelles du restaurant.
