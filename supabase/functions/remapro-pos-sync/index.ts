@@ -3,6 +3,7 @@ import { withSupabase } from "npm:@supabase/server@1.4.1";
 const json=(data:unknown,status=200)=>Response.json(data,{status});
 const clean=(value:unknown,max=160)=>String(value??"").trim().slice(0,max);
 const validUuid=(value:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));
+const validDate=(value:unknown)=>/^\d{4}-\d{2}-\d{2}$/.test(String(value||""));
 
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
@@ -31,24 +32,35 @@ export default {
       if(!allowed)return json({error:"Restaurant access denied"},403);
 
       if(action==="bootstrap"){
-        const [{data:catalog,error:catalogError},{data:profile},{data:lastEvent}] = await Promise.all([
+        const deviceId=clean(body.deviceId,64);
+        const requests:any[]=[
           ctx.supabaseAdmin.from("pos_catalog_items")
             .select("id,recipe_id,sku,name,category,item_type,price,tax_rate,active,sort_order,metadata,version,updated_at")
             .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name"),
           ctx.supabaseAdmin.from("profiles").select("id,first_name,last_name,locale").eq("id",userId).maybeSingle(),
           ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle()
-        ]);
-        if(catalogError)return json({error:"Unable to load POS catalog"},500);
+        ];
+        if(validUuid(deviceId)){
+          requests.push(ctx.supabaseAdmin.from("pos_cash_sessions")
+            .select("id,business_date,status,opening_cash,expected_cash,counted_cash,difference_cash,opened_at,closed_at")
+            .eq("restaurant_id",restaurantId).eq("device_id",deviceId).eq("status","open").maybeSingle());
+        }
+        const results=await Promise.all(requests);
+        const catalogResult=results[0],profileResult=results[1],eventResult=results[2],sessionResult=results[3];
+        if(catalogResult.error)return json({error:"Unable to load POS catalog"},500);
         return json({
           ok:true,
           restaurant,
-          profile:profile||null,
-          catalog:catalog||[],
-          serverCursor:Number(lastEvent?.sequence||0),
+          profile:profileResult.data||null,
+          catalog:catalogResult.data||[],
+          openSession:sessionResult?.data||null,
+          serverCursor:Number(eventResult.data?.sequence||0),
           capabilities:{
             offlineQueue:true,
             cashSessions:true,
-            splitPayments:true,
+            atomicCheckout:true,
+            receiptNumbering:true,
+            splitPayments:false,
             paymentProviders:false,
             kitchen:false
           }
@@ -80,6 +92,77 @@ export default {
         return json({ok:true,device:data});
       }
 
+      if(action==="open_cash_session"){
+        const sessionId=clean(body.sessionId,64),deviceId=clean(body.deviceId,64),businessDate=clean(body.businessDate,10);
+        if(!validUuid(sessionId)||!validUuid(deviceId)||!validDate(businessDate))return json({error:"Invalid cash-session payload"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_open_cash_session",{
+          p_session_id:sessionId,
+          p_organization_id:restaurant.organization_id,
+          p_restaurant_id:restaurantId,
+          p_device_id:deviceId,
+          p_business_date:businessDate,
+          p_opening_cash:Number(body.openingCash)||0,
+          p_actor_user_id:userId,
+          p_notes:clean(body.notes,500)||null
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,session:data});
+      }
+
+      if(action==="close_cash_session"){
+        const sessionId=clean(body.sessionId,64);
+        if(!validUuid(sessionId))return json({error:"Invalid sessionId"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_close_cash_session",{
+          p_session_id:sessionId,
+          p_counted_cash:Number(body.countedCash)||0,
+          p_actor_user_id:userId,
+          p_notes:clean(body.notes,500)||null
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,session:data});
+      }
+
+      if(action==="commit_order"){
+        const order=body.order||{};
+        const orderId=clean(order.id,64),eventId=clean(order.clientEventId,64),deviceId=clean(order.deviceId,64),sessionId=clean(order.cashSessionId,64);
+        const businessDate=clean(order.businessDate,10);
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId)||!validDate(businessDate)){
+          return json({error:"Invalid order identity"},400);
+        }
+        if(!Array.isArray(order.lines)||!order.lines.length)return json({error:"Order lines required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_commit_order",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_organization_id:restaurant.organization_id,
+          p_restaurant_id:restaurantId,
+          p_device_id:deviceId,
+          p_cash_session_id:sessionId,
+          p_business_date:businessDate,
+          p_service_type:clean(order.serviceType,30)||"counter",
+          p_table_label:clean(order.tableLabel,80)||null,
+          p_covers:Math.max(0,Math.trunc(Number(order.covers)||0)),
+          p_currency:clean(order.currency,3).toUpperCase()||restaurant.currency||"CHF",
+          p_lines:order.lines,
+          p_payment_method:clean(order.paymentMethod,30),
+          p_payment_provider:clean(order.paymentProvider,80)||null,
+          p_payment_reference:clean(order.paymentReference,180)||null,
+          p_tip_amount:Math.max(0,Number(order.tipAmount)||0),
+          p_actor_user_id:userId,
+          p_occurred_at:order.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,receipt:data});
+      }
+
+      if(action==="recent_receipts"){
+        const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
+        const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at")
+          .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
       if(action==="pull_events"){
         const after=Math.max(0,Math.trunc(Number(body.after)||0));
         const limit=Math.max(1,Math.min(200,Math.trunc(Number(body.limit)||100)));
@@ -95,8 +178,8 @@ export default {
         let query=ctx.supabaseAdmin.from("pos_daily_sales_summary")
           .select("*").eq("restaurant_id",restaurantId).order("business_date",{ascending:false});
         const from=clean(body.from,10),to=clean(body.to,10);
-        if(/^\d{4}-\d{2}-\d{2}$/.test(from))query=query.gte("business_date",from);
-        if(/^\d{4}-\d{2}-\d{2}$/.test(to))query=query.lte("business_date",to);
+        if(validDate(from))query=query.gte("business_date",from);
+        if(validDate(to))query=query.lte("business_date",to);
         const {data,error}=await query.limit(370);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
