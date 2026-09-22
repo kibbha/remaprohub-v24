@@ -50,36 +50,36 @@ return `<section class="artisan-page documents-artisan">${head(t('documents'))}<
 
 function deliveryScannerCard(){
   const scan=deliveryScanState,photos=scan.photos||[],analysis=scan.analysis,items=Array.isArray(analysis?.items)?analysis.items:[];
-  const stockOptions=selected=>`<option value="__new__" ${!selected?'selected':''}>+ Créer un nouveau produit</option>${state.stock.map(x=>`<option value="${esc(x.id)}" ${String(x.id)===String(selected)?'selected':''}>${esc(x.name)} · ${esc(x.unit||'')}</option>`).join('')}`;
-  const photosHtml=photos.length?`<div class="delivery-photo-grid">${photos.map((p,i)=>`<figure class="delivery-photo"><img src="${esc(p.preview)}" alt="Photo ${i+1}"><figcaption><span>${esc(p.name)}</span>${!analysis?`<button type="button" class="btn compact danger" data-delivery-photo-remove="${esc(p.id)}">×</button>`:''}</figcaption></figure>`).join('')}</div>`:`<p class="muted">Ajoutez une ou plusieurs photos de la livraison.</p>`;
-  const progress=scan.busy?`<div class="delivery-progress-wrap"><div class="delivery-progress"><span style="width:${Math.max(2,Math.min(100,Number(scan.progress)||0))}%"></span></div><small>${scan.stage==='upload'?'Envoi sécurisé des photos…':scan.stage==='analysis'?'Reconnaissance visuelle, OCR et codes-barres…':'Traitement…'} ${Math.round(Number(scan.progress)||0)}%</small></div>`:'';
+  const stockOptions=selected=>`<option value="__new__" ${!selected?'selected':''}>+ ${t('newProduct')}</option>${state.stock.map(x=>`<option value="${esc(x.id)}" ${String(x.id)===String(selected)?'selected':''}>${esc(x.name)} · ${esc(x.unit||'')}</option>`).join('')}`;
+  const photosHtml=photos.length?`<div class="delivery-photo-grid">${photos.map((p,i)=>`<figure class="delivery-photo"><img src="${esc(p.preview)}" alt="Photo ${i+1}"><figcaption><span>${esc(p.name)}</span>${!analysis?`<button type="button" class="btn compact danger" data-delivery-photo-remove="${esc(p.id)}">×</button>`:''}</figcaption></figure>`).join('')}</div>`:`<p class="muted">${t('addDeliveryPhotos')}</p>`;
+  const progress=scan.busy?`<div class="delivery-progress-wrap"><div class="delivery-progress"><span style="width:${Math.max(2,Math.min(100,Number(scan.progress)||0))}%"></span></div><small>${scan.stage==='upload'?t('securePhotoUpload'):scan.stage==='analysis'?t('deliveryRecognitionProgress'):t('processing')} ${Math.round(Number(scan.progress)||0)}%</small></div>`:'';
   const review=analysis?`<form id="deliveryScanReviewForm" class="delivery-review-form">
-    <div class="delivery-review-head"><div><h3>Vérifier la livraison</h3><p class="muted">${items.length} produit(s) détecté(s) · ${analysis.summary?.matched||0} associé(s) au catalogue · ${analysis.summary?.uncertain||0} à vérifier</p></div><span class="pill info">Analyse ${esc(String(analysis.analysisId||scan.analysisId).slice(0,8))}</span></div>
+    <div class="delivery-review-head"><div><h3>${t('reviewDelivery')}</h3><p class="muted">${items.length} produit(s) détecté(s) · ${analysis.summary?.matched||0} associé(s) au catalogue · ${analysis.summary?.uncertain||0} à vérifier</p></div><span class="pill info">Analyse ${esc(String(analysis.analysisId||scan.analysisId).slice(0,8))}</span></div>
     <div class="form delivery-meta"><input name="supplier" placeholder="Fournisseur"><input name="date" type="date" value="${today()}" required></div>
     <div class="delivery-result-list">${items.length?items.map((x,i)=>{
       const conf=Math.max(0,Math.min(1,Number(x.confidence)||0)),band=confidenceBand(conf),matched=x.match?.stockId||'',evidence=[...(x.evidence?.ocr||[]),...(x.evidence?.visual||[])].slice(0,3);
       return `<article class="delivery-result ${band}">
         <div class="delivery-result-title"><label><input type="checkbox" name="scan_use_${i}" checked> <strong>${esc(x.name||'Produit non identifié')}</strong></label><span class="delivery-confidence ${band}">${confidenceLabel(conf,language())} · ${Math.round(conf*100)}%</span></div>
         <div class="delivery-result-grid">
-          <label>Produit ReMaPro<select name="scan_stock_${i}">${stockOptions(matched)}</select></label>
-          <label>Produit détecté<input name="scan_name_${i}" value="${esc(x.name||'')}" required></label>
-          <label>Marque<input name="scan_brand_${i}" value="${esc(x.brand||'')}"></label>
-          <label>Conditionnement<input name="scan_packaging_${i}" value="${esc(x.packaging||'')}"></label>
+          <label>${t('remaproProduct')}<select name="scan_stock_${i}">${stockOptions(matched)}</select></label>
+          <label>${t('detectedProduct')}<input name="scan_name_${i}" value="${esc(x.name||'')}" required></label>
+          <label>${t('brand')}<input name="scan_brand_${i}" value="${esc(x.brand||'')}"></label>
+          <label>${t('packaging')}<input name="scan_packaging_${i}" value="${esc(x.packaging||'')}"></label>
           <label>Quantité<input name="scan_qty_${i}" type="number" min="0.001" step="0.001" value="${esc(x.quantity||1)}" required></label>
           <label>Unité<input name="scan_unit_${i}" value="${esc(x.unit||'unité')}" required></label>
-          <label>Code-barres<input name="scan_barcode_${i}" value="${esc(x.barcode||'')}"></label>
+          <label>${t('barcode')}<input name="scan_barcode_${i}" value="${esc(x.barcode||'')}"></label>
         </div>
-        <div class="delivery-result-meta">${x.match?`Association : <strong>${esc(x.match.name)}</strong> · ${Math.round((Number(x.match.confidence)||0)*100)}%`:`<strong>Aucune correspondance satisfaisante : nouveau produit proposé.</strong>`}${evidence.length?`<br><small>Indices : ${evidence.map(esc).join(' · ')}</small>`:''}</div>
-        ${conf<.7?`<label class="delivery-required-check"><input type="checkbox" name="scan_confirm_${i}"> J’ai vérifié manuellement ce résultat.</label>`:''}
+        <div class="delivery-result-meta">${x.match?`Association : <strong>${esc(x.match.name)}</strong> · ${Math.round((Number(x.match.confidence)||0)*100)}%`:`<strong>${t('noCatalogMatch')}</strong>`}${evidence.length?`<br><small>${t('evidence')} : ${evidence.map(esc).join(' · ')}</small>`:''}</div>
+        ${conf<.7?`<label class="delivery-required-check"><input type="checkbox" name="scan_confirm_${i}"> ${t('manualReviewConfirm')}</label>`:''}
       </article>`;
-    }).join(''):`<div class="notice warning">L’IA n’a pas pu identifier de produit exploitable. Ajoutez une photo plus nette ou vérifiez les étiquettes.</div>`}</div>
-    <div class="actions"><button class="btn primary" ${!items.length||scan.busy?'disabled':''}>Valider définitivement la livraison</button><button type="button" id="deliveryScanCancel" class="btn" ${scan.busy?'disabled':''}>Annuler l’analyse</button></div>
-    <p class="muted">Aucun stock n’est modifié avant cette validation finale.</p>
+    }).join(''):`<div class="notice warning">${t('unidentifiedDelivery')}</div>`}</div>
+    <div class="actions"><button class="btn primary" ${!items.length||scan.busy?'disabled':''}>${t('validateDeliveryFinal')}</button><button type="button" id="deliveryScanCancel" class="btn" ${scan.busy?'disabled':''}>${t('cancelAnalysis')}</button></div>
+    <p class="muted">${t('noStockBeforeValidation')}</p>
   </form>`:'';
-  return card('Entrées de marchandises',`<div class="delivery-scanner"><div class="delivery-scan-head"><div><h3>Scanner une livraison</h3><p class="muted">Plusieurs produits peuvent être reconnus sur chaque photo. Les images sont temporaires et l’analyse est effectuée côté serveur.</p></div><span class="pill">IA multi-produits</span></div>
-    <div class="actions"><button type="button" id="deliveryScanCamera" class="btn">📷 Prendre une photo</button><button type="button" id="deliveryScanGallery" class="btn">🖼️ Galerie</button><input id="deliveryScanFileInput" type="file" accept="image/*" multiple hidden></div>
+  return card(t('deliveryEntries'),`<div class="delivery-scanner"><div class="delivery-scan-head"><div><h3>${t('scanDelivery')}</h3><p class="muted">${t('deliveryScannerHint')}</p></div><span class="pill">${t('deliveryAiMulti')}</span></div>
+    <div class="actions"><button type="button" id="deliveryScanCamera" class="btn">📷 ${t('takePhoto')}</button><button type="button" id="deliveryScanGallery" class="btn">🖼️ ${t('gallery')}</button><input id="deliveryScanFileInput" type="file" accept="image/*" multiple hidden></div>
     ${photosHtml}
-    ${!analysis?`<div class="actions"><button type="button" id="deliveryScanAnalyze" class="btn primary" ${!photos.length||scan.busy?'disabled':''}>Analyser ${photos.length?photos.length+' photo(s)':''}</button><small class="muted">Maximum ${DELIVERY_AI_MAX_PHOTOS} photos · 8 Mo/photo</small></div>`:''}
+    ${!analysis?`<div class="actions"><button type="button" id="deliveryScanAnalyze" class="btn primary" ${!photos.length||scan.busy?'disabled':''}>${t('analyzePhotos')} ${photos.length?photos.length:''}</button><small class="muted">${DELIVERY_AI_MAX_PHOTOS} ${t('maxPhotosHint')}</small></div>`:''}
     ${progress}${scan.error?`<div class="notice error">${esc(scan.error)}</div>`:''}${review}
   </div>`);
 }
@@ -94,16 +94,16 @@ function addDeliveryScanPhotos(entries){
 }
 function bindDeliveryScanner(){
   const input=document.getElementById('deliveryScanFileInput');
-  input?.addEventListener('change',e=>{const files=e.currentTarget.files;e.currentTarget.value='';try{addDeliveryScanPhotos(photosFromFiles(files))}catch{deliveryScanState.error='Impossible de lire les photos sélectionnées.';render()}});
+  input?.addEventListener('change',e=>{const files=e.currentTarget.files;e.currentTarget.value='';try{addDeliveryScanPhotos(photosFromFiles(files))}catch{deliveryScanState.error=t('deliveryPhotoReadFailed');render()}});
   document.getElementById('deliveryScanGallery')?.addEventListener('click',async()=>{
-    try{const native=await pickDeliveryPhotos();if(native)addDeliveryScanPhotos(native);else if(input){input.removeAttribute('capture');input.multiple=true;input.click()}}catch{deliveryScanState.error='Impossible d’ouvrir la galerie.';render()}
+    try{const native=await pickDeliveryPhotos();if(native)addDeliveryScanPhotos(native);else if(input){input.removeAttribute('capture');input.multiple=true;input.click()}}catch{deliveryScanState.error=t('galleryOpenFailed');render()}
   });
   document.getElementById('deliveryScanCamera')?.addEventListener('click',async()=>{
-    try{const photo=await takeDeliveryPhoto();if(photo)addDeliveryScanPhotos([photo]);else if(input){input.setAttribute('capture','environment');input.multiple=false;input.click()}}catch{deliveryScanState.error='Impossible d’utiliser la caméra.';render()}
+    try{const photo=await takeDeliveryPhoto();if(photo)addDeliveryScanPhotos([photo]);else if(input){input.setAttribute('capture','environment');input.multiple=false;input.click()}}catch{deliveryScanState.error=t('cameraOpenFailed');render()}
   });
   document.querySelectorAll('[data-delivery-photo-remove]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.deliveryPhotoRemove,p=deliveryScanState.photos.find(x=>x.id===id);if(p?.preview)URL.revokeObjectURL(p.preview);deliveryScanState.photos=deliveryScanState.photos.filter(x=>x.id!==id);render()}));
   document.getElementById('deliveryScanAnalyze')?.addEventListener('click',async()=>{
-    const rid=cloudRestaurantId();if(!rid){alert('Restaurant cloud requis.');return}if(!cloudSession()){alert(t('cloudLoginRequired'));return}
+    const rid=cloudRestaurantId();if(!rid){alert(t('cloudRestaurantRequired'));return}if(!cloudSession()){alert(t('cloudLoginRequired'));return}
     const photos=deliveryScanState.photos||[];if(!photos.length)return;
     deliveryScanState.analysisId=deliveryScanState.analysisId||globalThis.crypto?.randomUUID?.()||String(Date.now());
     deliveryScanState.busy=true;deliveryScanState.progress=2;deliveryScanState.stage='upload';deliveryScanState.error='';render();
@@ -112,7 +112,7 @@ function bindDeliveryScanner(){
       deliveryScanState.paths=result.paths||[];deliveryScanState.analysis=result.data;deliveryScanState.busy=false;deliveryScanState.progress=100;deliveryScanState.stage='done';
       if(!result.data?.items?.length)deliveryScanState.error='L’IA n’a pas pu identifier un produit avec suffisamment d’éléments. Essayez une photo plus nette.';
       render();
-    }catch(error){deliveryScanState.busy=false;deliveryScanState.error=error?.message||'Analyse impossible. Les photos restent disponibles pour réessayer.';render()}
+    }catch(error){deliveryScanState.busy=false;deliveryScanState.error=error?.message||t('deliveryAnalysisRetry');render()}
   });
   document.getElementById('deliveryScanCancel')?.addEventListener('click',async()=>{
     const rid=cloudRestaurantId(),analysisId=deliveryScanState.analysisId;
@@ -125,11 +125,11 @@ function bindDeliveryScanner(){
     for(let i=0;i<source.length;i++){
       if(form.get('scan_use_'+i)!=='on')continue;
       const confidence=Number(source[i].confidence)||0;
-      if(confidence<.7&&form.get('scan_confirm_'+i)!=='on'){alert('Vérifiez et confirmez tous les résultats rouges avant validation.');return}
+      if(confidence<.7&&form.get('scan_confirm_'+i)!=='on'){alert(t('confirmRedResults'));return}
       const selected=String(form.get('scan_stock_'+i)||''),quantity=Number(form.get('scan_qty_'+i)),name=String(form.get('scan_name_'+i)||'').trim(),unit=String(form.get('scan_unit_'+i)||'').trim();
-      if(!name||!unit||!Number.isFinite(quantity)||quantity<=0){alert('Vérifiez les produits, quantités et unités.');return}
+      if(!name||!unit||!Number.isFinite(quantity)||quantity<=0){alert(t('deliveryFieldsInvalid'));return}
       const stockId=selected&&selected!=='__new__'?selected:'';
-      if(stockId&&!state.stock.some(x=>String(x.id)===stockId)){alert('Une référence stock sélectionnée n’existe plus. Actualisez puis réessayez.');return}
+      if(stockId&&!state.stock.some(x=>String(x.id)===stockId)){alert(t('stockReferenceGone'));return}
       items.push({use:true,stockId,name,brand:String(form.get('scan_brand_'+i)||''),packaging:String(form.get('scan_packaging_'+i)||''),quantity,unit,barcode:String(form.get('scan_barcode_'+i)||''),confidence,matchConfidence:Number(source[i].match?.confidence)||0});
     }
     if(!items.length){alert('Sélectionnez au moins un produit.');return}
@@ -140,7 +140,7 @@ function bindDeliveryScanner(){
       const applied=applyDeliveryAiReceiving(state,{analysisId:deliveryScanState.analysisId,supplier:corrected.supplier,date:corrected.date,items});
       if(!applied)throw new Error('Impossible d’appliquer cette livraison au stock.');
       persist();const count=applied.movements,created=applied.createdProducts;resetDeliveryScanner();render();alert(`Livraison validée : ${count} mouvement(s) d’entrée${created?` · ${created} nouveau(x) produit(s)`:''}.`);
-    }catch(error){deliveryScanState.busy=false;deliveryScanState.error=error?.message||'Validation impossible. Aucun mouvement de stock n’a été ajouté.';render()}
+    }catch(error){deliveryScanState.busy=false;deliveryScanState.error=error?.message||t('deliveryValidationFailed');render()}
   });
 }
 function stock(){const supplierOptions=selected=>`<option value="">${t('noPreferredSupplier')}</option>${state.suppliers.map(x=>`<option value="${esc(x.name)}" ${x.name===selected?'selected':''}>${esc(x.name)}</option>`).join('')}`,reorders=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),intelligence=`<div class="grid intelligence-grid">${card(t('reorderSuggestions'),reorders.length?reorders.slice(0,8).map(x=>`<div class="row"><span><strong>${esc(x.name)}</strong><br><small class="muted">${t('available')}: ${esc(x.available)} ${esc(x.unit)} · ${t('minimumStock')}: ${esc(x.minimum)}</small></span><span><strong>${t('quantityToOrder')}: ${esc(x.quantity)} ${esc(x.unit)}</strong><br><small class="muted">≈ ${money(x.estimatedCost)}</small></span></div>`).join(''):`<p class="muted">✓ ${t('noPriority')}</p>`)}${priceAlerts.length?card(t('supplierPriceChanges'),priceAlerts.slice(0,8).map(x=>`<div class="row"><span><strong>${esc(x.product)}</strong><br><small class="muted">${esc(x.supplier)} · ${esc(x.date)}</small></span><span class="pill ${x.changePct>0?'warning':'good'}">${x.changePct>0?'+':''}${esc(x.changePct)}%</span></div>`).join('')):''}</div>`;return `<section>${head(t('stock'))}${deliveryScannerCard()}${intelligence}${card(t('stockPhoto'),`<div class="form"><input id="stockPhotoInput" type="file" accept="image/*" capture="environment"><button type="button" id="stockPhotoAnalyze" class="btn primary">${t('analyzePhoto')}</button></div><p class="muted">${t('aiHint')}</p>`)}${visionDraft?card(t('photoResult'),`<form id="visionStockForm" class="form"><input name="name" required value="${esc(visionDraft.name||'')}" placeholder="${t('product')}"><input name="unit" value="${esc(visionDraft.unit||'')}" placeholder="${t('unit')}"><input name="qty" required type="number" step=".01" min="0" value="${esc(visionDraft.quantity??1)}" placeholder="${t('baseQuantity')}"><input name="price" type="number" min="0" step=".01" value="${esc(visionDraft.unitCost??0)}" placeholder="${t('purchasePrice')}"><input name="min" type="number" step=".01" min="0" value="0" placeholder="${t('minimumStock')}"><input name="reorderTarget" type="number" step=".01" min="0" value="0" placeholder="${t('targetStock')}"><select name="preferredSupplier" aria-label="${t('preferredSupplier')}">${supplierOptions('')}</select><button class="btn primary">${t('add')}</button></form><p class="muted">${t('confidence')}: ${esc(Math.round((+visionDraft.confidence||0)*100))}%</p>`):''}${card(t('inventory'),`<form id="stockForm" class="form"><input name="name" required placeholder="${t('product')}"><input name="unit" placeholder="${t('unit')}"><input name="qty" required type="number" step=".01" min="0" placeholder="${t('baseQuantity')}"><input name="price" type="number" min="0" step=".01" placeholder="${t('purchasePrice')}"><input name="min" type="number" step=".01" min="0" placeholder="${t('minimumStock')}"><input name="reorderTarget" type="number" step=".01" min="0" placeholder="${t('targetStock')}"><select name="preferredSupplier" aria-label="${t('preferredSupplier')}">${supplierOptions('')}</select><button class="btn primary">${t('add')}</button></form>${rows(state.stock,(x,i)=>editingRow('stock',i)?`<form class="form inline-edit" data-edit-form="stock" data-index="${i}"><input name="name" required value="${esc(x.name)}"><input name="unit" value="${esc(x.unit||'')}" placeholder="${t('unit')}"><input name="qty" required type="number" step=".01" min="0" value="${esc(x.qty)}"><input name="price" type="number" min="0" step=".01" value="${esc(x.price)}"><input name="min" type="number" step=".01" min="0" value="${esc(x.min||0)}"><input name="reorderTarget" type="number" step=".01" min="0" value="${esc(x.reorderTarget||0)}" placeholder="${t('targetStock')}"><select name="preferredSupplier" aria-label="${t('preferredSupplier')}">${supplierOptions(x.preferredSupplier||'')}</select>${editButtons()}</form>`:`<div class="row"><span>${esc(x.name)}<br><small class="muted">${esc(x.unit||'')}</small></span><span class="row-actions"><strong>${t('available')}: ${esc(stockAvailable(state,x))} ${esc(x.unit||'')} · ${money(x.price)}</strong><small>${t('baseQuantity')}: ${esc(x.qty)} ${esc(x.unit||'')}${(+x.reorderTarget||0)>0?` · ${t('targetStock')}: ${esc(x.reorderTarget)} ${esc(x.unit||'')}`:''}${x.preferredSupplier?` · ${t('preferredSupplier')}: ${esc(x.preferredSupplier)}`:''}</small>${(+x.min||0)>0&&stockAvailable(state,x)<=+(x.min||0)?`<span class="pill warning">${t('lowStock')}</span>`:''}${actions('stock',i)}</span></div>`,'noStock')}`)}</section>`}
