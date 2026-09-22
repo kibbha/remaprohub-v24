@@ -3,7 +3,7 @@ import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const cloud=fs.readFileSync(new URL('../src/cloud.js',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-for(const token of ['function trainingView','TRAINING_REAL_ACTION_BLOCKED','if(state.trainingMode)return;','academy-help-context','academyFunction','academy-scope','academy-copy-context','posOrgAdmin','canManageVisibility:posOrgAdmin()','trackTrainingProgress'])assert.ok((app+cloud).includes(token),token);
+for(const token of ['function trainingView','TRAINING_REAL_ACTION_BLOCKED','if(state.trainingMode)return;','academy-help-context','academyFunction','academy-scope','academy-copy-context','posOrgAdmin','canManageVisibility:posOrgAdmin()','trackTrainingProgress','academyChromeText'])assert.ok((app+cloud).includes(token),token);
 const a=app.indexOf('function trainingView'),b=app.indexOf('function academyTourView',a),training=app.slice(a,b);
 assert.doesNotMatch(training,/posFunction\(|queueCommand\(|printEscPosText\(/,'training sandbox must not call real sale or printer');
 for(const text of ['MODE ENTRAÎNEMENT','TRAINING MODE','TRAININGSMODUS','MODALITÀ FORMAZIONE'])assert.ok(training.includes(text),text);
@@ -21,3 +21,9 @@ assert.ok(sw.includes('./src/academy-content.js'));assert.ok(sw.includes('./src/
 assert.ok(sw.includes('remapro-pos-shell-v0270-academy-i18n-final'),'offline cache refreshed');
 assert.equal(JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8')).version,'0.27.0');
 console.log('POS Academy training, permissions, support and offline checks passed');
+
+assert.ok(app.includes("contextHelp:'Aide contextuelle'"));
+assert.ok(app.includes("contextHelp:'Contextual help'"));
+assert.ok(app.includes("contextHelp:'Kontexthilfe'"));
+assert.ok(app.includes("contextHelp:'Aiuto contestuale'"));
+assert.ok(app.includes('academyChromeText().contextCopied'));

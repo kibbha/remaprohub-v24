@@ -1614,6 +1614,14 @@ function syncView(){
 const academyOrgId=()=>state.restaurant?.organization_id||state.identity?.memberships?.[0]?.organization_id||'';
 const academyUserId=()=>String(state.identity?.user?.id||'local');
 const academyLocale=()=>['fr','en','de','it'].includes(state.academyLocale)?state.academyLocale:'fr';
+function academyChromeText(){
+  return{
+    fr:{contextHelp:'Aide contextuelle',contextCopied:'Contexte technique copié.'},
+    en:{contextHelp:'Contextual help',contextCopied:'Technical context copied.'},
+    de:{contextHelp:'Kontexthilfe',contextCopied:'Technischer Kontext kopiert.'},
+    it:{contextHelp:'Aiuto contestuale',contextCopied:'Contesto tecnico copiato.'}
+  }[academyLocale()];
+}
 const posAcademyRole=()=>isManager()?'manager':(['kitchen','bar'].includes(state.operator?.role)?'kitchen':'server');
 function posAcademyAutoRows(){
   const rows=[],now=new Date().toISOString(),add=(id,yes)=>{if(yes)rows.push({application:'pos',topic_id:id,content_version:ACADEMY_CONTENT_VERSION,status:'completed',step_index:99,updated_at:now,metadata:{auto:true}})};
@@ -1699,7 +1707,7 @@ function bindPosAcademy(){
   document.querySelectorAll('[data-academy-step]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyStep,b.dataset.stepStatus||'in_progress',Number(b.dataset.stepIndex)||0)));
   document.querySelectorAll('[data-academy-tour]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.academyTour;state.academy.selectedTopic='';state.view=academyTourView(id);render();setTimeout(()=>startAcademyTour(id,{locale:academyLocale()}),40)}));
   document.getElementById('academy-training-start')?.addEventListener('click',()=>{state.trainingMode=true;resetTraining();state.view='training';render()});
-  document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro POS',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:state.view,online:state.online,pendingSync:state.queueCount};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);alert('Context copied.')}catch{alert(value)}});
+  document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro POS',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:state.view,online:state.online,pendingSync:state.queueCount};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);alert(academyChromeText().contextCopied)}catch{alert(value)}});
   document.getElementById('academy-manager-visibility')?.addEventListener('change',async e=>{const org=academyOrgId();if(!posOrgAdmin()||!org)return;e.target.disabled=true;try{const data=await academyFunction({action:'set_manager_visibility',organizationId:org,enabled:e.target.checked});state.academy.managerVisibility=!!data.managerVisibility;state.academy.loaded=false;await refreshPosAcademy()}catch{e.target.checked=!e.target.checked}finally{e.target.disabled=false}});
 }
 function bindTraining(){
@@ -1722,7 +1730,7 @@ function sessionView(){return `<div class="picker-wrap"><form class="card" id="o
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
     <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
-    <div class="spacer"></div><button class="secondary academy-help-context" id="academy-help-context" title="Aide contextuelle">?</button>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
+    <div class="spacer"></div><button class="secondary academy-help-context" id="academy-help-context" title="${academyChromeText().contextHelp}">?</button>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
 }
