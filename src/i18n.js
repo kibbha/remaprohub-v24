@@ -228,6 +228,11 @@ const v2711tEn={paymentTermsDays:"Payment terms (days)",paymentTermsHint:"This t
 const v2711tDe={paymentTermsDays:"Zahlungsziel (Tage)",paymentTermsHint:"Dieses Zahlungsziel wird verwendet, um die Fälligkeit neuer Rechnungen dieses Lieferanten vorzuschlagen.",paymentTermsShort:"Zahlung",invalidSupplier:"Prüfen Sie Lieferant und Zahlungsziel.",days:"Tage"};
 const v2711tIt={paymentTermsDays:"Termini di pagamento (giorni)",paymentTermsHint:"Questo termine viene usato per proporre la scadenza delle nuove fatture del fornitore.",paymentTermsShort:"Pagamento",invalidSupplier:"Controlla il fornitore e i termini di pagamento.",days:"giorni"};
 Object.assign(fr,v2711tFr);Object.assign(en,v2711tEn);Object.assign(de,v2711tDe);Object.assign(it,v2711tIt);
+const v2711uFr={supplierPaymentsDue:"Paiements fournisseurs à traiter"};
+const v2711uEn={supplierPaymentsDue:"Supplier payments to review"};
+const v2711uDe={supplierPaymentsDue:"Lieferantenzahlungen prüfen"};
+const v2711uIt={supplierPaymentsDue:"Pagamenti fornitori da gestire"};
+Object.assign(fr,v2711uFr);Object.assign(en,v2711uEn);Object.assign(de,v2711uDe);Object.assign(it,v2711uIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}
