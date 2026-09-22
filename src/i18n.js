@@ -263,6 +263,11 @@ const v2711aaEn={planningLeaveConflict:"Schedule / leave conflict",approvedLeave
 const v2711aaDe={planningLeaveConflict:"Konflikt Planung / Urlaub",approvedLeave:"Genehmigter Urlaub"};
 const v2711aaIt={planningLeaveConflict:"Conflitto planning / congedo",approvedLeave:"Congedo approvato"};
 Object.assign(fr,v2711aaFr);Object.assign(en,v2711aaEn);Object.assign(de,v2711aaDe);Object.assign(it,v2711aaIt);
+const v2711abFr={availableReplacements:"Remplaçants disponibles",noAvailableReplacement:"Aucun remplaçant disponible sans conflit",sameRole:"même rôle",replaceShiftConfirm:"Remplacer ce service par"};
+const v2711abEn={availableReplacements:"Available replacements",noAvailableReplacement:"No conflict-free replacement available",sameRole:"same role",replaceShiftConfirm:"Replace this shift with"};
+const v2711abDe={availableReplacements:"Verfügbare Vertretungen",noAvailableReplacement:"Keine konfliktfreie Vertretung verfügbar",sameRole:"gleiche Rolle",replaceShiftConfirm:"Diesen Dienst ersetzen durch"};
+const v2711abIt={availableReplacements:"Sostituti disponibili",noAvailableReplacement:"Nessun sostituto disponibile senza conflitti",sameRole:"stesso ruolo",replaceShiftConfirm:"Sostituire questo turno con"};
+Object.assign(fr,v2711abFr);Object.assign(en,v2711abEn);Object.assign(de,v2711abDe);Object.assign(it,v2711abIt);
 const nl={...en,...{dashboard:'Dashboard',settings:'Instellingen',documents:'Documenten',recipes:'Recepten en food cost',team:'Team',finance:'Financiën',stock:'Voorraad',save:'Opslaan',add:'Toevoegen',delete:'Verwijderen',back:'Terug',welcome:'Welkom',start:'Starten'}};
 const zh={...en,...{dashboard:'仪表板',settings:'设置',documents:'文档',recipes:'菜谱与食材成本',team:'团队',finance:'财务',stock:'库存',save:'保存',add:'添加',delete:'删除',back:'返回',welcome:'欢迎',start:'开始'}};
 const dict={fr,en,de,it,es,pt,nl,zh};export function language(){const v=localStorage.getItem('rmp.language')||'fr';return LANGS.includes(v)?v:'fr'}export function setLanguage(v){if(LANGS.includes(v)){localStorage.setItem('rmp.language',v);document.documentElement.lang=v;window.dispatchEvent(new Event('rmp:language'))}}export function t(key){const l=language();return dict[l][key]??dict.fr[key]??key}export function catalogue(lang){return dict[LANGS.includes(lang)?lang:'fr']}

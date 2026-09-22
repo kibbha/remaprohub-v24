@@ -193,3 +193,9 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Un congé simplement demandé ne déclenche pas de conflit tant qu’il n’est pas approuvé.
 - Le système signale le problème sans supprimer ni déplacer automatiquement un service existant.
 - Le Manager Copilot reçoit également ces conflits afin de les intégrer à ses priorités.
+
+## Remplacement planning assisté – lot 28
+- Lorsqu’un service entre en conflit avec un congé approuvé, ReMaPro propose jusqu’à trois collaborateurs disponibles pour le remplacer.
+- Les suggestions excluent automatiquement la personne absente, les collaborateurs également en congé approuvé et ceux déjà occupés sur un horaire qui chevauche le service.
+- Les collaborateurs ayant le même rôle sont proposés en priorité, puis ceux ayant le moins d’heures planifiées sur les sept jours suivants.
+- Le manager peut remplacer le collaborateur directement depuis Planning, après confirmation ; aucun service n’est modifié automatiquement.
