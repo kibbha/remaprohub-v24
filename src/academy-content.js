@@ -5,7 +5,7 @@ const S=(fr,en,de,it)=>L(fr,en,de,it);
 const T=(id,application,module,roles,title,summary,steps,extra={})=>({
   id,application,module,roles,title,summary,steps,level:extra.level||'beginner',
   offline:extra.offline!==false,version:ACADEMY_CONTENT_VERSION,
-  related:extra.related||[],tour:extra.tour||'',media:extra.media||[{type:'video',src:'',poster:'',captions:'',duration:0}],
+  related:extra.related||[],tour:extra.tour||'',media:extra.media||[{type:'video',src:'',poster:'',captions:'',duration:0}],quiz:extra.quiz||null,
   errors:extra.errors||[]
 });
 
@@ -250,4 +250,44 @@ export const ACADEMY_TOURS={
  'hub-pos-layout':[{selector:'main',title:L('Implantation caisse','POS layout','Kassenlayout','Layout cassa'),text:L('Prévisualisez toujours avant de publier une nouvelle version aux tablettes.','Always preview before publishing a new version to tablets.','Vor Veröffentlichung auf Tablets immer Vorschau prüfen.','Fare sempre anteprima prima di pubblicare sui tablet.')}],
  'pos-setup':[{selector:'.topbar',title:L('État POS','POS status','POS-Status','Stato POS'),text:L('Vérifiez restaurant, opérateur, synchronisation et réseau avant le service.','Check restaurant, operator, sync and network before service.','Restaurant, Bediener, Sync und Netzwerk vor Service prüfen.','Verificare ristorante, operatore, sync e rete prima del servizio.')}],
  'pos-cash':[{selector:'.session-chip',title:L('Session de caisse','Cash session','Kassensitzung','Sessione cassa'),text:L('Ce badge confirme la session ouverte et son fond de caisse.','This badge confirms the open session and its cash float.','Dieses Badge zeigt offene Sitzung und Wechselgeld.','Questo badge conferma sessione aperta e fondo cassa.')}]
+};
+
+export const ACADEMY_COVERAGE={
+ hub:{
+  'account.create':'hub-account-security','account.signin':'hub-account-security','account.signout':'hub-account-security','account.biometric':'hub-account-security','account.security':'hub-account-security',
+  'organization.organizations':'hub-organization-users','organization.restaurants':'hub-organization-users','organization.users':'hub-organization-users','organization.roles':'hub-organization-users','organization.permissions':'hub-organization-users','organization.add_remove_user':'hub-organization-users',
+  'dashboard.cockpit':'hub-dashboard','dashboard.kpis':'hub-dashboard','dashboard.alerts':'hub-dashboard','dashboard.tasks':'hub-dashboard','dashboard.filters':'hub-dashboard','dashboard.quick_actions':'hub-dashboard',
+  'recipes.create':'hub-recipes','recipes.ingredients':'hub-recipes','recipes.quantities':'hub-recipes','recipes.units':'hub-recipes','recipes.costs':'hub-recipes','recipes.margin':'hub-recipes','recipes.suggested_price':'hub-recipes','recipes.subrecipes':'hub-recipes','recipes.price_impact':'hub-recipes','recipes.publish_pos':'hub-recipes',
+  'stock.items':'hub-stock','stock.categories':'hub-stock','stock.levels':'hub-stock','stock.thresholds':'hub-stock','stock.inventory':'hub-stock','stock.waste':'hub-stock','stock.corrections':'hub-stock','stock.movements':'hub-stock','stock.valuation':'hub-stock','stock.theoretical_actual':'hub-stock',
+  'stock.ai_photos':'hub-delivery-ai','stock.ai_ocr':'hub-delivery-ai','stock.ai_barcode':'hub-delivery-ai','stock.ai_matching':'hub-delivery-ai','stock.ai_validation':'hub-delivery-ai',
+  'suppliers.suppliers':'hub-suppliers-purchases','suppliers.products':'hub-suppliers-purchases','suppliers.prices':'hub-suppliers-purchases','purchases.orders':'hub-suppliers-purchases','purchases.deliveries':'hub-suppliers-purchases','purchases.variances':'hub-suppliers-purchases','purchases.history':'hub-suppliers-purchases','purchases.reorder':'hub-suppliers-purchases',
+  'haccp.records':'hub-haccp','haccp.temperature':'hub-haccp','haccp.cleaning':'hub-haccp','haccp.receiving':'hub-haccp','haccp.nonconformity':'hub-haccp','haccp.corrective':'hub-haccp','haccp.history':'hub-haccp','haccp.export_inspection':'hub-haccp',
+  'team.employees':'hub-team-planning','team.roles':'hub-team-planning','team.planning':'hub-team-planning','team.leave':'hub-team-planning','team.hours':'hub-team-planning','team.labor_cost':'hub-team-planning','team.access':'hub-organization-users',
+  'hr.contract':'hub-hr-documents','hr.extra':'hub-hr-documents','hr.payslip':'hub-hr-documents','hr.documents':'hub-hr-documents',
+  'finance.revenue':'hub-finance','finance.expenses':'hub-finance','finance.payment_methods':'hub-finance','finance.reports':'hub-finance','finance.comparisons':'hub-finance','finance.exports':'hub-finance','finance.indicators':'hub-finance',
+  'ai.ask':'hub-ai','ai.context':'hub-ai','ai.limits':'hub-ai','ai.validation':'hub-ai','ai.use_cases':'hub-ai',
+  'posadmin.activate':'hub-pos-admin','posadmin.settings':'hub-pos-admin','posadmin.devices':'hub-pos-admin','posadmin.operators':'hub-pos-admin','posadmin.pin':'hub-pos-admin','posadmin.permissions':'hub-pos-admin','posadmin.terminals':'hub-pos-admin','posadmin.printers':'hub-pos-admin','posadmin.stations':'hub-pos-admin','posadmin.sync':'hub-pos-admin','posadmin.reports':'hub-pos-admin',
+  'layout.pages':'hub-pos-layout','layout.categories':'hub-pos-layout','layout.keys':'hub-pos-layout','layout.color':'hub-pos-layout','layout.size':'hub-pos-layout','layout.order':'hub-pos-layout','layout.subpages':'hub-pos-layout','layout.favorites':'hub-pos-layout','layout.hidden':'hub-pos-layout','layout.modifiers':'hub-pos-layout','layout.menus':'hub-pos-layout','layout.preview':'hub-pos-layout','layout.publish':'hub-pos-layout','layout.rollback':'hub-pos-layout',
+  'customers.reservations':'hub-reservations-customers','customers.records':'hub-reservations-customers','customers.loyalty':'hub-reservations-customers',
+  'operations.checklists':'hub-compliance-ops','operations.incidents':'hub-compliance-ops','operations.maintenance':'hub-compliance-ops','operations.equipment':'hub-compliance-ops','operations.audits':'hub-compliance-ops','operations.recalls':'hub-compliance-ops','operations.allergens':'hub-compliance-ops',
+  'settings.language':'hub-settings-subscription','settings.appearance':'hub-settings-subscription','settings.notifications':'hub-settings-subscription','settings.backup':'hub-settings-subscription','settings.subscription':'hub-settings-subscription'
+ },
+ pos:{
+  'setup.install':'pos-first-use','setup.login':'pos-first-use','setup.restaurant':'pos-first-use','setup.device':'pos-first-use','setup.initial_sync':'pos-first-use',
+  'operator.pin':'pos-operator','operator.switch':'pos-operator','operator.permissions':'pos-operator','operator.manager_actions':'pos-operator',
+  'cash.open':'pos-cash-session','cash.float':'pos-cash-session','cash.status':'pos-cash-session','cash.close':'pos-cash-session','cash.count':'pos-cash-session','cash.variance':'pos-cash-session',
+  'floor.tables':'pos-floor','floor.covers':'pos-floor','floor.open_table':'pos-floor','floor.transfer':'pos-floor','floor.merge_split':'pos-floor','floor.open_checks':'pos-floor',
+  'order.categories':'pos-ordering','order.product_keys':'pos-ordering','order.quantity':'pos-ordering','order.delete':'pos-ordering','order.after_send':'pos-ordering','order.open_item':'pos-ordering','order.notes':'pos-ordering',
+  'order.modifiers':'pos-modifiers-menus','order.cooking':'pos-modifiers-menus','order.sides':'pos-modifiers-menus','order.extras':'pos-modifiers-menus','order.menus':'pos-modifiers-menus',
+  'production.send':'pos-production','production.tickets':'pos-production','production.status':'pos-production','production.preparing':'pos-production','production.ready':'pos-production','production.served':'pos-production','production.reprint':'pos-production','production.routing':'pos-production',
+  'payment.cash':'pos-payments','payment.card':'pos-payments','payment.twint':'pos-payments','payment.external':'pos-payments','payment.tip':'pos-payments','payment.cancel':'pos-payments','payment.pending':'pos-payments','payment.failed':'pos-payments',
+  'payment.split_amount':'pos-split-payments','payment.split_items':'pos-split-payments','payment.progressive':'pos-split-payments',
+  'ticket.master':'pos-tickets','ticket.split':'pos-tickets','ticket.reprint':'pos-tickets','ticket.number':'pos-tickets','ticket.history':'pos-tickets',
+  'refund.full':'pos-refunds','refund.partial':'pos-refunds','refund.external':'pos-refunds','refund.audit':'pos-refunds',
+  'offline.available':'pos-offline-sync','offline.queue':'pos-offline-sync','offline.reconnect':'pos-offline-sync','offline.conflicts':'pos-offline-sync','offline.local_data':'pos-offline-sync','offline.best_practices':'pos-offline-sync',
+  'hardware.printers':'pos-printers','hardware.discovery':'pos-printers','hardware.test':'pos-printers','hardware.profile':'pos-printers','hardware.routing':'pos-printers','hardware.cash_drawer':'pos-printers',
+  'hardware.terminals':'pos-terminals','hardware.connection_state':'pos-terminals','hardware.compatibility':'pos-terminals',
+  'reports.service':'pos-reports','reports.revenue':'pos-reports','reports.payments':'pos-reports','reports.refunds':'pos-reports','reports.vat':'pos-reports','reports.cash_float':'pos-reports','reports.food_cost':'pos-reports',
+  'training.safe_mode':'pos-training','training.fake_data':'pos-training','training.order':'pos-training','training.payment':'pos-training','training.close':'pos-training'
+ }
 };
