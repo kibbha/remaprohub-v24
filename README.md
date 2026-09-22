@@ -1,20 +1,25 @@
 # ReMaPro POS
 
-Version actuelle: **0.10.0**  
+Version actuelle: **0.11.0**  
 Android package: **com.remapro.pos**
 
-## Nouveauté v0.10 — sous-tickets individuels
-Lorsqu’une addition est partagée par articles/personnes :
-- le ticket maître de la table reste conservé ;
-- chaque personne dispose d’un bouton d’impression portant son libellé ;
-- son sous-ticket affiche uniquement ses articles et quantités ;
-- son montant, son moyen de paiement, son pourboire et sa TVA incluse sont affichés ;
-- le numéro du ticket maître reste visible pour rattacher toutes les parts à la même vente.
+## Nouveauté v0.11 — rapport de service / Z
+L’onglet Rapport affiche pour une date :
+- CA brut, remboursements effectués pendant ce service et CA net ;
+- TVA brute ;
+- pourboires nets ;
+- nombre de tickets, couverts et ticket moyen ;
+- ventilation par espèces, carte, TWINT, etc. ;
+- remboursements par moyen ;
+- sessions de caisse, fonds initiaux, espèces attendues/comptées et écart ;
+- impression 80 mm du rapport Z.
+
+Les remboursements sont rattachés au **jour où ils sont réellement effectués** dans le rapport de caisse, même si le ticket original est plus ancien.
 
 ## Socle
-Caisse, salle, Cuisine/Bar, ajouts incrémentaux, impression 80 mm, partage par montants ou articles, pourboires, transferts, annulations et remboursements.
+Caisse, salle, Cuisine/Bar, impression, partage par articles/personnes, sous-tickets individuels, pourboires, transferts, annulations et remboursements.
 
 ## Suite
-Rapport de service/Z, partage progressif, pilotes ESC/POS Android, Worldline/TWINT et SQLite natif.
+Partage progressif, pilotes ESC/POS Android, Worldline/TWINT, gestion terminal et SQLite natif.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

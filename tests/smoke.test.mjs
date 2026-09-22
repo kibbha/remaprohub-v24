@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
-assert.equal(JSON.parse(read('package.json')).version,'0.10.0');
+assert.equal(JSON.parse(read('package.json')).version,'0.11.0');
 assert.equal(JSON.parse(read('capacitor.config.json')).appId,'com.remapro.pos');
 const app=read('src/app.js');
-for(const token of ['printSplitPayment','data-print-split-payment','Ticket maître','splitLabel','Sous-ticket de partage'])assert.ok(app.includes(token),token);
-assert.match(read('src/styles.css'),/split-ticket-btn/);
+for(const token of ['service_report','reportView','printServiceReport','nav-report','Rapport de service','refundsByMethod'])assert.ok(app.includes(token),token);
+assert.match(read('src/styles.css'),/report-metrics/);
 assert.doesNotMatch(read('src/cloud.js'),/service[_-]?role/i);
-console.log('ReMaPro POS 0.10 smoke checks passed');
+console.log('ReMaPro POS 0.11 smoke checks passed');

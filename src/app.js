@@ -1,13 +1,13 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.10.0';
+const APP_VERSION='0.11.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
-  productionQueue:[],productionStation:'all'
+  productionQueue:[],productionStation:'all',serviceReport:null,reportDate:''
 };
 const app=document.querySelector('#app');
 const money=v=>new Intl.NumberFormat('fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
@@ -254,6 +254,40 @@ async function saveOpenOrder(){
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 
+
+async function refreshServiceReport(targetDate=state.reportDate||dateKey()){
+  if(!state.restaurant)return;
+  state.reportDate=targetDate||dateKey();
+  if(!state.online){state.error='Le rapport de service nécessite une connexion.';render();return}
+  try{
+    const r=await posFunction({action:'service_report',restaurantId:state.restaurant.id,businessDate:state.reportDate});
+    state.serviceReport=r.report||null;state.error='';
+  }catch(error){state.error=error.message||String(error)}
+  render();
+}
+function printServiceReport(report){
+  if(!report)return;
+  const payments=Array.isArray(report.payments)?report.payments:[];
+  const refunds=Array.isArray(report.refundsByMethod)?report.refundsByMethod:[];
+  const taxes=Array.isArray(report.taxGroups)?report.taxGroups:[];
+  const sessions=report.cashSessions||{};
+  const paymentRows=payments.map(x=>'<div class="print-line"><span>'+esc(String(x.method||'').toUpperCase())+' ('+Number(x.count||0)+')</span><span>'+money(x.amount)+'</span></div>').join('');
+  const refundRows=refunds.map(x=>'<div class="print-line refund"><span>Remb. '+esc(String(x.method||'').toUpperCase())+'</span><span>− '+money(x.amount)+'</span></div>').join('');
+  const taxRows=taxes.map(x=>'<div class="print-line"><span>TVA '+Number(x.tax_rate||0)+'%</span><span>'+money(x.tax)+'</span></div>').join('');
+  const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div><strong>Rapport service / Z</strong></div><div>'+esc(report.businessDate||'')+'</div></div>'
+    +'<hr><div class="print-line"><span>Tickets</span><span>'+Number(report.orders||0)+'</span></div>'
+    +'<div class="print-line"><span>Couverts</span><span>'+Number(report.covers||0)+'</span></div>'
+    +'<div class="print-line"><span>Ticket moyen</span><span>'+money(report.averageTicket)+'</span></div>'
+    +'<hr><div class="print-line"><span>CA brut</span><span>'+money(report.grossSales)+'</span></div>'
+    +'<div class="print-line refund"><span>Remboursements</span><span>− '+money(report.refundTotal)+'</span></div>'
+    +'<div class="print-line total"><span>CA net</span><span>'+money(report.netSales)+'</span></div>'
+    +'<div class="print-line"><span>Pourboires nets</span><span>'+money(report.netTips)+'</span></div>'
+    +'<hr>'+paymentRows+refundRows+'<hr>'+taxRows
+    +'<hr><div class="print-line"><span>Fond caisse</span><span>'+money(sessions.openingCash)+'</span></div>'
+    +'<div class="print-line"><span>Espèces attendues</span><span>'+money(sessions.expectedCash)+'</span></div>'
+    +'<div class="print-line"><span>Écart caisse</span><span>'+money(sessions.differenceCash)+'</span></div>';
+  printHtml('RAPPORT Z',body);
+}
 function cleanupPrintSheet(){
   document.body.classList.remove('print-mode');
   document.querySelector('#print-sheet')?.remove();
@@ -684,7 +718,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button>
     <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -727,6 +761,33 @@ function ticketsView(){
         </div></article>`;
     }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
 }
+
+function reportView(){
+  const r=state.serviceReport;
+  const payments=Array.isArray(r?.payments)?r.payments:[];
+  const refunds=Array.isArray(r?.refundsByMethod)?r.refundsByMethod:[];
+  const taxes=Array.isArray(r?.taxGroups)?r.taxGroups:[];
+  const sessions=r?.cashSessions||{};
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="report-page"><div class="floor-head"><div><h2>Rapport de service</h2><p>Ventes et mouvements de caisse du jour sélectionné.</p></div><div class="report-controls"><input id="report-date" type="date" value="${esc(state.reportDate||dateKey())}"><button class="secondary" id="refresh-report" ${!state.online?'disabled':''}>Actualiser</button><button class="primary compact" id="print-report" ${!r?'disabled':''}>Imprimer Z</button></div></div>
+    ${r?`<section class="report-metrics">
+      <article><span>CA brut</span><strong>${money(r.grossSales)}</strong></article>
+      <article><span>Remboursements</span><strong>${money(r.refundTotal)}</strong></article>
+      <article class="net"><span>CA net</span><strong>${money(r.netSales)}</strong></article>
+      <article><span>TVA</span><strong>${money(r.taxTotal)}</strong></article>
+      <article><span>Pourboires nets</span><strong>${money(r.netTips)}</strong></article>
+      <article><span>Ticket moyen</span><strong>${money(r.averageTicket)}</strong></article>
+      <article><span>Tickets</span><strong>${Number(r.orders)||0}</strong></article>
+      <article><span>Couverts</span><strong>${Number(r.covers)||0}</strong></article>
+    </section>
+    <section class="report-columns">
+      <article class="report-card"><h3>Moyens de paiement</h3>${payments.length?payments.map(x=>`<div class="report-row"><span>${esc(String(x.method||'').toUpperCase())} · ${Number(x.count)||0}</span><strong>${money(x.amount)}</strong></div>`).join(''):'<div class="muted">Aucun paiement.</div>'}</article>
+      <article class="report-card"><h3>Remboursements du service</h3>${refunds.length?refunds.map(x=>`<div class="report-row"><span>${esc(String(x.method||'').toUpperCase())} · ${Number(x.count)||0}</span><strong>− ${money(x.amount)}</strong></div>`).join(''):'<div class="muted">Aucun remboursement.</div>'}</article>
+      <article class="report-card"><h3>TVA brute</h3>${taxes.length?taxes.map(x=>`<div class="report-row"><span>${Number(x.tax_rate)||0}% · ${money(x.gross)}</span><strong>${money(x.tax)}</strong></div>`).join(''):'<div class="muted">Aucune TVA.</div>'}</article>
+      <article class="report-card"><h3>Caisse espèces</h3><div class="report-row"><span>Sessions</span><strong>${Number(sessions.count)||0}</strong></div><div class="report-row"><span>Fond de caisse</span><strong>${money(sessions.openingCash)}</strong></div><div class="report-row"><span>Attendu clôturé</span><strong>${money(sessions.expectedCash)}</strong></div><div class="report-row"><span>Compté</span><strong>${money(sessions.countedCash)}</strong></div><div class="report-row"><span>Écart</span><strong class="${Math.abs(Number(sessions.differenceCash)||0)>0.005?'report-negative':''}">${money(sessions.differenceCash)}</strong></div></article>
+    </section>`:'<div class="empty"><h3>Aucun rapport chargé</h3><p>Choisissez une date puis actualisez.</p></div>'}
+    </main></div>`;
+}
 function mainView(){
   const catalog=state.bootstrap?.catalog||[],cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
   if(!cats.includes(state.category))state.category='Tous';
@@ -747,7 +808,7 @@ function render(){
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -759,6 +820,10 @@ function wire(){
   document.querySelector('#nav-floor')?.addEventListener('click',()=>{state.view='floor';refreshFloorData().then(render)});
   document.querySelector('#nav-production')?.addEventListener('click',()=>{state.view='production';refreshProductionQueue().then(render)});
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
+  document.querySelector('#nav-report')?.addEventListener('click',()=>{state.view='report';state.reportDate=state.reportDate||dateKey();refreshServiceReport(state.reportDate)});
+  document.querySelector('#report-date')?.addEventListener('change',e=>{state.reportDate=e.target.value;refreshServiceReport(state.reportDate)});
+  document.querySelector('#refresh-report')?.addEventListener('click',()=>refreshServiceReport(state.reportDate||dateKey()));
+  document.querySelector('#print-report')?.addEventListener('click',()=>printServiceReport(state.serviceReport));
   document.querySelector('#add-table')?.addEventListener('click',()=>addDiningTable());
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
   document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;const locked=o.status!=='open';state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false}));state.view='sale';render()}));
