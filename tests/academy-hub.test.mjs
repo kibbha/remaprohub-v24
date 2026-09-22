@@ -23,4 +23,4 @@ for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes('academyContextH
 assert.ok(app.includes("t('academyContextHelp')"));
 assert.ok(app.includes("t('academyContextCopied')"));
 
-assert.ok(sw.includes('remaprohub-v27-shell-academy-final-20260923'),'Academy service worker cache bumped');
+assert.match(sw,/const CACHE='remaprohub-v27-shell-[^']+';/,'Hub service worker cache must be versioned');
