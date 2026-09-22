@@ -241,3 +241,28 @@ export async function cloudFunction(path,payload,{attempts=3}={}){
   }
   throw lastError||new Error('FUNCTION_REQUEST_FAILED');
 }
+
+export async function uploadStorageObject(bucket,path,blob,{attempts=3,upsert=true}={}){
+  const {url,key}=cloudConfig();
+  if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
+  if(!(blob instanceof Blob))throw new Error('STORAGE_BLOB_REQUIRED');
+  const safeBucket=encodeURIComponent(String(bucket||'')),safePath=String(path||'').split('/').map(encodeURIComponent).join('/');
+  if(!safeBucket||!safePath)throw new Error('STORAGE_PATH_REQUIRED');
+  const tries=Math.max(1,Math.min(5,Math.trunc(+attempts||3)));let last=null;
+  for(let attempt=0;attempt<tries;attempt++){
+    const session=await ensureFreshCloudSession();if(!session?.access_token)throw new Error('AUTH_REQUIRED');
+    try{
+      const response=await fetch(url+'/storage/v1/object/'+safeBucket+'/'+safePath,{
+        method:'POST',
+        headers:{apikey:key,Authorization:'Bearer '+session.access_token,'Content-Type':blob.type||'application/octet-stream','x-upsert':upsert?'true':'false'},
+        body:blob
+      });
+      const data=await response.json().catch(()=>({}));
+      if(response.ok)return data;
+      const error=new Error(data?.message||data?.error||'STORAGE_UPLOAD_FAILED');error.status=response.status;last=error;
+      if((response.status===401||RETRYABLE_FUNCTION_STATUS.has(response.status))&&attempt+1<tries){if(response.status===401)try{await refreshCloudSession()}catch{}await sleep(300*(2**attempt));continue}
+      throw error;
+    }catch(error){last=error;if(attempt+1<tries){await sleep(300*(2**attempt));continue}throw error}
+  }
+  throw last||new Error('STORAGE_UPLOAD_FAILED');
+}

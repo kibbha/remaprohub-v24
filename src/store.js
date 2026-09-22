@@ -161,3 +161,31 @@ export function removeExpenseEntry(state,index){const entry=state?.expenseEntrie
 export function financeTotals(state,period='day',now=new Date()){const start=new Date(now);start.setHours(0,0,0,0);if(period==='month')start.setDate(1);else if(period==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);const rows=state.financeHistory.filter(x=>{const d=new Date(`${x.date}T00:00:00`);return d>=start&&d<=now});return rows.reduce((a,x)=>(a.revenue+=+x.revenue||0,a.covers+=+x.covers||0,a.expenses+=+x.expenses||0,a),{revenue:0,covers:0,expenses:0,rows})}
 export function financeDayTotals(state,date=localDate()){const selected=/^\d{4}-\d{2}-\d{2}$/.test(date||'')?date:localDate();return financeTotals(state,'day',new Date(`${selected}T23:59:59.999`))}
 export function revenueSeries(state,period='day',now=new Date()){const count=period==='month'?6:7,anchor=new Date(now.getFullYear(),now.getMonth(),now.getDate());if(period==='week')anchor.setDate(anchor.getDate()-(anchor.getDay()+6)%7);if(period==='month')anchor.setDate(1);const points=Array.from({length:count},(_,index)=>{const date=new Date(anchor);if(period==='month')date.setMonth(date.getMonth()-(count-1-index));else date.setDate(date.getDate()-(count-1-index)*(period==='week'?7:1));return{key:localDate(date),date,revenue:0}}),byKey=new Map(points.map(point=>[point.key,point]));for(const row of state.financeHistory||[]){if(!/^\d{4}-\d{2}-\d{2}$/.test(row.date||''))continue;const date=new Date(`${row.date}T12:00:00`);if(Number.isNaN(date.getTime())||localDate(date)!==row.date||row.date>localDate(now))continue;if(period==='week')date.setDate(date.getDate()-(date.getDay()+6)%7);if(period==='month')date.setDate(1);const point=byKey.get(localDate(date));if(point)point.revenue+=+row.revenue||0}return points}
+
+export function applyDeliveryAiReceiving(state,{analysisId,supplier,date,items}){
+  const id=String(analysisId||''),vendor=String(supplier||'').trim(),day=/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))?String(date):localDate();
+  const rows=Array.isArray(items)?items.filter(x=>x&&x.use!==false):[];
+  if(!id||!rows.length||!Array.isArray(state.stock)||!Array.isArray(state.stockMoves))return false;
+  if(state.stockMoves.some(x=>x.deliveryAnalysisId===id))return false;
+  const newItems=[],resolved=[];
+  for(const row of rows){
+    const qty=+row.quantity;if(!Number.isFinite(qty)||qty<=0)return false;
+    let item=row.stockId?state.stock.find(x=>String(x.id)===String(row.stockId)):null;
+    if(!item){
+      const name=String(row.name||'').trim(),unit=String(row.unit||'unité').trim()||'unité';if(!name)return false;
+      item={id:newStockId(),name,unit,qty:0,price:0,min:0,reorderTarget:0,preferredSupplier:'',brand:String(row.brand||''),packaging:String(row.packaging||''),barcode:String(row.barcode||''),source:'delivery-ai'};
+      newItems.push(item);
+    }
+    resolved.push({item,quantity:Math.round(qty*1000)/1000,brand:String(row.brand||''),packaging:String(row.packaging||''),barcode:String(row.barcode||'')});
+  }
+  const grouped=new Map();
+  for(const row of resolved){const key=row.item.id,prev=grouped.get(key);if(prev)prev.quantity+=row.quantity;else grouped.set(key,{...row})}
+  const planned=[];const now=new Date().toISOString();
+  for(const row of grouped.values()){
+    const existing=state.stock.find(x=>x.id===row.item.id),before=existing?stockAvailable(state,existing):0,quantity=Math.round(row.quantity*1000)/1000,after=before+quantity;
+    planned.push({stockId:row.item.id,product:row.item.name,type:'entry',quantity,delta:quantity,before,after,reason:'Livraison IA'+(vendor?' · '+vendor:''),affectsStock:true,at:now,deliveryDate:day,deliveryAnalysisId:id,supplier:vendor,brand:row.brand,packaging:row.packaging,barcode:row.barcode,source:'delivery-ai'});
+  }
+  if(newItems.length)state.stock.unshift(...newItems);
+  state.stockMoves.unshift(...planned);
+  return{createdProducts:newItems.length,movements:planned.length,items:planned};
+}
