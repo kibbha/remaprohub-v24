@@ -100,7 +100,8 @@ export default {
         "list_terminals","upsert_terminal",
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report",
-        "list_provider_connections","upsert_provider_connection"
+        "list_provider_connections","upsert_provider_connection",
+        "layout_current","layout_admin","save_layout_draft","publish_layout"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -141,7 +142,10 @@ export default {
             .select("id,source_key,recipe_id,sku,name,category,item_type,price,tax_rate,production_station,active,sort_order,metadata,version,updated_at")
             .eq("restaurant_id",restaurantId).eq("active",true).order("sort_order").order("name"),
           ctx.supabaseAdmin.from("profiles").select("id,first_name,last_name,locale").eq("id",userId).maybeSingle(),
-          ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle()
+          ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle(),
+          ctx.supabaseAdmin.from("pos_layout_versions")
+            .select("version,schema_version,document,checksum,published_at")
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle()
         ];
         if(validUuid(deviceId)){
           requests.push(ctx.supabaseAdmin.from("pos_cash_sessions")
@@ -149,13 +153,20 @@ export default {
             .eq("restaurant_id",restaurantId).eq("device_id",deviceId).eq("status","open").maybeSingle());
         }
         const results=await Promise.all(requests);
-        const catalogResult=results[0],profileResult=results[1],eventResult=results[2],sessionResult=results[3];
+        const catalogResult=results[0],profileResult=results[1],eventResult=results[2],layoutResult=results[3],sessionResult=results[4];
         if(catalogResult.error)return json({error:"Unable to load POS catalog"},500);
         return json({
           ok:true,
           restaurant,
           profile:profileResult.data||null,
           catalog:catalogResult.data||[],
+          layout:layoutResult?.data?{
+            version:Number(layoutResult.data.version)||0,
+            schemaVersion:Number(layoutResult.data.schema_version)||1,
+            document:layoutResult.data.document||null,
+            checksum:layoutResult.data.checksum||"",
+            publishedAt:layoutResult.data.published_at||null
+          }:null,
           openSession:sessionResult?.data||null,
           serverCursor:Number(eventResult.data?.sequence||0),
           capabilities:{
@@ -177,6 +188,9 @@ export default {
             terminalIntents:true,
             operatorPins:true,
             operatorPermissions:true,
+            configurableLayout:true,
+            layoutModifiers:true,
+            layoutMenus:true,
             paymentProviders:false
           }
         });
@@ -267,6 +281,82 @@ export default {
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,receipt:data});
+      }
+
+      if(action==="layout_current"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_layout_versions")
+          .select("version,schema_version,document,checksum,published_at")
+          .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle();
+        if(error)return json({error:error.message},500);
+        return json({ok:true,layout:data?{
+          version:Number(data.version)||0,schemaVersion:Number(data.schema_version)||1,
+          document:data.document||null,checksum:data.checksum||"",publishedAt:data.published_at||null
+        }:null});
+      }
+
+      if(action==="layout_admin"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const [draftResult,publishedResult]=await Promise.all([
+          ctx.supabaseAdmin.from("pos_layout_drafts")
+            .select("schema_version,document,draft_revision,updated_at")
+            .eq("restaurant_id",restaurantId).maybeSingle(),
+          ctx.supabaseAdmin.from("pos_layout_versions")
+            .select("version,schema_version,document,checksum,published_at")
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle()
+        ]);
+        if(draftResult.error)return json({error:draftResult.error.message},500);
+        if(publishedResult.error)return json({error:publishedResult.error.message},500);
+        return json({
+          ok:true,
+          draft:draftResult.data?{
+            schemaVersion:Number(draftResult.data.schema_version)||1,
+            document:draftResult.data.document||null,
+            draftRevision:Number(draftResult.data.draft_revision)||1,
+            updatedAt:draftResult.data.updated_at||null
+          }:null,
+          published:publishedResult.data?{
+            version:Number(publishedResult.data.version)||0,
+            schemaVersion:Number(publishedResult.data.schema_version)||1,
+            document:publishedResult.data.document||null,
+            checksum:publishedResult.data.checksum||"",
+            publishedAt:publishedResult.data.published_at||null
+          }:null
+        });
+      }
+
+      if(action==="save_layout_draft"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const document=body.document;
+        if(!document||typeof document!=="object"||Array.isArray(document))return json({error:"Layout document required"},400);
+        if(Number(document.schemaVersion)!==1)return json({error:"Unsupported layout schema"},400);
+        for(const key of ["pages","categories","buttons","modifierGroups","productModifiers","menus"]){
+          if(!Array.isArray(document[key]))return json({error:`Layout ${key} must be an array`},400);
+        }
+        if(document.pages.length>50||document.categories.length>200||document.buttons.length>1000||document.modifierGroups.length>200||document.menus.length>200){
+          return json({error:"Layout limit exceeded"},400);
+        }
+        const {data:existing,error:existingError}=await ctx.supabaseAdmin.from("pos_layout_drafts")
+          .select("draft_revision").eq("restaurant_id",restaurantId).maybeSingle();
+        if(existingError)return json({error:existingError.message},500);
+        const revision=Math.max(1,Number(existing?.draft_revision||0)+1);
+        const {data,error}=await ctx.supabaseAdmin.from("pos_layout_drafts").upsert({
+          restaurant_id:restaurantId,organization_id:restaurant.organization_id,schema_version:1,
+          document,draft_revision:revision,updated_by:userId,updated_at:new Date().toISOString()
+        },{onConflict:"restaurant_id"}).select("schema_version,document,draft_revision,updated_at").single();
+        if(error)return json({error:error.message},500);
+        return json({ok:true,draft:{
+          schemaVersion:Number(data.schema_version)||1,document:data.document,
+          draftRevision:Number(data.draft_revision)||1,updatedAt:data.updated_at
+        }});
+      }
+
+      if(action==="publish_layout"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_publish_layout",{
+          p_restaurant_id:restaurantId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,layout:data});
       }
 
       if(action==="sync_catalog"){
