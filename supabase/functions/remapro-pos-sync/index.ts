@@ -93,7 +93,13 @@ export default {
         return json({ok:true,loggedOut:data===true});
       }
 
-      const operatorExempt=new Set(["bootstrap","heartbeat","list_operators","upsert_operator","operator_login","operator_current","operator_logout"]);
+      const operatorExempt=new Set([
+        "bootstrap","heartbeat","operator_login","operator_current","operator_logout",
+        "list_operators","upsert_operator",
+        "list_tables","sync_tables","sync_catalog",
+        "list_terminals","upsert_terminal",
+        "list_printers","upsert_printer"
+      ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
         commit_order:"sale",save_open_order:"sale",settle_open_order:"sale",settle_open_order_split:"sale",
