@@ -1,7 +1,7 @@
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
-import {publishedLayout,productById,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary} from './layout.js';
+import {publishedLayout,productById,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 
 const APP_VERSION='0.26.0';
 const state={
@@ -900,7 +900,7 @@ function printReceipt(receipt){
   const refundTotal=refunds.reduce((s,r)=>s+Number(r.amount||0),0);
   const tip=Number(receipt.tip_total||0);
   const when=receipt.closed_at?new Date(receipt.closed_at).toLocaleString('fr-CH'):'';
-  const itemRows=items.map(i=>'<div class="print-line"><span>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</span><span>'+money(i.line_total)+'</span></div>').join('')||'<div>Détail indisponible</div>';
+  const itemRows=items.map(i=>'<div class="print-line"><span>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+(modifierSummary(i.modifiers)?'<small>'+esc(modifierSummary(i.modifiers))+'</small>':'')+'</span><span>'+money(i.line_total)+'</span></div>').join('')||'<div>Détail indisponible</div>';
   const taxRows=[...taxGroups.entries()].map(([rate,tax])=>'<div class="print-line"><span>TVA '+rate+'%</span><span>'+money(tax)+'</span></div>').join('');
   const paymentRows=payments.map(p=>'<div class="print-line"><span>'+esc((p.metadata?.splitLabel?p.metadata.splitLabel+' · ':'')+String(p.method||'').toUpperCase())+'</span><span>'+money(Number(p.amount||0)+Number(p.tip_amount||0))+'</span></div>').join('');
   const tipRow=tip?'<div class="print-line"><span>Pourboire</span><span>'+money(tip)+'</span></div>':'';
@@ -937,7 +937,7 @@ function printSplitPayment(receipt,payment){
 }
 function printProductionOrder(order){
   const items=Array.isArray(order.items)?order.items:[];
-  const itemRows=items.map(i=>'<div class="print-production-line"><strong>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</strong><small>'+(i.station_snapshot==='bar'?'BAR':'CUISINE')+' · '+esc(i.kitchen_status)+(i.note?' · '+esc(i.note):'')+'</small></div>').join('');
+  const itemRows=items.map(i=>'<div class="print-production-line"><strong>'+Number(i.quantity||1)+'× '+esc(i.name_snapshot)+'</strong><small>'+(i.station_snapshot==='bar'?'BAR':'CUISINE')+' · '+esc(i.kitchen_status)+(productionModifierSummary(i.modifiers)?' · '+esc(productionModifierSummary(i.modifiers)):i.note?' · '+esc(i.note):'')+'</small></div>').join('');
   const body='<div class="print-meta"><div class="production-title">'+esc(order.table_label||order.service_type||'Commande')+'</div><div>'+new Date().toLocaleString('fr-CH')+'</div></div><hr><div class="print-lines">'+itemRows+'</div>';
   printHtml('BON PRODUCTION',body);
 }
@@ -1623,14 +1623,14 @@ function floorView(){
 }
 function productionView(){
   const station=state.productionStation;
-  const filtered=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||i.station_snapshot===station)})).filter(o=>o.items.length);
+  const filtered=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||i.station_snapshot===station||modifierRoutesToStation(i.modifiers,station))})).filter(o=>o.items.length);
   const label=s=>s==='bar'?'Bar':'Cuisine';
   const action=i=>i.kitchen_status==='sent'?['preparing','Préparer']:i.kitchen_status==='preparing'?['ready','Prêt']:i.kitchen_status==='ready'?['served','Servi']:null;
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="production-page"><div class="floor-head"><div><h2>Production</h2><p>${filtered.length} commande${filtered.length>1?'s':''} en cours</p></div>
       <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">Tout</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">Cuisine</button><button data-station="bar" class="${station==='bar'?'active':''}">Bar</button><button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>Actualiser</button></div></div>
       <div class="production-grid">${filtered.length?filtered.map(o=>`<article class="production-ticket"><header><strong>${esc(o.table_label||o.service_type||'Commande')}</strong><div class="production-head-actions"><span>${esc(o.status)}</span><button data-print-production="${o.id}">Imprimer</button></div></header>
-        <div class="production-items">${o.items.map(i=>{const a=action(i);return `<div class="production-item status-${i.kitchen_status}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)}${i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div></article>`).join(''):'<div class="empty">Aucune commande en préparation.</div>'}</div>
+        <div class="production-items">${o.items.map(i=>{const a=action(i);return `<div class="production-item status-${i.kitchen_status}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)}${productionModifierSummary(i.modifiers,station==='all'?'':station)?' · '+esc(productionModifierSummary(i.modifiers,station==='all'?'':station)):i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div></article>`).join(''):'<div class="empty">Aucune commande en préparation.</div>'}</div>
     </main></div>`;
 }
 function ticketsView(){

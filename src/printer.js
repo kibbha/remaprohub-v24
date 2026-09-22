@@ -18,6 +18,35 @@ const center=(text,width)=>{
 };
 const line=width=>'-'.repeat(Math.max(24,width));
 
+const modifierText=(mods=[],station='')=>{
+  const parts=[];
+  for(const entry of Array.isArray(mods)?mods:[]){
+    if(entry?.type==='notes'&&entry.note)parts.push('Note: '+entry.note);
+    for(const option of Array.isArray(entry?.options)?entry.options:[]){
+      const route=String(option?.station||entry?.station||'');
+      if(!station||!route||route===station)parts.push(String(option?.name||''));
+    }
+    if(entry?.kind==='menu'){
+      for(const choice of Array.isArray(entry?.choices)?entry.choices:[]){
+        for(const product of Array.isArray(choice?.products)?choice.products:[]){
+          const route=String(product?.station||'');
+          if(!station||!route||route===station)parts.push(String(choice?.name||'Choix')+': '+String(product?.name||''));
+        }
+      }
+    }
+  }
+  return parts.filter(Boolean).join(' · ');
+};
+const modifierRoutes=(mods=[],station='')=>{
+  if(!station||station==='all')return true;
+  for(const entry of Array.isArray(mods)?mods:[]){
+    for(const option of Array.isArray(entry?.options)?entry.options:[])if(String(option?.station||entry?.station||'')===station)return true;
+    if(entry?.kind==='menu')for(const choice of Array.isArray(entry?.choices)?entry.choices:[])for(const product of Array.isArray(choice?.products)?choice.products:[])if(String(product?.station||'')===station)return true;
+  }
+  return false;
+};
+
+
 function printerPlugin(){
   if(!nativePlatform())throw new Error('NATIVE_PRINTER_UNAVAILABLE');
   const plugin=nativePrinterPlugin();
@@ -103,6 +132,8 @@ export function buildReceiptText(receipt,{restaurantName='ReMaPro POS',currency=
   ];
   for(const item of items){
     rows.push(fit((Number(item.quantity)||1)+'x '+(item.name_snapshot||'Article'),money(item.line_total,currency),width));
+    const mods=modifierText(item.modifiers);
+    if(mods)rows.push('  '+safeAscii(mods));
   }
   rows.push(line(width));
   rows.push(fit('TOTAL TTC',money(receipt?.total,currency),width));
@@ -119,7 +150,7 @@ export function buildReceiptText(receipt,{restaurantName='ReMaPro POS',currency=
 
 export function buildProductionText(order,{station='kitchen',width=42}={}){
   width=Math.max(24,Math.min(80,Number(width)||42));
-  const items=(Array.isArray(order?.items)?order.items:[]).filter(i=>station==='all'||i.station_snapshot===station);
+  const items=(Array.isArray(order?.items)?order.items:[]).filter(i=>station==='all'||i.station_snapshot===station||modifierRoutes(i.modifiers,station));
   const title=station==='bar'?'BAR':'CUISINE';
   const rows=[
     center(title,width),
@@ -128,7 +159,9 @@ export function buildProductionText(order,{station='kitchen',width=42}={}){
   ];
   for(const item of items){
     rows.push((Number(item.quantity)||1)+'x '+safeAscii(item.name_snapshot||'Article'));
-    if(item.note)rows.push('  NOTE: '+safeAscii(item.note));
+    const mods=modifierText(item.modifiers,station==='all'?'':station);
+    if(mods)rows.push('  '+safeAscii(mods));
+    else if(item.note)rows.push('  NOTE: '+safeAscii(item.note));
   }
   rows.push(line(width));
   return rows.join('\n');

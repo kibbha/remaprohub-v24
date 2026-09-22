@@ -1,5 +1,5 @@
-const CACHE='remapro-pos-shell-v0252';
-const CORE=['./','./index.html','./manifest.webmanifest','./runtime-config.js','./src/app.js','./src/cloud.js','./src/db.js','./src/printer.js','./src/styles.css','./assets/icon.svg'];
+const CACHE='remapro-pos-shell-v0260';
+const CORE=['./','./index.html','./manifest.webmanifest','./runtime-config.js','./src/app.js','./src/cloud.js','./src/db.js','./src/printer.js','./src/layout.js','./src/styles.css','./assets/icon.svg'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))));
 self.addEventListener('fetch',event=>{

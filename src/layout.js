@@ -92,3 +92,14 @@ export function configurationForButton(doc,button,catalog){
   const menuChoices=(menu?.choices||[]).map(choice=>({...choice,products:menuChoiceProducts(doc,choice,catalog)}));
   return{groups,menu:menu?{...menu,choices:menuChoices}:null};
 }
+
+export function modifierRoutesToStation(modifiers=[],station=''){
+  if(!station||station==='all')return true;
+  for(const entry of modifiers||[]){
+    for(const option of entry.options||[])if(String(option.station||entry.station||'')===station)return true;
+    if(entry.kind==='menu'){
+      for(const choice of entry.choices||[])for(const product of choice.products||[])if(String(product.station||'')===station)return true;
+    }
+  }
+  return false;
+}
