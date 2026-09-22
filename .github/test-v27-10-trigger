@@ -68,3 +68,5 @@ V27.11 lot 18 retry after waste UI assertion fix
 V27.11 lot 18 retry after recordWaste API compatibility fix
 
 V27.11 lot 19 supplier payable intelligence validation
+
+V27.11 lot 19 rerun after due-date architecture guard fix
