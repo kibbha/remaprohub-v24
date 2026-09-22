@@ -84,3 +84,10 @@ export async function posFunction(payload){
   let r=await call();if(r.status===401){s=await refreshSession();r=await call()}
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||'POS_SYNC_FAILED');return data;
 }
+
+export async function academyFunction(payload){
+  const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
+  const call=()=>fetch(url+'/functions/v1/remapro-academy',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(payload)});
+  let r=await call();if(r.status===401){s=await refreshSession();r=await call()}
+  const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'ACADEMY_SYNC_FAILED');error.status=r.status;throw error}return data;
+}
