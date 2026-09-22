@@ -5,7 +5,7 @@ on:
   push:
     branches: [rebuild/remaprohub-clean]
     paths:
-      - '.github/workflows/deploy-infomaniak.yml'
+      - '.github/deploy-infomaniak-trigger'
 
 permissions:
   contents: read
