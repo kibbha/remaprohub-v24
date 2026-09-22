@@ -136,3 +136,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Lorsque la période précédente contient des données, ReMaPro affiche l’évolution du coût des pertes.
 - Le rapport manager quotidien intègre le coût des pertes sur 7 jours.
 - Le Manager Copilot reçoit cette analyse et peut signaler les principaux produits concernés sans inventer de chiffres.
+
+## Échéances fournisseurs – lot 19
+- Les factures fournisseurs distinguent désormais la date de facture et la date d’échéance.
+- ReMaPro propose automatiquement une échéance à 30 jours lors de la saisie, tout en la laissant modifiable.
+- L’écran Factures affiche le montant total restant, le montant à payer sous 7 jours et le montant réellement en retard.
+- Le cockpit et les alertes de factures en retard utilisent maintenant l’échéance plutôt que la date d’émission.
+- Le rapport manager quotidien intègre les montants à payer prochainement et en retard.
