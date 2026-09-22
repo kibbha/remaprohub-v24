@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.11.0';
+const APP_VERSION='0.12.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -375,6 +375,8 @@ function normalizePaymentMethod(value){
 function currentServerOrder(){return state.openOrders.find(o=>o.id===state.activeOrderId)||null}
 function orderLocked(){const o=currentServerOrder();return !!o&&o.status!=='open'}
 function paymentBlockedByDelta(){return orderLocked()&&hasPendingDelta()}
+function progressivePaymentActive(){return currentServerOrder()?.status==='payment_pending'}
+function standardPaymentBlocked(){return paymentBlockedByDelta()||progressivePaymentActive()}
 async function transferCurrentOrder(){
   const order=currentServerOrder();
   if(!order){alert('Enregistrez d’abord la note avant de la transférer.');return}
@@ -539,9 +541,128 @@ async function openAllocatedSplit(){
   modal.querySelector('#allocated-split-submit')?.addEventListener('click',()=>settleAllocatedSplit(order));
   updateAllocatedSplitTotals();
 }
+
+function printProgressivePayment(order,payment){
+  const meta=payment?.metadata||{};
+  const allocations=Array.isArray(payment?.allocations)?payment.allocations:Array.isArray(meta.allocations)?meta.allocations:[];
+  const label=payment?.label||meta.splitLabel||'Part';
+  const paymentReceipt=payment?.paymentReceiptNumber||payment?.receipt_number||'';
+  const master=payment?.masterReceiptNumber||order?.receipt_number||order?.receiptNumber||'';
+  const method=payment?.method||'';
+  const amount=Number(payment?.amount||0),tip=Number(payment?.tip??payment?.tip_amount||0);
+  const taxTotal=allocations.reduce((s,a)=>s+Number(a.tax||0),0);
+  const itemRows=allocations.map(a=>'<div class="print-line"><span>'+Number(a.quantity||0)+'× '+esc(a.name||'Article')+'</span><span>'+money(a.amount)+'</span></div>').join('');
+  const body='<div class="print-meta"><div>'+esc(state.restaurant?.name||'ReMaPro POS')+'</div><div><strong>'+esc(label)+'</strong></div><div>'+esc(paymentReceipt)+'</div><div>Ticket maître '+esc(master)+'</div><div>'+esc(order?.table_label||order?.service_type||'')+'</div></div>'
+    +'<hr><div class="print-lines">'+itemRows+'</div><hr>'
+    +'<div class="print-line total"><span>Part payée</span><span>'+money(amount)+'</span></div>'
+    +(tip?'<div class="print-line"><span>Pourboire</span><span>'+money(tip)+'</span></div>':'')
+    +'<div class="print-line"><span>TVA incluse</span><span>'+money(taxTotal)+'</span></div>'
+    +'<hr><div class="print-line"><span>'+esc(String(method).toUpperCase())+'</span><span>'+money(amount+tip)+'</span></div>'
+    +'<p class="print-thanks">Paiement partiel · ticket maître '+esc(master)+'</p>';
+  printHtml(label,body);
+}
+async function prepareOrderForProgressivePayment(){
+  if(!state.online){alert('Le paiement progressif nécessite une connexion.');return null}
+  if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
+  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return null}
+  let order=currentServerOrder();
+  if(!order||order.status==='open'){
+    const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
+    const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
+    try{
+      await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
+      state.activeOrderId=orderId;await refreshFloorData();
+      order=state.openOrders.find(x=>x.id===orderId)||null;
+    }catch(error){state.error=error.message||String(error);render();return null}
+  }
+  return order;
+}
+function closeProgressiveModal(){
+  document.querySelector('#progressive-payment-modal')?.remove();
+  document.body.classList.remove('modal-open');
+}
+function updateProgressiveTotal(){
+  const modal=document.querySelector('#progressive-payment-modal');if(!modal)return;
+  let selected=0;
+  for(const row of modal.querySelectorAll('[data-progress-item-row]')){
+    const remainingQty=Number(row.dataset.remainingQty)||0,lineTotal=Number(row.dataset.remainingAmount)||0;
+    const q=Math.min(remainingQty,splitQty(row.querySelector('[data-progress-qty]')?.value));
+    selected+=remainingQty?lineTotal*(q/remainingQty):0;
+  }
+  selected=Math.round(selected*100)/100;
+  const total=modal.querySelector('#progressive-selected-total');if(total)total.textContent=money(selected);
+  const left=modal.querySelector('#progressive-after-total');
+  if(left)left.textContent=money(Math.max(0,(Number(modal.dataset.remainingAmount)||0)-selected));
+  const submit=modal.querySelector('#progressive-submit');if(submit)submit.disabled=selected<=0.005;
+}
+async function openProgressivePayment(){
+  const order=await prepareOrderForProgressivePayment();if(!order)return;
+  let progress;
+  try{
+    const r=await posFunction({action:'order_payment_progress',restaurantId:state.restaurant.id,orderId:order.id});
+    progress=r;
+  }catch(error){state.error=error.message||String(error);render();return}
+
+  const remainingItems=(progress.items||[]).filter(x=>Number(x.remainingQty)>0.0005);
+  if(!remainingItems.length){alert('Cette note est déjà entièrement répartie.');return}
+  closeProgressiveModal();
+
+  const modal=document.createElement('div');
+  modal.id='progressive-payment-modal';modal.className='modal-overlay';modal.dataset.remainingAmount=String(progress.remainingAmount||0);
+  const previous=(progress.payments||[]).filter(p=>p.metadata?.splitType==='progressive_items');
+  const previousHtml=previous.length?'<div class="progressive-history"><h3>Déjà encaissé</h3>'+previous.map(p=>'<button class="secondary" data-reprint-progress="'+p.id+'">'+esc(p.metadata?.splitLabel||'Part')+' · '+money(p.amount)+' · '+esc(p.receipt_number||'')+'</button>').join('')+'</div>':'';
+  const rows=remainingItems.map(i=>'<div class="progressive-item" data-progress-item-row data-item-id="'+esc(i.id)+'" data-remaining-qty="'+Number(i.remainingQty||0)+'" data-remaining-amount="'+Number(i.remainingAmount||0)+'"><div><strong>'+esc(i.name_snapshot)+'</strong><small>Reste '+Number(i.remainingQty||0)+' · '+money(i.remainingAmount)+'</small></div><input data-progress-qty type="number" min="0" max="'+Number(i.remainingQty||0)+'" step="0.001" value="0"></div>').join('');
+  modal.innerHTML='<div class="progressive-dialog"><div class="split-dialog-head"><div><h2>Encaisser une personne</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · reste '+money(progress.remainingAmount)+'</p></div><button class="split-close" id="progressive-close">×</button></div>'
+    +previousHtml
+    +'<div class="progressive-form"><label>Nom / repère<input id="progressive-label" value="Personne '+(previous.length+1)+'"></label><label>Paiement<select id="progressive-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select></label><label>Pourboire<input id="progressive-tip" inputmode="decimal" value="0.00"></label><button class="secondary" id="progressive-take-rest">Prendre tout le reste</button></div>'
+    +'<div class="progressive-items">'+rows+'</div>'
+    +'<div class="progressive-summary"><div><span>Cette personne</span><strong id="progressive-selected-total">'+money(0)+'</strong></div><div><span>Restera après paiement</span><strong id="progressive-after-total">'+money(progress.remainingAmount)+'</strong></div></div>'
+    +'<div class="split-footer"><button class="secondary" id="progressive-cancel">Annuler</button><button class="primary" id="progressive-submit" disabled>Encaisser cette personne</button></div></div>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+
+  modal.querySelector('#progressive-close')?.addEventListener('click',closeProgressiveModal);
+  modal.querySelector('#progressive-cancel')?.addEventListener('click',closeProgressiveModal);
+  modal.querySelectorAll('[data-progress-qty]').forEach(x=>x.addEventListener('input',updateProgressiveTotal));
+  modal.querySelector('#progressive-take-rest')?.addEventListener('click',()=>{
+    modal.querySelectorAll('[data-progress-item-row]').forEach(row=>{const i=row.querySelector('[data-progress-qty]');if(i)i.value=row.dataset.remainingQty||'0'});updateProgressiveTotal();
+  });
+  modal.querySelectorAll('[data-reprint-progress]').forEach(b=>b.addEventListener('click',()=>{const p=previous.find(x=>x.id===b.dataset.reprintProgress);if(p)printProgressivePayment(progress.order,p)}));
+  modal.querySelector('#progressive-submit')?.addEventListener('click',async()=>{
+    const selections=[];
+    for(const row of modal.querySelectorAll('[data-progress-item-row]')){
+      const q=splitQty(row.querySelector('[data-progress-qty]')?.value);
+      if(q>0)selections.push({itemId:row.dataset.itemId,quantity:q});
+    }
+    if(!selections.length)return;
+    const label=modal.querySelector('#progressive-label')?.value?.trim()||('Personne '+(previous.length+1));
+    const method=modal.querySelector('#progressive-method')?.value||'cash';
+    const tip=parseMoneyInput(modal.querySelector('#progressive-tip')?.value||'0');
+    const submit=modal.querySelector('#progressive-submit');if(submit)submit.disabled=true;
+    try{
+      const device=await ensureDevice(),eventId=uuid();
+      const r=await posFunction({
+        action:'pay_allocated_group',restaurantId:state.restaurant.id,orderId:order.id,clientEventId:eventId,
+        deviceId:device.id,cashSessionId:state.cashSession.id,label,method,selections,
+        tipAmount:Number.isFinite(tip)&&tip>=0?tip:0,provider:'',providerReference:'',occurredAt:new Date().toISOString()
+      });
+      const paid=r.payment;
+      closeProgressiveModal();
+      await Promise.all([refreshFloorData(),refreshReceipts()]);
+      state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view=paid?.orderStatus==='paid'?'tickets':'floor';
+      state.error=paid?.orderStatus==='paid'
+        ?'Addition entièrement soldée.'
+        :label+' encaissé · reste '+money(paid?.remainingAmount)+'.';
+      render();
+      if(paid&&confirm('Paiement enregistré. Imprimer le reçu '+(paid.paymentReceiptNumber||'')+' ?'))printProgressivePayment(order,paid);
+    }catch(error){
+      state.error=error.message||String(error);if(submit)submit.disabled=false;render();closeProgressiveModal();
+    }
+  });
+  updateProgressiveTotal();
+}
 async function splitCheckout(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
-  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return}
+  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
   const raw=prompt('Nombre de parts / moyens de paiement','2');if(raw===null)return;
   const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){alert('Nombre invalide');return}
   const total=Math.round(cartTotal()*100)/100;
@@ -639,6 +760,7 @@ async function updateProductionItem(itemId,status){
   }catch(error){state.error=error.message||String(error);render()}
 }
 function addItem(item){
+  if(progressivePaymentActive()){alert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
   if(orderLocked()){
     const catalogId=item.quick?null:item.id;
     const line=state.cart.find(x=>x.delta&&x.catalog_item_id===catalogId&&x.name===item.name);
@@ -679,7 +801,7 @@ const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
-  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return}
+  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
   const tip=askTip('0.00');if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
 
@@ -756,7 +878,7 @@ function ticketsView(){
       return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
         <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
-        <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Ticket maître</button>${payments.filter(p=>p.metadata?.splitType==='items').map(p=>`<button class="secondary split-ticket-btn" data-print-split-payment="${r.id}:${p.id}">${esc(p.metadata?.splitLabel||'Part')}</button>`).join('')}${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
+        <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Ticket maître</button>${payments.filter(p=>['items','progressive_items'].includes(p.metadata?.splitType)).map(p=>`<button class="secondary split-ticket-btn" data-print-split-payment="${r.id}:${p.id}">${esc(p.metadata?.splitLabel||'Part')}</button>`).join('')}${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
           ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
     }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
@@ -799,9 +921,9 @@ function mainView(){
   <aside class="cart"><div class="cart-head"><h2>Commande</h2><div class="order-meta"><select id="service-type"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select><input id="table-label" placeholder="Table" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div></div>
   <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line ${x.delta?'delta-line':x.locked?'locked-line':''}"><div><strong>${esc(x.name)}</strong>${x.delta?'<span class="delta-badge">Ajout</span>':x.locked?'<span class="sent-badge">Envoyé</span>':''}<div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}" ${x.locked?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${x.locked?'disabled':''}>+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
   <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
-    ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>'+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
+    ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>'+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order" ${progressivePaymentActive()?'disabled':''}>Annuler</button></div>':''}
     ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length||orderLocked()?'disabled':'')+'>Enregistrer la note</button>':''}
-    <div class="split-actions"><button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager par montants</button><button class="split-pay split-items-pay" id="split-items" ${!state.cart.length||!state.online?'disabled':''}>Partager par articles</button></div><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
+    <div class="split-actions"><button class="split-pay" id="split-pay" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Partager par montants</button><button class="split-pay split-items-pay" id="split-items" ${!state.cart.length||!state.online||progressivePaymentActive()?'disabled':''}>Partager par articles</button></div><button class="progressive-pay" id="progressive-pay" ${!state.cart.length||!state.online?'disabled':''}>${progressivePaymentActive()?'Continuer le paiement par personne':'Encaisser une personne'}</button><div class="payments"><button data-pay="cash" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
 function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();return}
@@ -830,6 +952,7 @@ function wire(){
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());
   document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
   document.querySelector('#split-items')?.addEventListener('click',()=>openAllocatedSplit());
+  document.querySelector('#progressive-pay')?.addEventListener('click',()=>openProgressivePayment());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
   document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
   document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
@@ -839,7 +962,7 @@ function wire(){
   document.querySelectorAll('[data-print-production]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>x.id===b.dataset.printProduction);if(o)printProductionOrder(o)}));
   document.querySelector('#refresh-receipts')?.addEventListener('click',()=>refreshReceipts().then(render));
   document.querySelectorAll('[data-print-receipt]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.printReceipt);if(r)printReceipt(r)}));
-  document.querySelectorAll('[data-print-split-payment]').forEach(b=>b.addEventListener('click',()=>{const [orderId,paymentId]=String(b.dataset.printSplitPayment||'').split(':');const r=state.receipts.find(x=>x.id===orderId);const p=r?.payments?.find(x=>x.id===paymentId);if(r&&p)printSplitPayment(r,p)}));
+  document.querySelectorAll('[data-print-split-payment]').forEach(b=>b.addEventListener('click',()=>{const [orderId,paymentId]=String(b.dataset.printSplitPayment||'').split(':');const r=state.receipts.find(x=>x.id===orderId);const p=r?.payments?.find(x=>x.id===paymentId);if(r&&p){if(p.metadata?.splitType==='progressive_items')printProgressivePayment(r,p);else printSplitPayment(r,p)}}));
   document.querySelectorAll('[data-refund-order]').forEach(b=>b.addEventListener('click',()=>{const r=state.receipts.find(x=>x.id===b.dataset.refundOrder);if(r)refundReceipt(r)}));
   document.querySelectorAll('[data-confirm-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.confirmRefund,true)));
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
