@@ -21,3 +21,6 @@ verify_jwt = false
 
 [functions.remapro-pos-sync]
 verify_jwt = true
+
+[functions.remapro-delivery-ai]
+verify_jwt = true
