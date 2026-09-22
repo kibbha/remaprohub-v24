@@ -20,14 +20,14 @@
 
 ## RevenueCat
 Create Android app `com.remaprohub.app`.
-Create entitlements named `standard` and `multi`.
-Create offerings named `standard` and `multi`.
+Create entitlements named `standard` and `multi` (customer-facing labels: Standard and Pro).
+Create offerings named `standard` and `multi` (customer-facing labels: Standard and Pro).
 Each offering must contain monthly and annual packages linked to the corresponding Google Play subscriptions.
 Configure a RevenueCat webhook pointing to the deployed `remapro-revenuecat-webhook` Edge Function.
 Send `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`.
 
 ## Supabase
-Apply migrations through `007_v27_11_server_only_tables.sql`.
+Apply migrations through `008_v27_11_pricing_and_plan_limits.sql`.
 Deploy the production Edge Functions used by the app:
 - remapro-admin
 - remapro-sync
@@ -52,7 +52,7 @@ Use the required testing track for the account before production.
 ## Final checks before upload
 - Run the full `npm test` suite on the exact candidate commit.
 - Confirm runtime configuration contains no secret server key.
-- Confirm RevenueCat returns the expected Standard / Multi entitlements.
+- Confirm RevenueCat returns the expected Standard / Pro entitlements (`standard` / `multi` internally).
 - Test sign-in, sign-out, password reset, account deletion and biometric unlock on a physical Android device.
 - Test one offline edit followed by reconnection/synchronization.
 - Test one invoice scan / AI request with the production Supabase function.

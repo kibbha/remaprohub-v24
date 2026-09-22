@@ -36,7 +36,7 @@ assert.deepEqual(staff.permissions,['operations','stock','finance'],'supported s
 assert.equal(staffCanAccess(state,staff.id,'stock'),true);
 assert.equal(staffCanAccess(state,staff.id,'finance'),true);
 
-state.subscription={status:'active',trialStart:new Date().toISOString(),trialDays:7,plan:'standard',billing:'monthly'};
+state.subscription={status:'active',trialStart:new Date().toISOString(),trialDays:14,plan:'standard',billing:'monthly'};
 assert.equal(recordRestaurant(state,{name:'Gamma',currency:'CHF'},new Date()),false,'active Standard plan must block extra restaurants');
 assert.equal(recordManager(state,{name:'Third',email:'third@example.com',restaurantIds:[beta.id]},new Date()),false,'active Standard plan must block extra managers');
 assert.equal(recordStaffAccess(state,{name:'Staff 2',email:'staff2@example.com',restaurantIds:[beta.id],permissions:['stock']},new Date()),false,'active Standard plan must block staff access accounts');
@@ -74,5 +74,11 @@ const loaded=load();
 ensureOrganizationState(loaded,new Date(),true);
 assert.equal(loaded.restaurants.length,1);
 assert.equal(loaded.activeRestaurantId,loaded.restaurants[0].id);
+
+storage.clear();
+const limitState=load();
+for(let i=2;i<=5;i++)assert.ok(recordRestaurant(limitState,{name:'Limit '+i,currency:'CHF'},new Date()),'trial/Pro must allow up to five restaurants');
+assert.equal(limitState.restaurants.length,5);
+assert.equal(recordRestaurant(limitState,{name:'Limit 6',currency:'CHF'},new Date()),false,'trial/Pro must block a sixth restaurant');
 
 console.log('Multi-restaurant workspaces and organization access rules OK');

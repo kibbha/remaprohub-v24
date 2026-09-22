@@ -27,7 +27,7 @@ async function hasMultiAccess(ctx:any,organizationId:string){
   const {data:organization,error:orgError}=await ctx.supabase.from("organizations")
     .select("created_at").eq("id",organizationId).single();
   if(orgError||!organization?.created_at)throw new Error("Unable to verify trial period");
-  return new Date(organization.created_at).getTime()+7*86400000>Date.now();
+  return new Date(organization.created_at).getTime()+14*86400000>Date.now();
 }
 
 async function writeAudit(ctx:any,{organizationId,restaurantIds=[],actorUserId,targetUserId=null,action,details={}}:any){
@@ -103,7 +103,11 @@ export default {
 
       if(action==="create-restaurant"){
         if(!orgAdmin)return fail("Organization admin required",403);
-        if(!(await hasMultiAccess(ctx,organizationId)))return fail("Multi plan required",402);
+        if(!(await hasMultiAccess(ctx,organizationId)))return fail("Pro plan required",402);
+        const {count:restaurantCount,error:restaurantCountError}=await ctx.supabaseAdmin.from("restaurants")
+          .select("id",{count:"exact",head:true}).eq("organization_id",organizationId).eq("active",true);
+        if(restaurantCountError)return fail("Unable to verify restaurant limit",500);
+        if((restaurantCount||0)>=5)return fail("Pro restaurant limit reached",409);
         const name=String(body.name||"").trim(),country=String(body.country||"CH").trim().toUpperCase()||"CH";
         const region=String(body.region||"").trim(),currency=String(body.currency||"CHF").trim().toUpperCase();
         if(!name||!CURRENCIES.has(currency))return fail("Invalid restaurant payload",400);

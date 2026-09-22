@@ -17,6 +17,8 @@ assert.match(source,/ctx\.supabaseAdmin\.auth\.admin\.inviteUserByEmail/);
 assert.match(source,/audit_logs/);
 assert.match(source,/member\.updated/);
 assert.match(source,/member\.deactivated/);
+assert.match(source,/restaurantCount\|\|0\)>=5/,'Pro plan must enforce a five-restaurant server-side limit');
+assert.match(source,/14\*86400000/,'fallback trial duration must be fourteen days');
 assert.match(app,/cloudAccountPanel/);
 assert.match(app,/memberAccessForm/);
 assert.match(app,/data-cloud-member-toggle/);

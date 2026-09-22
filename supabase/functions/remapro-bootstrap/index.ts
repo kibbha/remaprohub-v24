@@ -45,7 +45,7 @@ export default {
         const {data:plan,error:planError}=await ctx.supabaseAdmin.from("subscription_plans")
           .select("id,trial_days").eq("code","standard").eq("active",true).single();
         if(planError||!plan)throw new Error(planError?.message||"Standard plan not found");
-        const trialDays=Math.max(1,Number(plan.trial_days)||7);
+        const trialDays=Math.max(14,Number(plan.trial_days)||14);
         const trialEnds=new Date(Date.now()+trialDays*86400000).toISOString();
         const subResult=await ctx.supabaseAdmin.from("subscriptions").insert({
           organization_id:organization.id,plan_id:plan.id,status:"trialing",trial_ends_at:trialEnds

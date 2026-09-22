@@ -186,7 +186,7 @@ export function cloudMultiAccess(identity,organizationId,now=new Date()){
     return false;
   }
   const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
-  return !!organization?.created_at&&new Date(organization.created_at).getTime()+7*86400000>now.getTime();
+  return !!organization?.created_at&&new Date(organization.created_at).getTime()+14*86400000>now.getTime();
 }
 export function cloudPageAllowed(identity,page,restaurantId){
   if(!identity)return true;

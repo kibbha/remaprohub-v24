@@ -97,7 +97,8 @@ const trialIdentity={
   subscriptions:[]
 };
 assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-18T12:00:00Z')),true);
-assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-23T12:00:00Z')),false);
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-23T12:00:00Z')),true);
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-30T12:00:00Z')),false);
 
 values.set('remaprohub-sb-session',JSON.stringify({access_token:'expired',refresh_token:'refresh-1',expires_at:1}));
 const refreshed=await refreshCloudSession();
