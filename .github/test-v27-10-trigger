@@ -72,3 +72,5 @@ V27.11 lot 19 supplier payable intelligence validation
 V27.11 lot 19 rerun after due-date architecture guard fix
 
 V27.11 lot 20 supplier payment terms validation
+
+V27.11 lot 20 rerun after i18n token fix
