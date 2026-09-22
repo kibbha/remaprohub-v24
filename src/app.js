@@ -4,6 +4,8 @@ import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionT
 import {publishedLayout,productById,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
+import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
+import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 
 const APP_VERSION='0.27.0';
 const state={
@@ -18,7 +20,7 @@ const state={
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null;
-const money=v=>new Intl.NumberFormat('fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
+const money=v=>new Intl.NumberFormat(({fr:'fr-CH',en:'en-CH',de:'de-CH',it:'it-CH'})[language()]||'fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const sessionKey=id=>'cashSession:'+id;
@@ -109,7 +111,7 @@ function closeTerminalEditor(){
   document.body.classList.remove('modal-open');
 }
 function openTerminalEditor(existing=null){
-  if(!isManager()){alert('Accès manager requis.');return}
+  if(!isManager()){uiAlert('Accès manager requis.');return}
   closeTerminalEditor();
   const modal=document.createElement('div');
   modal.id='terminal-editor-modal';modal.className='modal-overlay';
@@ -201,9 +203,9 @@ function connectedTerminal(method){
   return state.terminals.find(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint))||null;
 }
 async function prepareOrderForTerminalIntent(){
-  if(!state.online){alert('Une connexion est nécessaire pour le terminal.');return null}
+  if(!state.online){uiAlert('Une connexion est nécessaire pour le terminal.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
-  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours.':'Envoyez d’abord les nouveaux articles en production.');return null}
+  if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours.':'Envoyez d’abord les nouveaux articles en production.');return null}
   let order=currentServerOrder();
   if(!order||order.status==='open'){
     const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
@@ -278,7 +280,7 @@ function showTerminalIntentModal(order,intent,terminal){
     +'<div class="terminal-wait-actions"><button class="secondary" id="terminal-wait-cancel">Annuler l’intent</button></div></div>';
   document.body.appendChild(modal);document.body.classList.add('modal-open');
   modal.querySelector('#terminal-wait-cancel')?.addEventListener('click',async()=>{
-    if(!confirm('Annuler cet intent de paiement ?'))return;
+    if(!(await uiConfirm({title:t('cancelPaymentIntent'),message:t('cancelAudit'),danger:true})))return;
     try{
       await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId:intent.id});
       closeTerminalIntentModal();await refreshTerminals();state.error='Intent terminal annulé.';render();
@@ -289,7 +291,7 @@ function showTerminalIntentModal(order,intent,terminal){
 }
 async function startTerminalPayment(method,terminal){
   const order=await prepareOrderForTerminalIntent();if(!order)return;
-  const tip=askTip('0.00');if(tip===null)return;
+  const tip=await askTip('0.00');if(tip===null)return;
   const device=await ensureDevice();
   try{
     const r=await posFunction({
@@ -305,7 +307,7 @@ async function startTerminalPayment(method,terminal){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function cancelTerminalIntentFromList(intentId){
-  if(!confirm('Annuler cet intent terminal ?'))return;
+  if(!(await uiConfirm({title:t('cancelTerminalIntent'),danger:true})))return;
   try{
     await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId});
     await refreshTerminals();state.error='Intent terminal annulé.';render();
@@ -319,7 +321,7 @@ async function payByMethod(method){
     return startTerminalPayment(method,matching);
   }
   const label=method==='twint'?'TWINT':'carte';
-  const ok=confirm('ReMaPro POS n’est pas encore relié au prestataire '+label+'. Confirmez uniquement si le paiement a DÉJÀ été accepté sur un terminal externe. L’enregistrer manuellement ?');
+  const ok=await uiConfirm({title:t('externalPaymentTitle'),message:t('externalPaymentHint')+' '+label,danger:true});
   if(!ok)return;
   return checkout(method);
 }
@@ -388,7 +390,7 @@ function operatorLoginView(){
 }
 function closeOperatorEditor(){document.querySelector('#operator-editor-modal')?.remove();document.body.classList.remove('modal-open')}
 function openOperatorEditor(existing=null){
-  if(!canManageSettings()){alert('Droits manager requis.');return}
+  if(!canManageSettings()){uiAlert('Droits manager requis.');return}
   closeOperatorEditor();const o=existing||{};
   const modal=document.createElement('div');modal.id='operator-editor-modal';modal.className='modal-overlay';
   modal.innerHTML='<form class="terminal-dialog" id="operator-editor-form"><div class="split-dialog-head"><div><h2>'+(existing?'Modifier le profil':'Ajouter un opérateur')+'</h2><p>Le PIN est hashé côté serveur et n’est jamais relu.</p></div><button type="button" class="split-close" id="operator-editor-close">×</button></div>'
@@ -438,7 +440,7 @@ async function testPrinterProfile(printer){
   if(!printer)return;
   if(printer.connection_type==='system'){window.print();return}
   if(printer.connection_type==='network'){
-    alert('Le profil réseau est conservé, mais le transport TCP natif sera activé lors de la future migration Capacitor 8. Utilisez Bluetooth/USB ou impression système pour cette version.');
+    uiAlert('Le profil réseau est conservé, mais le transport TCP natif sera activé lors de la future migration Capacitor 8. Utilisez Bluetooth/USB ou impression système pour cette version.');
     return;
   }
   try{
@@ -469,7 +471,7 @@ function closePrinterEditor(){
   document.body.classList.remove('modal-open');
 }
 function openPrinterEditor(existing=null,discovered=null){
-  if(!isManager()){alert('Accès manager requis.');return}
+  if(!isManager()){uiAlert('Accès manager requis.');return}
   closePrinterEditor();
   const p=existing||{};
   const deviceAddress=discovered?.address||p.address||'';
@@ -773,7 +775,7 @@ async function openSession(openingCash){
 async function closeSession(countedCash){
   if(!state.cashSession)return;
   if(state.openOrders.some(x=>['open','sent','preparing','served','payment_pending'].includes(x.status))){
-    alert('Impossible de clôturer : il reste des notes ouvertes.');
+    uiAlert('Impossible de clôturer : il reste des notes ouvertes.');
     return;
   }
   state.cashSession={...state.cashSession,status:'closing'};await kvSet(sessionKey(state.restaurant.id),state.cashSession);
@@ -809,9 +811,11 @@ function openTable(table){
 }
 async function addDiningTable(){
   if(!isManager())return;
-  const label=prompt('Nom de la table (ex. Table 1)');if(!label?.trim())return;
-  const raw=prompt('Nombre de places','2');if(raw===null)return;
-  const seats=Math.max(0,Math.min(99,Math.trunc(Number(raw)||2)));
+  const form=await uiFields({title:t('addTable'),fields:[
+    {name:'label',label:t('tableName'),value:t('tableNameExample'),required:true},
+    {name:'seats',label:t('seats'),value:'2',type:'number',inputMode:'numeric',min:'0',max:'99',step:'1',required:true}
+  ]});if(!form?.label?.trim())return;
+  const label=String(form.label).trim(),seats=Math.max(0,Math.min(99,Math.trunc(Number(form.seats)||2)));
   try{
     const r=await posFunction({action:'sync_tables',restaurantId:state.restaurant.id,tables:[{label:label.trim(),seats,area:'Salle',sortOrder:state.tables.length}],replace:false});
     state.tables=r.rows||state.tables;await saveFloorCache();state.error='';render();
@@ -834,7 +838,7 @@ function buildOpenOrder(orderId,eventId){
   };
 }
 async function saveOpenOrder(){
-  if(orderLocked()){alert('Cette note a déjà été envoyée en production.');return}
+  if(orderLocked()){uiAlert('Cette note a déjà été envoyée en production.');return}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
   const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid(),order=buildOpenOrder(orderId,eventId);
   order.deviceId=device.id;
@@ -924,7 +928,7 @@ function printReceipt(receipt){
 function printSplitPayment(receipt,payment){
   const meta=payment?.metadata||{};
   const allocations=Array.isArray(meta.allocations)?meta.allocations:[];
-  if(!allocations.length){alert('Aucun détail de partage disponible pour ce paiement.');return}
+  if(!allocations.length){uiAlert('Aucun détail de partage disponible pour ce paiement.');return}
   const label=meta.splitLabel||'Part individuelle';
   const taxGroups=new Map();
   for(const a of allocations){
@@ -952,9 +956,9 @@ function printProductionOrder(order){
 function parseMoneyInput(value){
   const n=Number(String(value??'').trim().replace(',','.'));return Number.isFinite(n)?Math.round(n*100)/100:NaN;
 }
-function askTip(defaultValue='0.00'){
-  const raw=prompt('Pourboire (CHF)',defaultValue);if(raw===null)return null;
-  const tip=parseMoneyInput(raw);if(!Number.isFinite(tip)||tip<0){alert('Pourboire invalide');return null}return tip;
+async function askTip(defaultValue='0.00'){
+  const raw=await uiPrompt({title:t('tipTitle'),label:t('tipLabel'),value:defaultValue,type:'number',inputMode:'decimal',min:'0',step:'0.01'});if(raw===null)return null;
+  const tip=parseMoneyInput(raw);if(!Number.isFinite(tip)||tip<0){uiAlert(t('invalidTip'));return null}return tip;
 }
 function normalizePaymentMethod(value){
   const v=String(value||'').trim().toLowerCase();
@@ -973,13 +977,13 @@ function progressivePaymentActive(){return currentServerOrder()?.status==='payme
 function standardPaymentBlocked(){return paymentBlockedByDelta()||progressivePaymentActive()}
 async function transferCurrentOrder(){
   const order=currentServerOrder();
-  if(!order){alert('Enregistrez d’abord la note avant de la transférer.');return}
-  if(!state.online){alert('Le transfert de table nécessite une connexion.');return}
+  if(!order){uiAlert('Enregistrez d’abord la note avant de la transférer.');return}
+  if(!state.online){uiAlert('Le transfert de table nécessite une connexion.');return}
   const free=state.tables.filter(t=>t.id!==state.activeTableId&&!state.openOrders.some(o=>o.id!==order.id&&o.table_id===t.id));
-  if(!free.length){alert('Aucune autre table libre.');return}
-  const answer=prompt('Transférer vers :\n'+free.map(t=>t.label).join('\n'),free[0].label);if(answer===null)return;
-  const target=free.find(t=>t.label.toLowerCase()===answer.trim().toLowerCase());
-  if(!target){alert('Table introuvable ou occupée.');return}
+  if(!free.length){uiAlert('Aucune autre table libre.');return}
+  const transfer=await uiFields({title:t('transferTitle'),fields:[{name:'tableId',label:t('transferTo'),type:'select',value:free[0].id,options:free.map(x=>({value:x.id,label:x.label}))}]});if(!transfer)return;
+  const target=free.find(t=>String(t.id)===String(transfer.tableId));
+  if(!target){uiAlert('Table introuvable ou occupée.');return}
   try{
     await posFunction({action:'transfer_open_order',restaurantId:state.restaurant.id,orderId:order.id,targetTableId:target.id});
     state.activeTableId=target.id;state.tableLabel=target.label;await refreshFloorData();state.error='';render();
@@ -987,10 +991,10 @@ async function transferCurrentOrder(){
 }
 async function cancelCurrentOrder(){
   const order=currentServerOrder();
-  if(!order){alert('Cette note n’est pas encore enregistrée.');return}
-  if(!state.online){alert('L’annulation nécessite une connexion.');return}
-  const reason=prompt('Motif de l’annulation');if(!reason?.trim())return;
-  if(!confirm('Annuler cette note ? L’opération restera dans le journal d’audit.'))return;
+  if(!order){uiAlert('Cette note n’est pas encore enregistrée.');return}
+  if(!state.online){uiAlert('L’annulation nécessite une connexion.');return}
+  const reason=await uiPrompt({title:t('cancelOrderTitle'),label:t('cancelReason'),required:true});if(!reason?.trim())return;
+  if(!(await uiConfirm({title:t('cancelOrderTitle'),message:t('cancelAudit'),danger:true})))return;
   try{
     await posFunction({action:'cancel_open_order',restaurantId:state.restaurant.id,orderId:order.id,reason:reason.trim()});
     state.openOrders=state.openOrders.filter(x=>x.id!==order.id);await saveFloorCache();
@@ -999,9 +1003,9 @@ async function cancelCurrentOrder(){
 }
 
 async function prepareOrderForAllocatedSplit(){
-  if(!state.online){alert('Le partage par articles nécessite une connexion.');return null}
+  if(!state.online){uiAlert('Le partage par articles nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
-  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return null}
+  if(paymentBlockedByDelta()){uiAlert('Envoyez d’abord les nouveaux articles en production.');return null}
 
   let order=currentServerOrder();
   if(!order||order.status==='open'){
@@ -1116,10 +1120,10 @@ async function settleAllocatedSplit(order){
 async function openAllocatedSplit(){
   const order=await prepareOrderForAllocatedSplit();if(!order)return;
   const items=(order.items||[]).filter(x=>x.kitchen_status!=='cancelled');
-  if(!items.length){alert('Aucun article à répartir.');return}
-  const raw=prompt('Combien de personnes / groupes ?','2');if(raw===null)return;
+  if(!items.length){uiAlert('Aucun article à répartir.');return}
+  const raw=await uiPrompt({title:t('splitPeople'),label:t('splitPeople'),value:'2',type:'number',inputMode:'numeric',min:'2',max:'8',step:'1'});if(raw===null)return;
   const groupCount=Math.max(2,Math.min(8,Math.trunc(Number(raw)||0)));
-  if(groupCount<2){alert('Nombre invalide.');return}
+  if(groupCount<2){uiAlert('Nombre invalide.');return}
 
   closeAllocatedSplit();
   const modal=document.createElement('div');
@@ -1156,9 +1160,9 @@ function printProgressivePayment(order,payment){
   printHtml(label,body);
 }
 async function prepareOrderForProgressivePayment(){
-  if(!state.online){alert('Le paiement progressif nécessite une connexion.');return null}
+  if(!state.online){uiAlert('Le paiement progressif nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
-  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return null}
+  if(paymentBlockedByDelta()){uiAlert('Envoyez d’abord les nouveaux articles en production.');return null}
   let order=currentServerOrder();
   if(!order||order.status==='open'){
     const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
@@ -1198,7 +1202,7 @@ async function openProgressivePayment(){
   }catch(error){state.error=error.message||String(error);render();return}
 
   const remainingItems=(progress.items||[]).filter(x=>Number(x.remainingQty)>0.0005);
-  if(!remainingItems.length){alert('Cette note est déjà entièrement répartie.');return}
+  if(!remainingItems.length){uiAlert('Cette note est déjà entièrement répartie.');return}
   closeProgressiveModal();
 
   const modal=document.createElement('div');
@@ -1247,7 +1251,7 @@ async function openProgressivePayment(){
         ?'Addition entièrement soldée.'
         :label+' encaissé · reste '+money(paid?.remainingAmount)+'.';
       render();
-      if(paid&&confirm('Paiement enregistré. Imprimer le reçu '+(paid.paymentReceiptNumber||'')+' ?'))printProgressivePayment(order,paid);
+      if(paid&&await uiConfirm({title:t('printPaymentReceipt'),message:String(paid.paymentReceiptNumber||''),confirmLabel:t('print')}))printProgressivePayment(order,paid);
     }catch(error){
       state.error=error.message||String(error);if(submit)submit.disabled=false;render();closeProgressiveModal();
     }
@@ -1256,22 +1260,24 @@ async function openProgressivePayment(){
 }
 async function splitCheckout(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
-  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
-  const raw=prompt('Nombre de parts / moyens de paiement','2');if(raw===null)return;
-  const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){alert('Nombre invalide');return}
+  if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
+  const raw=await uiPrompt({title:t('splitCount'),label:t('splitCount'),value:'2',type:'number',inputMode:'numeric',min:'2',max:'6',step:'1'});if(raw===null)return;
+  const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){uiAlert(t('splitInvalid'));return}
   const total=Math.round(cartTotal()*100)/100;
   const payments=[];let remaining=total;
   for(let i=0;i<count;i++){
     const suggested=i===count-1?remaining:Math.floor((total/count)*100)/100;
-    const amountRaw=prompt(`Part ${i+1}/${count} — montant (reste ${remaining.toFixed(2)} CHF)`,suggested.toFixed(2));if(amountRaw===null)return;
-    const amount=parseMoneyInput(amountRaw);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){alert('Montant invalide');return}
-    const methodRaw=prompt(`Part ${i+1} — moyen : espèces, carte ou TWINT`,i===0?'cash':'card');if(methodRaw===null)return;
-    const method=normalizePaymentMethod(methodRaw);if(!method){alert('Moyen de paiement invalide');return}
-    const tip=askTip('0.00');if(tip===null)return;
+    const part=await uiFields({title:t('splitCount')+' '+(i+1)+'/'+count,message:money(remaining),fields:[
+      {name:'amount',label:t('partAmount'),value:suggested.toFixed(2),type:'number',inputMode:'decimal',min:'0.01',max:String(remaining),step:'0.01',required:true},
+      {name:'method',label:t('paymentMethod'),type:'select',value:i===0?'cash':'card',options:[{value:'cash',label:t('cashMethod')},{value:'card',label:t('cardMethod')},{value:'twint',label:t('twintMethod')}]}
+    ]});if(!part)return;
+    const amount=parseMoneyInput(part.amount);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){uiAlert(t('invalidAmount'));return}
+    const method=normalizePaymentMethod(part.method);if(!method){uiAlert(t('paymentMethod'));return}
+    const tip=await askTip('0.00');if(tip===null)return;
     payments.push({method,amount,tipAmount:tip,provider:'',providerReference:''});
     remaining=Math.round((remaining-amount)*100)/100;
   }
-  if(Math.abs(remaining)>0.01){alert('Le total des parts doit correspondre exactement à l’addition.');return}
+  if(Math.abs(remaining)>0.01){uiAlert('Le total des parts doit correspondre exactement à l’addition.');return}
   const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
   const existing=currentServerOrder();
   if(!existing||existing.status==='open'){
@@ -1284,18 +1290,21 @@ async function splitCheckout(){
   await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 async function refundReceipt(receipt){
-  if(!state.online){alert('Un remboursement nécessite une connexion.');return}
-  if(!state.cashSession||state.cashSession.status!=='open'){alert('Ouvrez une caisse avant de rembourser.');return}
+  if(!state.online){uiAlert('Un remboursement nécessite une connexion.');return}
+  if(!state.cashSession||state.cashSession.status!=='open'){uiAlert('Ouvrez une caisse avant de rembourser.');return}
   const refunds=Array.isArray(receipt.refunds)?receipt.refunds:[];
   const reserved=refunds.filter(r=>['completed','pending_external'].includes(r.status)).reduce((s,r)=>s+Number(r.amount||0),0);
   const remaining=Math.max(0,Math.round((Number(receipt.total||0)-reserved)*100)/100);
-  if(remaining<=0){alert('Ce ticket est déjà entièrement remboursé ou réservé pour remboursement.');return}
-  const raw=prompt('Montant à rembourser (CHF)',remaining.toFixed(2));if(raw===null)return;
-  const amount=parseMoneyInput(raw);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.001){alert('Montant invalide');return}
+  if(remaining<=0){uiAlert('Ce ticket est déjà entièrement remboursé ou réservé pour remboursement.');return}
   const defaultMethod=receipt.payments?.[0]?.method||'cash';
-  const methodRaw=prompt('Moyen du remboursement : espèces, carte ou TWINT',defaultMethod);if(methodRaw===null)return;
-  const method=normalizePaymentMethod(methodRaw);if(!method){alert('Moyen de remboursement invalide');return}
-  const reason=prompt('Motif du remboursement');if(!reason?.trim())return;
+  const form=await uiFields({title:t('refundTitle'),fields:[
+    {name:'amount',label:t('refundAmount'),value:remaining.toFixed(2),type:'number',inputMode:'decimal',min:'0.01',max:String(remaining),step:'0.01',required:true},
+    {name:'method',label:t('refundMethod'),type:'select',value:defaultMethod,options:[{value:'cash',label:t('cashMethod')},{value:'card',label:t('cardMethod')},{value:'twint',label:t('twintMethod')}]},
+    {name:'reason',label:t('refundReason'),required:true}
+  ],danger:true});if(!form)return;
+  const amount=parseMoneyInput(form.amount);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.001){uiAlert(t('invalidAmount'));return}
+  const method=normalizePaymentMethod(form.method);if(!method){uiAlert(t('refundMethod'));return}
+  const reason=String(form.reason||'');if(!reason.trim())return;
   const tip=0;
   const device=await ensureDevice(),eventId=uuid();
   try{
@@ -1313,7 +1322,7 @@ async function refundReceipt(receipt){
 }
 async function confirmRefund(refundId,success){
   if(!state.online||!isManager())return;
-  const ref=success?prompt('Référence de confirmation du prestataire (facultatif)',''):'';if(success&&ref===null)return;
+  const ref=success?await uiPrompt({title:t('providerReference'),label:t('providerReference'),message:t('optional'),value:''}):'';if(success&&ref===null)return;
   try{
     await posFunction({action:'confirm_external_refund',restaurantId:state.restaurant.id,refundId,success,providerReference:ref||''});
     await refreshReceipts();state.error=success?'Remboursement externe confirmé.':'Remboursement externe marqué en échec.';render();
@@ -1346,11 +1355,11 @@ async function persistLocalProduction(){
 }
 async function sendCurrentOrderProduction(){
   const order=currentServerOrder();
-  if(!order){alert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
+  if(!order){uiAlert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
   if(!state.online){
     try{
       const now=Date.now(),newLines=order.status==='open'?[]:deltaLines();
-      if(order.status!=='open'&&!newLines.length){alert('Aucun nouvel article à envoyer.');return}
+      if(order.status!=='open'&&!newLines.length){uiAlert('Aucun nouvel article à envoyer.');return}
       if(newLines.length){
         const appendEventId=uuid();
         await queueCommand('append_order_items',{
@@ -1372,7 +1381,7 @@ async function sendCurrentOrderProduction(){
       await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
     }else{
       const lines=deltaLines();
-      if(!lines.length){alert('Aucun nouvel article à envoyer.');return}
+      if(!lines.length){uiAlert('Aucun nouvel article à envoyer.');return}
       await posFunction({
         action:'append_order_items',restaurantId:state.restaurant.id,orderId:order.id,
         clientEventId:uuid(),lines,occurredAt:new Date().toISOString()
@@ -1428,7 +1437,7 @@ function closeItemConfigurator(){
   document.body.classList.remove('modal-open');
 }
 function addConfiguredLine(product,button,modifiers,menu){
-  if(progressivePaymentActive()){alert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
+  if(progressivePaymentActive()){uiAlert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
   const supplement=modifierPriceDelta(modifiers);
   const basePrice=menu&&Number(menu.price)>0?Number(menu.price):Number(product.price)||0;
   const line={
@@ -1445,8 +1454,8 @@ function openItemConfigurator(buttonId){
   const layout=activeLayout(),doc=layout?.document,catalog=state.bootstrap?.catalog||[];
   if(!doc)return;
   const button=buttonById(doc,buttonId);if(!button||button.hidden)return;
-  if(button.unavailable){alert('Article temporairement indisponible.');return}
-  const product=productById(catalog,button.productId);if(!product){alert('Produit introuvable dans le catalogue publié.');return}
+  if(button.unavailable){uiAlert('Article temporairement indisponible.');return}
+  const product=productById(catalog,button.productId);if(!product){uiAlert('Produit introuvable dans le catalogue publié.');return}
   const config=configurationForButton(doc,button,catalog);
   if(!config.groups.length&&!config.menu){addConfiguredLine(product,button,[],null);return}
 
@@ -1478,7 +1487,7 @@ function openItemConfigurator(buttonId){
     for(const group of config.groups){
       if(group.type==='notes'){
         const note=String(form.get('note_'+group.id)||'').trim();
-        if(group.required&&!note){alert('Le champ « '+group.name+' » est obligatoire.');return}
+        if(group.required&&!note){uiAlert('Le champ « '+group.name+' » est obligatoire.');return}
         if(note)mods.push({groupId:group.id,groupName:group.name,type:'notes',station:group.station||'',note,options:[]});
         continue;
       }
@@ -1487,7 +1496,7 @@ function openItemConfigurator(buttonId){
         return form.get('mod_'+group.id+'_'+opt.id)==='on';
       });
       const min=Math.max(group.required?1:0,Number(group.min)||0),max=Math.max(min,Number(group.max)||1);
-      if(selected.length<min||selected.length>max){alert(group.name+' : choisissez entre '+min+' et '+max+' option(s).');return}
+      if(selected.length<min||selected.length>max){uiAlert(group.name+' : choisissez entre '+min+' et '+max+' option(s).');return}
       if(selected.length)mods.push({groupId:group.id,groupName:group.name,type:group.type,station:group.station||'',options:selected.map(opt=>({optionId:opt.id,name:opt.name,priceDelta:Number(opt.priceDelta)||0,station:opt.station||group.station||'',ingredientId:opt.ingredientId||'',omitIngredient:!!opt.omitIngredient}))});
     }
 
@@ -1499,7 +1508,7 @@ function openItemConfigurator(buttonId){
           return form.get('menu_'+choice.id+'_'+p.id)==='on';
         });
         const min=Math.max(choice.required?1:0,Number(choice.min)||0),max=Math.max(min,Number(choice.max)||1);
-        if(selected.length<min||selected.length>max){alert(choice.name+' : choisissez entre '+min+' et '+max+' élément(s).');return}
+        if(selected.length<min||selected.length>max){uiAlert(choice.name+' : choisissez entre '+min+' et '+max+' élément(s).');return}
         choices.push({choiceId:choice.id,name:choice.name,required:!!choice.required,products:selected.map(p=>({productId:p.id,name:p.name,recipeId:p.recipe_id||null,price:Number(p.price)||0,taxRate:Number(p.tax_rate)||0,station:p.production_station||'kitchen'}))});
       }
       mods.push({kind:'menu',menuId:config.menu.id,menuName:config.menu.name,choices});
@@ -1508,7 +1517,7 @@ function openItemConfigurator(buttonId){
   });
 }
 function addItem(item){
-  if(progressivePaymentActive()){alert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
+  if(progressivePaymentActive()){uiAlert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
   if(orderLocked()){
     const catalogId=item.quick?null:item.id;
     const line=state.cart.find(x=>x.delta&&x.catalog_item_id===catalogId&&x.name===item.name);
@@ -1529,11 +1538,10 @@ function addItem(item){
   }
   render();
 }
-function addQuickItem(){
-  const name=prompt('Nom de l’article libre');if(!name?.trim())return;
-  const raw=prompt('Prix TTC (CHF)','0.00');if(raw===null)return;
-  const price=Number(String(raw).replace(',','.'));if(!Number.isFinite(price)||price<0){alert('Prix invalide');return}
-  addItem({id:'quick:'+uuid(),name:name.trim(),price,tax_rate:8.1,quick:true});
+async function addQuickItem(){
+  const form=await uiFields({title:t('quickItemTitle'),fields:[{name:'name',label:t('itemName'),required:true},{name:'price',label:t('priceGross'),value:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01',required:true}]});if(!form?.name?.trim())return;
+  const price=Number(String(form.price).replace(',','.'));if(!Number.isFinite(price)||price<0){uiAlert(t('invalidPrice'));return}
+  addItem({id:'quick:'+uuid(),name:String(form.name).trim(),price,tax_rate:8.1,quick:true});
 }
 async function refreshCatalog(){
   if(!state.restaurant||!state.online)return;
@@ -1544,13 +1552,13 @@ async function refreshCatalog(){
   }catch(error){state.error=error.message||String(error)}
   render();
 }
-function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){alert('Cet article a déjà été envoyé en production.');return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert('Cet article a déjà été envoyé en production.');return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
-  if(standardPaymentBlocked()){alert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
-  const tip=askTip('0.00');if(tip===null)return;
+  if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
+  const tip=await askTip('0.00');if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
 
   if(state.activeTableId||state.activeOrderId||state.serviceType==='dine_in'){
@@ -1707,7 +1715,7 @@ function bindPosAcademy(){
   document.querySelectorAll('[data-academy-step]').forEach(b=>b.addEventListener('click',()=>savePosAcademyTopic(b.dataset.academyStep,b.dataset.stepStatus||'in_progress',Number(b.dataset.stepIndex)||0)));
   document.querySelectorAll('[data-academy-tour]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.academyTour;state.academy.selectedTopic='';state.view=academyTourView(id);render();setTimeout(()=>startAcademyTour(id,{locale:academyLocale()}),40)}));
   document.getElementById('academy-training-start')?.addEventListener('click',()=>{state.trainingMode=true;resetTraining();state.view='training';render()});
-  document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro POS',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:state.view,online:state.online,pendingSync:state.queueCount};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);alert(academyChromeText().contextCopied)}catch{alert(value)}});
+  document.getElementById('academy-copy-context')?.addEventListener('click',async()=>{const safe={application:'ReMaPro POS',appVersion:APP_VERSION,academyVersion:ACADEMY_CONTENT_VERSION,screen:state.view,online:state.online,pendingSync:state.queueCount};const value=JSON.stringify(safe,null,2);try{await navigator.clipboard.writeText(value);uiAlert(academyChromeText().contextCopied)}catch{uiAlert(value)}});
   document.getElementById('academy-manager-visibility')?.addEventListener('change',async e=>{const org=academyOrgId();if(!posOrgAdmin()||!org)return;e.target.disabled=true;try{const data=await academyFunction({action:'set_manager_visibility',organizationId:org,enabled:e.target.checked});state.academy.managerVisibility=!!data.managerVisibility;state.academy.loaded=false;await refreshPosAcademy()}catch{e.target.checked=!e.target.checked}finally{e.target.disabled=false}});
 }
 function bindTraining(){
@@ -1899,7 +1907,7 @@ function wire(){
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
   document.querySelector('#refresh-catalog')?.addEventListener('click',()=>{refreshCatalog();refreshFloorData().then(render)});
   document.querySelector('#quick-item')?.addEventListener('click',()=>addQuickItem());
-  document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=prompt('Montant espèces compté dans le tiroir (CHF)');if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){alert('Montant invalide');return}await closeSession(n)});
+  document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=await uiPrompt({title:t('closeCash'),label:t('countedCash'),value:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01'});if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){uiAlert(t('invalidAmount'));return}await closeSession(n)});
   document.querySelector('#service-type')?.addEventListener('change',e=>state.serviceType=e.target.value);
   document.querySelector('#table-label')?.addEventListener('input',e=>state.tableLabel=e.target.value);
   document.querySelector('#covers')?.addEventListener('input',e=>state.covers=Math.max(0,Number(e.target.value)||0));
