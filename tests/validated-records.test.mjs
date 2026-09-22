@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {load,recordValidated,recordInvoice,updateRecord} from '../src/store.js';
+import {load,recordValidated,recordInvoice,markInvoicePaid,updateRecord} from '../src/store.js';
 
 const values=new Map();
 globalThis.localStorage={
@@ -45,6 +45,7 @@ assert.equal(recordValidated(state,'temps',{equipment:'',value:4}),false);
 state.suppliers=[{name:'Metro',paymentDays:45}];
 assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-1',date:'2026-09-20',dueDate:'2026-10-20',amount:120,status:'pending'})?.dueDate,'2026-10-20');
 assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-3',date:'2026-09-20',amount:80,status:'pending'})?.dueDate,'2026-11-04');
+const pendingIndex=state.invoices.findIndex(x=>x.reference==='F-3');assert.equal(markInvoicePaid(state,pendingIndex,new Date('2026-09-22T10:00:00Z'))?.status,'paid');assert.equal(state.invoices[pendingIndex].paidAt,'2026-09-22T10:00:00.000Z');assert.equal(markInvoicePaid(state,pendingIndex),false);
 assert.equal(recordInvoice(state,{supplier:'Metro',reference:'F-2',date:'2026-09-20',dueDate:'2026-09-19',amount:120,status:'pending'}),false);
 
 assert.equal(updateRecord(state,'audits',0,{score:120}),false);
