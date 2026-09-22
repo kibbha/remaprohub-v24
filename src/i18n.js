@@ -214,7 +214,7 @@ const v2711qDe={closingControl:"Schließkontrolle",closingReadyHint:"Die erforde
 const v2711qIt={closingControl:"Controllo chiusura",closingReadyHint:"I punti obbligatori di chiusura sono completati. Puoi preparare il passaggio consegne.",closingBlockedHint:"Completa le attività di chiusura e risolvi le non conformità HACCP prima di considerare pronta la chiusura.",blockingPoints:"punto/i bloccante/i"};
 Object.assign(fr,v2711qFr);Object.assign(en,v2711qEn);Object.assign(de,v2711qDe);Object.assign(it,v2711qIt);
 const v2711rFr={wasteInsights:"Analyse des pertes",wasteCost7d:"Coût estimé des pertes · 7 jours",wasteEntries7d:"Saisies de pertes · 7 jours",wasteEntries:"perte(s)",vsPreviousPeriod:"vs période précédente"};
-const v2711rEn={wasteInsights:"Waste analysis",wasteCost7d:"Estimated waste cost · 7 days",wasteEntries7d:"Waste entries · 7 days",wasteEntries:"waste entrie(s)",vsPreviousPeriod:"vs previous period"};
+const v2711rEn={wasteInsights:"Waste analysis",wasteCost7d:"Estimated waste cost · 7 days",wasteEntries7d:"Waste entries · 7 days",wasteEntries:"waste entries",vsPreviousPeriod:"vs previous period"};
 const v2711rDe={wasteInsights:"Verlustanalyse",wasteCost7d:"Geschätzte Verlustkosten · 7 Tage",wasteEntries7d:"Verlusteinträge · 7 Tage",wasteEntries:"Verluste",vsPreviousPeriod:"vs. Vorperiode"};
 const v2711rIt={wasteInsights:"Analisi degli sprechi",wasteCost7d:"Costo stimato sprechi · 7 giorni",wasteEntries7d:"Registrazioni sprechi · 7 giorni",wasteEntries:"spreco/i",vsPreviousPeriod:"vs periodo precedente"};
 Object.assign(fr,v2711rFr);Object.assign(en,v2711rEn);Object.assign(de,v2711rDe);Object.assign(it,v2711rIt);
