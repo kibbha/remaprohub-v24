@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='3';
+export const POS_BRIDGE_VERSION='4';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -73,4 +73,20 @@ export async function pullPosEvents(restaurantId,after=0,limit=100){
 }
 export async function loadPosDailySummary(restaurantId,{from='',to=''}={}){
   return cloudFunction('remapro-pos-sync',{action:'daily_summary',restaurantId,from,to});
+}
+
+export async function loadPosTables(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_tables',restaurantId});
+}
+export async function syncPosTables(restaurantId,tables,{replace=true}={}){
+  return cloudFunction('remapro-pos-sync',{action:'sync_tables',restaurantId,tables,replace});
+}
+export async function savePosOpenOrder(restaurantId,order){
+  return cloudFunction('remapro-pos-sync',{action:'save_open_order',restaurantId,order});
+}
+export async function settlePosOpenOrder(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'settle_open_order',restaurantId,...payload});
+}
+export async function loadPosOpenOrders(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_open_orders',restaurantId});
 }

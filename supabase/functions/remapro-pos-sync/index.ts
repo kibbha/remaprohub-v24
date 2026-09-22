@@ -225,6 +225,129 @@ export default {
         return json({ok:true,count:catalog?.length||0,catalog:catalog||[]});
       }
 
+      if(action==="list_tables"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_tables")
+          .select("id,label,area,seats,sort_order,x,y,active,updated_at")
+          .eq("restaurant_id",restaurantId).eq("active",true).order("area").order("sort_order").order("label");
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
+      if(action==="sync_tables"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const raw=Array.isArray(body.tables)?body.tables:[];
+        if(raw.length>300)return json({error:"Table limit exceeded"},400);
+        const rows:any[]=[];
+        for(let i=0;i<raw.length;i++){
+          const item=raw[i]||{};
+          const label=clean(item.label,80);
+          if(!label)return json({error:`Invalid table at index ${i}`},400);
+          const row:any={
+            organization_id:restaurant.organization_id,
+            restaurant_id:restaurantId,
+            label,
+            area:clean(item.area,80)||"Salle",
+            seats:Math.max(0,Math.min(99,Math.trunc(Number(item.seats)||2))),
+            sort_order:Math.trunc(Number(item.sortOrder)||i),
+            x:Number.isFinite(Number(item.x))?Number(item.x):null,
+            y:Number.isFinite(Number(item.y))?Number(item.y):null,
+            active:item.active!==false,
+            updated_at:new Date().toISOString()
+          };
+          const id=clean(item.id,64);if(validUuid(id))row.id=id;
+          rows.push(row);
+        }
+        if(rows.length){
+          const {error}=await ctx.supabaseAdmin.from("pos_tables").upsert(rows,{onConflict:"restaurant_id,label"});
+          if(error)return json({error:error.message},500);
+        }
+        if(body.replace===true){
+          const keep=new Set(rows.map((x:any)=>x.label));
+          const {data:existing,error:existingError}=await ctx.supabaseAdmin.from("pos_tables").select("id,label").eq("restaurant_id",restaurantId);
+          if(existingError)return json({error:existingError.message},500);
+          const deactivate=(existing||[]).filter((x:any)=>!keep.has(x.label)).map((x:any)=>x.id);
+          if(deactivate.length){
+            const {error}=await ctx.supabaseAdmin.from("pos_tables").update({active:false,updated_at:new Date().toISOString()}).in("id",deactivate);
+            if(error)return json({error:error.message},500);
+          }
+        }
+        const {data,error}=await ctx.supabaseAdmin.from("pos_tables")
+          .select("id,label,area,seats,sort_order,x,y,active,updated_at")
+          .eq("restaurant_id",restaurantId).eq("active",true).order("area").order("sort_order").order("label");
+        if(error)return json({error:error.message},500);
+        return json({ok:true,count:data?.length||0,rows:data||[]});
+      }
+
+      if(action==="save_open_order"){
+        const order=body.order||{};
+        const orderId=clean(order.id,64),eventId=clean(order.clientEventId,64),deviceId=clean(order.deviceId,64),sessionId=clean(order.cashSessionId,64);
+        const businessDate=clean(order.businessDate,10),tableId=clean(order.tableId,64);
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId)||!validDate(businessDate)){
+          return json({error:"Invalid open-order identity"},400);
+        }
+        if(!Array.isArray(order.lines)||!order.lines.length)return json({error:"Order lines required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_save_open_order",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_organization_id:restaurant.organization_id,
+          p_restaurant_id:restaurantId,
+          p_device_id:deviceId,
+          p_cash_session_id:sessionId,
+          p_business_date:businessDate,
+          p_service_type:clean(order.serviceType,30)||"dine_in",
+          p_table_id:validUuid(tableId)?tableId:null,
+          p_table_label:clean(order.tableLabel,80)||null,
+          p_covers:Math.max(0,Math.trunc(Number(order.covers)||0)),
+          p_currency:clean(order.currency,3).toUpperCase()||restaurant.currency||"CHF",
+          p_lines:order.lines,
+          p_actor_user_id:userId,
+          p_occurred_at:order.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
+      if(action==="settle_open_order"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),deviceId=clean(body.deviceId,64),sessionId=clean(body.cashSessionId,64);
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(deviceId)||!validUuid(sessionId))return json({error:"Invalid settlement identity"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_settle_open_order",{
+          p_order_id:orderId,
+          p_client_event_id:eventId,
+          p_device_id:deviceId,
+          p_cash_session_id:sessionId,
+          p_payment_method:clean(body.paymentMethod,30),
+          p_payment_provider:clean(body.paymentProvider,80)||null,
+          p_payment_reference:clean(body.paymentReference,180)||null,
+          p_tip_amount:Math.max(0,Number(body.tipAmount)||0),
+          p_actor_user_id:userId,
+          p_occurred_at:body.occurredAt||new Date().toISOString()
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,receipt:data});
+      }
+
+      if(action==="list_open_orders"){
+        const {data:orders,error}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,business_date,table_id,table_label,service_type,status,currency,covers,subtotal,tax_total,total,opened_at,updated_at")
+          .eq("restaurant_id",restaurantId).in("status",["open","sent","preparing","served","payment_pending"]).order("updated_at",{ascending:false}).limit(200);
+        if(error)return json({error:error.message},500);
+        const ids=(orders||[]).map((x:any)=>x.id);
+        let items:any[]=[];
+        if(ids.length){
+          const itemResult=await ctx.supabaseAdmin.from("pos_order_items")
+            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,kitchen_status,note")
+            .in("order_id",ids).order("created_at");
+          if(itemResult.error)return json({error:itemResult.error.message},500);
+          items=itemResult.data||[];
+        }
+        const byOrder=new Map<string,any[]>();
+        for(const item of items){
+          if(!byOrder.has(item.order_id))byOrder.set(item.order_id,[]);
+          byOrder.get(item.order_id)!.push(item);
+        }
+        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]}))});
+      }
+
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
