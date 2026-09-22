@@ -186,3 +186,10 @@ ReMaPro Hub reste un assistant de gestion pour la restauration, pas un système 
 - Le document reprend CA, dépenses, résultat, couverts, ticket moyen, food cost, planning, pertes, échéances fournisseurs, préparation des services, HACCP et maintenance.
 - La comparaison avec la semaine précédente est ajoutée lorsqu’elle est disponible.
 - Aucun score opaque ni recommandation automatique n’est ajouté au document : il reste fondé sur les données enregistrées dans ReMaPro.
+
+## Conflits planning / congés – lot 27
+- ReMaPro détecte maintenant les services planifiés pendant un congé déjà approuvé.
+- Les conflits des 14 prochains jours remontent dans Planning et dans le cockpit manager.
+- Un congé simplement demandé ne déclenche pas de conflit tant qu’il n’est pas approuvé.
+- Le système signale le problème sans supprimer ni déplacer automatiquement un service existant.
+- Le Manager Copilot reçoit également ces conflits afin de les intégrer à ses priorités.
