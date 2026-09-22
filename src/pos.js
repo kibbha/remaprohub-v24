@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='12';
+export const POS_BRIDGE_VERSION='13';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
@@ -140,4 +140,23 @@ export async function payPosAllocatedGroup(restaurantId,payload){
 }
 export async function loadPosPaymentProgress(restaurantId,orderId){
   return cloudFunction('remapro-pos-sync',{action:'order_payment_progress',restaurantId,orderId});
+}
+
+export async function loadPosPaymentTerminals(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'list_terminals',restaurantId});
+}
+export async function savePosPaymentTerminal(restaurantId,terminal){
+  return cloudFunction('remapro-pos-sync',{action:'upsert_terminal',restaurantId,terminal});
+}
+export async function loadPosTerminalIntents(restaurantId,{orderId='',terminalId='',limit=30}={}){
+  return cloudFunction('remapro-pos-sync',{action:'list_terminal_intents',restaurantId,orderId,terminalId,limit});
+}
+export async function createPosTerminalIntent(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'create_terminal_intent',restaurantId,...payload});
+}
+export async function createPosTerminalRefundIntent(restaurantId,payload){
+  return cloudFunction('remapro-pos-sync',{action:'create_terminal_refund_intent',restaurantId,...payload});
+}
+export async function cancelPosTerminalIntent(restaurantId,intentId){
+  return cloudFunction('remapro-pos-sync',{action:'cancel_terminal_intent',restaurantId,intentId});
 }

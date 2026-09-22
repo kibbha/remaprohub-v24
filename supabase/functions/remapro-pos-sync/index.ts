@@ -76,6 +76,8 @@ export default {
             productionRouting:true,
             kitchen:true,
             serviceReports:true,
+            paymentTerminalProfiles:true,
+            terminalIntents:true,
             paymentProviders:false
           }
         });
@@ -629,6 +631,90 @@ export default {
         if(error)return json({error:error.message},500);
         const events=data||[];
         return json({ok:true,events,nextCursor:events.length?Number(events[events.length-1].sequence):after});
+      }
+
+      if(action==="list_terminals"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_payment_terminals")
+          .select("id,device_id,label,provider,integration_mode,external_terminal_id,currency,supports_card,supports_twint,supports_tips,supports_refunds,active,connection_status,last_seen_at,created_at,updated_at")
+          .eq("restaurant_id",restaurantId).order("label");
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[],providerConnections:false});
+      }
+
+      if(action==="upsert_terminal"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const terminal=body.terminal||{};
+        const terminalId=clean(terminal.id,64);
+        const deviceId=clean(terminal.deviceId,64);
+        const provider=clean(terminal.provider,30).toLowerCase();
+        const mode=clean(terminal.integrationMode,30).toLowerCase();
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_payment_terminal",{
+          p_terminal_id:validUuid(terminalId)?terminalId:null,
+          p_restaurant_id:restaurantId,
+          p_device_id:validUuid(deviceId)?deviceId:null,
+          p_label:clean(terminal.label,120),
+          p_provider:provider,
+          p_integration_mode:mode||"cloud",
+          p_external_terminal_id:clean(terminal.externalTerminalId,180)||null,
+          p_currency:clean(terminal.currency,3).toUpperCase()||restaurant.currency||"CHF",
+          p_supports_card:terminal.supportsCard!==false,
+          p_supports_twint:terminal.supportsTwint===true,
+          p_supports_tips:terminal.supportsTips!==false,
+          p_supports_refunds:terminal.supportsRefunds!==false,
+          p_active:terminal.active===true,
+          p_public_config:terminal.publicConfig&&typeof terminal.publicConfig==="object"?terminal.publicConfig:{},
+          p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,terminal:data});
+      }
+
+      if(action==="list_terminal_intents"){
+        let query=ctx.supabaseAdmin.from("pos_payment_intents")
+          .select("id,order_id,refund_id,payment_id,terminal_id,kind,method,amount,tip_amount,currency,status,provider,provider_reference,provider_status,error_code,error_message,created_at,completed_at")
+          .eq("restaurant_id",restaurantId).order("created_at",{ascending:false});
+        const orderId=clean(body.orderId,64),terminalId=clean(body.terminalId,64);
+        if(validUuid(orderId))query=query.eq("order_id",orderId);
+        if(validUuid(terminalId))query=query.eq("terminal_id",terminalId);
+        const {data,error}=await query.limit(Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30))));
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
+      if(action==="create_terminal_intent"){
+        const orderId=clean(body.orderId,64),eventId=clean(body.clientEventId,64),terminalId=clean(body.terminalId,64),deviceId=clean(body.deviceId,64),sessionId=clean(body.cashSessionId,64);
+        if(!validUuid(orderId)||!validUuid(eventId)||!validUuid(terminalId)||!validUuid(deviceId)||!validUuid(sessionId)){
+          return json({error:"Invalid terminal-intent identity"},400);
+        }
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_create_payment_intent",{
+          p_order_id:orderId,p_client_event_id:eventId,p_terminal_id:terminalId,p_device_id:deviceId,p_cash_session_id:sessionId,
+          p_method:clean(body.method,20).toLowerCase(),p_amount:Math.round((Number(body.amount)||0)*100)/100,
+          p_tip_amount:Math.max(0,Math.round((Number(body.tipAmount)||0)*100)/100),
+          p_actor_user_id:userId,p_metadata:body.metadata&&typeof body.metadata==="object"?body.metadata:{}
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,intent:data});
+      }
+
+      if(action==="create_terminal_refund_intent"){
+        const refundId=clean(body.refundId,64),eventId=clean(body.clientEventId,64),terminalId=clean(body.terminalId,64);
+        if(!validUuid(refundId)||!validUuid(eventId)||!validUuid(terminalId))return json({error:"Invalid refund-intent identity"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_create_refund_intent",{
+          p_refund_id:refundId,p_client_event_id:eventId,p_terminal_id:terminalId,
+          p_actor_user_id:userId,p_metadata:body.metadata&&typeof body.metadata==="object"?body.metadata:{}
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,intent:data});
+      }
+
+      if(action==="cancel_terminal_intent"){
+        const intentId=clean(body.intentId,64);
+        if(!validUuid(intentId))return json({error:"Valid intentId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_cancel_payment_intent",{
+          p_intent_id:intentId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,intent:data});
       }
 
       if(action==="service_report"){
