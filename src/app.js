@@ -1,13 +1,14 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.12.2';
+const APP_VERSION='0.13.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
-  productionQueue:[],productionStation:'all',serviceReport:null,reportDate:''
+  productionQueue:[],productionStation:'all',serviceReport:null,reportDate:'',
+  terminals:[],terminalIntents:[]
 };
 const app=document.querySelector('#app');
 const money=v=>new Intl.NumberFormat('fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
@@ -19,6 +20,7 @@ const receiptsKey=id=>'receipts:'+id;
 const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
 const productionKey=id=>'production:'+id;
+const terminalsKey=id=>'terminals:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -38,6 +40,108 @@ async function saveFloorCache(){
   if(!state.restaurant)return;
   await kvSet(tablesKey(state.restaurant.id),state.tables);
   await kvSet(openOrdersKey(state.restaurant.id),state.openOrders);
+}
+
+async function refreshTerminals(){
+  if(!state.restaurant)return;
+  if(!state.online){
+    state.terminals=await kvGet(terminalsKey(state.restaurant.id))||state.terminals||[];
+    state.terminalIntents=[];
+    return;
+  }
+  try{
+    const [terminals,intents]=await Promise.all([
+      posFunction({action:'list_terminals',restaurantId:state.restaurant.id}),
+      posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,limit:30})
+    ]);
+    state.terminals=terminals.rows||[];
+    state.terminalIntents=intents.rows||[];
+    await kvSet(terminalsKey(state.restaurant.id),state.terminals);
+  }catch(error){state.error=error.message||String(error)}
+}
+function closeTerminalEditor(){
+  document.querySelector('#terminal-editor-modal')?.remove();
+  document.body.classList.remove('modal-open');
+}
+function openTerminalEditor(existing=null){
+  if(!isManager()){alert('Accès manager requis.');return}
+  closeTerminalEditor();
+  const modal=document.createElement('div');
+  modal.id='terminal-editor-modal';modal.className='modal-overlay';
+  const t=existing||{};
+  const checked=(v,d=false)=>(v===undefined?d:!!v)?'checked':'';
+  modal.innerHTML='<form class="terminal-dialog" id="terminal-editor-form">'
+    +'<div class="split-dialog-head"><div><h2>'+(existing?'Modifier le terminal':'Ajouter un profil terminal')+'</h2><p>Aucun secret/API key n’est stocké dans ce formulaire.</p></div><button type="button" class="split-close" id="terminal-editor-close">×</button></div>'
+    +'<div class="terminal-form-grid">'
+    +'<label>Nom<input name="label" required maxlength="120" value="'+esc(t.label||'Terminal principal')+'"></label>'
+    +'<label>Prestataire<select name="provider"><option value="worldline" '+(t.provider==='worldline'?'selected':'')+'>Worldline</option><option value="twint" '+(t.provider==='twint'?'selected':'')+'>TWINT</option><option value="generic" '+(!t.provider||t.provider==='generic'?'selected':'')+'>Générique</option></select></label>'
+    +'<label>Mode<select name="integrationMode"><option value="cloud" '+(!t.integration_mode||t.integration_mode==='cloud'?'selected':'')+'>Cloud/API</option><option value="external_app" '+(t.integration_mode==='external_app'?'selected':'')+'>Application externe</option><option value="local_network" '+(t.integration_mode==='local_network'?'selected':'')+'>Réseau local</option></select></label>'
+    +'<label>ID terminal prestataire<input name="externalTerminalId" maxlength="180" value="'+esc(t.external_terminal_id||'')+'" placeholder="Optionnel"></label>'
+    +'<label>Devise<input name="currency" maxlength="3" value="'+esc(t.currency||state.restaurant?.currency||'CHF')+'"></label>'
+    +'<label class="terminal-check"><input type="checkbox" name="supportsCard" '+checked(t.supports_card,true)+'> Carte</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="supportsTwint" '+checked(t.supports_twint,false)+'> TWINT</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="supportsTips" '+checked(t.supports_tips,true)+'> Pourboires</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="supportsRefunds" '+checked(t.supports_refunds,true)+'> Remboursements</label>'
+    +'<label class="terminal-check"><input type="checkbox" name="active" '+checked(t.active,false)+'> Profil actif</label>'
+    +'</div>'
+    +'<div class="terminal-security-note"><strong>Connexion réelle non configurée.</strong> Les identifiants prestataire seront ajoutés plus tard dans les secrets serveur, jamais dans l’application.</div>'
+    +'<div class="split-footer"><button type="button" class="secondary" id="terminal-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer le profil</button></div>'
+    +'</form>';
+  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  modal.querySelector('#terminal-editor-close')?.addEventListener('click',closeTerminalEditor);
+  modal.querySelector('#terminal-editor-cancel')?.addEventListener('click',closeTerminalEditor);
+  modal.querySelector('#terminal-editor-form')?.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const fd=new FormData(e.currentTarget);
+    const device=await ensureDevice();
+    const terminal={
+      id:t.id||'',deviceId:device.id,label:String(fd.get('label')||'').trim(),
+      provider:String(fd.get('provider')||'generic'),integrationMode:String(fd.get('integrationMode')||'cloud'),
+      externalTerminalId:String(fd.get('externalTerminalId')||'').trim(),
+      currency:String(fd.get('currency')||'CHF').trim().toUpperCase(),
+      supportsCard:fd.get('supportsCard')==='on',supportsTwint:fd.get('supportsTwint')==='on',
+      supportsTips:fd.get('supportsTips')==='on',supportsRefunds:fd.get('supportsRefunds')==='on',
+      active:fd.get('active')==='on',publicConfig:{}
+    };
+    try{
+      await posFunction({action:'upsert_terminal',restaurantId:state.restaurant.id,terminal});
+      await refreshTerminals();closeTerminalEditor();state.error='Profil terminal enregistré. Connexion prestataire toujours à configurer.';render();
+    }catch(error){state.error=error.message||String(error);render();closeTerminalEditor()}
+  });
+}
+function terminalStatusLabel(status){
+  return ({not_configured:'Non configuré',configured:'Configuré',online:'En ligne',offline:'Hors ligne',error:'Erreur'})[status]||status||'Inconnu';
+}
+function terminalProviderLabel(provider){
+  return ({worldline:'Worldline',twint:'TWINT',generic:'Générique'})[provider]||provider||'—';
+}
+function terminalsView(){
+  const intents=state.terminalIntents||[];
+  return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
+    <main class="terminals-page">
+      <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
+      <div class="terminal-warning"><strong>Mode préparation.</strong> Aucun connecteur Worldline/TWINT réel n’est encore activé. Une vente carte/TWINT peut seulement être enregistrée manuellement après confirmation sur un terminal externe indépendant.</div>
+      <section class="terminal-grid">${state.terminals.length?state.terminals.map(t=>`<article class="terminal-card">
+        <div class="terminal-card-head"><div><strong>${esc(t.label)}</strong><small>${esc(terminalProviderLabel(t.provider))} · ${esc(t.integration_mode)}</small></div><span class="terminal-state state-${esc(t.connection_status)}">${esc(terminalStatusLabel(t.connection_status))}</span></div>
+        <div class="terminal-capabilities"><span>${t.supports_card?'Carte':''}</span><span>${t.supports_twint?'TWINT':''}</span><span>${t.supports_tips?'Tips':''}</span><span>${t.supports_refunds?'Remb.':''}</span></div>
+        <div class="terminal-meta"><div>ID prestataire <strong>${esc(t.external_terminal_id||'—')}</strong></div><div>Devise <strong>${esc(t.currency||'CHF')}</strong></div><div>Profil <strong>${t.active?'Actif':'Inactif'}</strong></div></div>
+        ${isManager()?'<button class="secondary wide" data-edit-terminal="'+t.id+'">Modifier</button>':''}
+      </article>`).join(''):'<div class="empty"><h3>Aucun profil terminal</h3><p>Ajoutez Worldline, TWINT ou un profil générique. La connexion réelle sera activée séparément côté serveur.</p></div>'}</section>
+      <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><strong class="intent-status intent-${esc(i.status)}">${esc(i.status)}</strong></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
+    </main></div>`;
+}
+async function payByMethod(method){
+  if(method==='cash')return checkout(method);
+  if(!['card','twint'].includes(method))return checkout(method);
+  const matching=state.terminals.find(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint));
+  if(matching&&state.bootstrap?.capabilities?.paymentProviders===true){
+    alert('Le connecteur prestataire est prêt à être activé, mais aucune transaction réelle ne sera lancée tant que son adaptateur n’est pas installé.');
+    return;
+  }
+  const label=method==='twint'?'TWINT':'carte';
+  const ok=confirm('ReMaPro POS n’est pas encore relié au prestataire '+label+'. Confirmez uniquement si le paiement a DÉJÀ été accepté sur un terminal externe. L’enregistrer manuellement ?');
+  if(!ok)return;
+  return checkout(method);
 }
 async function refreshProductionQueue(){
   if(!state.restaurant)return;
@@ -146,6 +250,7 @@ async function bootstrapRestaurant(restaurant){
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
+  state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
   state.cashSession=await kvGet(sessionKey(restaurant.id));
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   render();
@@ -161,7 +266,8 @@ async function bootstrapRestaurant(restaurant){
       }
       await refreshFloorData();
       await refreshProductionQueue();
-      await refreshReceipts()
+      await refreshReceipts();
+      await refreshTerminals()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -840,7 +946,7 @@ function pickerView(){return `<div class="picker-wrap"><div class="card"><h1>Cho
 function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session"><h1>Ouvrir la caisse</h1><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar"><div class="brand">ReMaPro POS <small>v${APP_VERSION}</small></div><div>${esc(state.restaurant.name)}</div>
-    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button>
+    <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button>
     <div class="spacer"></div><div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <div class="queue">${state.queueCount} en attente</div><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
     <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
@@ -930,7 +1036,7 @@ function render(){
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}</div></div>`;wire();return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():mainView();wire();
+  app.innerHTML=state.view==='floor'?floorView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():mainView();wire();
 }
 function wire(){
   document.querySelector('#login-form')?.addEventListener('submit',async e=>{e.preventDefault();state.busy=true;state.error='';render();const fd=new FormData(e.currentTarget);try{await signIn(fd.get('email'),fd.get('password'));await loadAccount()}catch(error){state.error=error.message||String(error);state.busy=false;render()}});
@@ -943,6 +1049,10 @@ function wire(){
   document.querySelector('#nav-production')?.addEventListener('click',()=>{state.view='production';refreshProductionQueue().then(render)});
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#nav-report')?.addEventListener('click',()=>{state.view='report';state.reportDate=state.reportDate||dateKey();refreshServiceReport(state.reportDate)});
+  document.querySelector('#nav-terminals')?.addEventListener('click',()=>{state.view='terminals';refreshTerminals().then(render)});
+  document.querySelector('#refresh-terminals')?.addEventListener('click',()=>refreshTerminals().then(render));
+  document.querySelector('#add-terminal')?.addEventListener('click',()=>openTerminalEditor());
+  document.querySelectorAll('[data-edit-terminal]').forEach(b=>b.addEventListener('click',()=>{const t=state.terminals.find(x=>x.id===b.dataset.editTerminal);if(t)openTerminalEditor(t)}));
   document.querySelector('#report-date')?.addEventListener('change',e=>{state.reportDate=e.target.value;refreshServiceReport(state.reportDate)});
   document.querySelector('#refresh-report')?.addEventListener('click',()=>refreshServiceReport(state.reportDate||dateKey()));
   document.querySelector('#print-report')?.addEventListener('click',()=>printServiceReport(state.serviceReport));
@@ -976,7 +1086,7 @@ function wire(){
   document.querySelectorAll('[data-product]').forEach(b=>b.addEventListener('click',()=>{const p=(state.bootstrap?.catalog||[]).find(x=>x.id===b.dataset.product);if(p)addItem(p)}));
   document.querySelectorAll('[data-minus]').forEach(b=>b.addEventListener('click',()=>changeQty(b.dataset.minus,-1)));
   document.querySelectorAll('[data-plus]').forEach(b=>b.addEventListener('click',()=>changeQty(b.dataset.plus,1)));
-  document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>checkout(b.dataset.pay)));
+  document.querySelectorAll('[data-pay]').forEach(b=>b.addEventListener('click',()=>payByMethod(b.dataset.pay)));
 }
 async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});

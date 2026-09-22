@@ -1,10 +1,10 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
-assert.equal(JSON.parse(read('package.json')).version,'0.12.2');
+assert.equal(JSON.parse(read('package.json')).version,'0.13.0');
 assert.equal(JSON.parse(read('capacitor.config.json')).appId,'com.remapro.pos');
 const app=read('src/app.js');
-for(const token of ['pay_allocated_group','order_payment_progress','openProgressivePayment','printProgressivePayment','progressivePaymentActive','P01'])assert.ok(app.includes(token),token);
-assert.match(read('src/styles.css'),/progressive-dialog/);
+for(const token of ['terminalsView','openTerminalEditor','list_terminals','list_terminal_intents','payByMethod','Aucun secret/API key'])assert.ok(app.includes(token),token);
+assert.match(read('src/styles.css'),/terminal-grid/);
 assert.doesNotMatch(read('src/cloud.js'),/service[_-]?role/i);
-console.log('ReMaPro POS 0.12.2 smoke checks passed');
+console.log('ReMaPro POS 0.13 smoke checks passed');

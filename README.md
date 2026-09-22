@@ -1,25 +1,25 @@
 # ReMaPro POS
 
-Version actuelle: **0.12.2**  
+Version actuelle: **0.13.0**  
 Android package: **com.remapro.pos**
 
-## Nouveauté v0.12 — paiement progressif
-Une table peut maintenant être encaissée personne par personne :
-- sélection des articles/quantités encore impayés ;
-- moyen de paiement et pourboire propres à chaque personne ;
-- reçu individuel numéroté `P01`, `P02`, etc., rattaché au même ticket maître ;
-- la note reste en `payment_pending` tant qu’il reste une part ;
-- les quantités déjà payées ne peuvent pas être repayées ;
-- les boutons de paiement global et d’annulation sont neutralisés dès qu’un paiement partiel existe ;
-- la clôture de caisse reste impossible tant qu’une note partielle n’est pas entièrement soldée ;
-- les reçus déjà émis sont réimprimables depuis l’écran de paiement et depuis Tickets une fois la note soldée.
+## Nouveauté v0.13 — architecture terminaux
+- profils de terminaux Worldline, TWINT ou génériques ;
+- rattachement possible à un appareil POS ;
+- capacités Carte, TWINT, pourboire et remboursement ;
+- états de connexion séparés : non configuré, configuré, en ligne, hors ligne, erreur ;
+- intents de paiement/refund avec cycle `created → pending → authorized → captured/failed` ;
+- aucune vente n’est comptabilisée avant `captured` ;
+- les remboursements restent `pending_external` jusqu’à confirmation réelle ;
+- historique des intents visible dans l’onglet **Terminaux** ;
+- aucun secret/API key stocké dans les tables, le client ou GitHub.
 
-Après le début d’un paiement progressif, aucun nouvel article ne peut être ajouté à la note.
+Tant qu’aucun connecteur prestataire réel n’est actif, Carte/TWINT est enregistré uniquement après confirmation explicite que le paiement a déjà été accepté sur un terminal externe indépendant.
 
-## Socle
-Caisse, salle, Cuisine/Bar, impressions 80 mm, rapports Z, paiements multiples, partage par articles, sous-tickets, pourboires, remboursements et synchronisation Hub ↔ POS.
+## Sécurité
+Les transitions `captured` ne sont pas exposées au client POS. Elles sont réservées au backend/prestataire futur. Les profils ne contiennent que des informations non secrètes.
 
 ## Suite
-Pilotes ESC/POS Android, intégrations Worldline/TWINT, gestion des terminaux et SQLite natif.
+Adaptateur prestataire réel (Worldline ou TWINT selon le contrat choisi), webhooks signés, vérification de connexion et intégration directe des paiements/refunds au terminal.
 
 Aucun build Android automatique n’est lancé pendant cette phase.
