@@ -15,3 +15,5 @@ V27.9.1 final Android validation
 V27.10 final Android biometric/auth validation
 V27.10 final build with active Supabase project and owner onboarding
 V27.10.1 developer alias Android validation
+
+V27.11.0 release candidate Android validation after pricing and Supabase hardening
