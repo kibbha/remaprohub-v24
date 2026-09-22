@@ -132,7 +132,7 @@ export async function loadCloudIdentity(){
   const identity={user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};await persistCloudIdentity(identity);return identity;
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
-const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','expenseEntries','cashChecks','weeklyKpis','managerTasks','stockMoves','complianceItems','priceHistory','stock','temps','haccpAudit','suppliers','purchases','purchaseOrders','productionBatches','inventoryCounts','team','shifts','timeClock','availability','shiftSwaps','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','expenseEntries','cashChecks','weeklyKpis','managerTasks','stockMoves','complianceItems','priceHistory','stock','temps','haccpAudit','suppliers','purchases','purchaseOrders','productionBatches','inventoryCounts','team','shifts','timeClock','availability','shiftSwaps','incidents','waste','reservations','customers','giftCards','loyaltyTransactions','reservationSettings','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
 const WORKSPACE_READ_BY_PERMISSION={
   operations:['tasksDate','tasks','briefings','handover','maintenance','equipment'],
   finance:['revenue','covers','expenses','sales','financeHistory','expenseEntries','cashChecks','weeklyKpis','goals','alerts'],
@@ -141,7 +141,7 @@ const WORKSPACE_READ_BY_PERMISSION={
   deliveries:['deliveries','stock','suppliers'],
   checklists:['checklists'],
   planning:['shifts','team','leave','leaveHolidays','training','managerTasks','timeClock','availability','shiftSwaps'],
-  reservations:['reservations'],
+  reservations:['reservations','customers','reservationSettings'],
   recipes:['recipes','stock','products','categories','recipeTarget','recipeWarning','productionBatches'],
   documents:['documentEntries'],
   hr:['team','shifts','leave','leaveHolidays','training','documentEntries','payrollSettings'],
@@ -150,8 +150,8 @@ const WORKSPACE_READ_BY_PERMISSION={
   suppliers:['suppliers'],
   purchases:['purchases','suppliers','stock','priceHistory','purchaseOrders'],
   invoices:['invoices','suppliers','purchases','priceHistory'],
-  customers:['customers','reservations'],
-  loyalty:['loyalty','customers'],
+  customers:['customers','reservations','loyalty','giftCards','loyaltyTransactions'],
+  loyalty:['loyalty','customers','giftCards','loyaltyTransactions'],
   ai:[]
 };
 const WORKSPACE_WRITE_BY_PERMISSION={
