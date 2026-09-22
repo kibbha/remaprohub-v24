@@ -1,21 +1,20 @@
 # ReMaPro POS
 
-Version actuelle: **0.6.0**  
+Version actuelle: **0.7.0**  
 Android package: **com.remapro.pos**
 
-## Disponible
-- caisse, tickets, TVA, pourboires et paiements multiples ;
-- salle, tables, notes ouvertes et transferts ;
-- annulations et remboursements audités ;
-- catalogue Hub → POS ;
-- routage des articles vers **Cuisine**, **Bar** ou **sans production** ;
-- envoi d’une note en production ;
-- écran Production avec statuts Envoyé → Préparation → Prêt → Servi ;
-- rafraîchissement automatique de l’écran Production ;
-- verrouillage d’une note déjà envoyée pour éviter les doublons de fabrication ;
-- fonctionnement offline pour la prise de commande et les encaissements déjà prévus.
+## Nouveauté v0.7
+Une table déjà envoyée en Cuisine/Bar peut recevoir de nouveaux articles sans renvoyer les anciens :
+- les lignes déjà envoyées sont verrouillées et marquées **Envoyé** ;
+- les nouveaux articles portent le badge **Ajout** ;
+- **Envoyer les ajouts** n’envoie que ces nouvelles lignes ;
+- les anciens plats conservent leur état de production ;
+- l’encaissement est bloqué tant qu’un ajout n’a pas été envoyé.
+
+## Socle déjà présent
+Caisse, plan de salle, tickets, paiements multiples, pourboires, annulations, remboursements, Cuisine/Bar, suivi Préparer → Prêt → Servi, catalogue Hub → POS et synchronisation offline.
 
 ## Suite
-Gestion des ajouts après un premier envoi (delta cuisine), impression thermique/KDS externe, partage par article, intégrations Worldline/TWINT et stockage SQLite natif de production.
+Impression thermique, tickets cuisine/bar imprimables, partage d’addition par article, intégrations Worldline/TWINT et SQLite natif de production.
 
 Aucun build Android automatique n’est lancé pendant cette phase.

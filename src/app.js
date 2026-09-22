@@ -1,7 +1,7 @@
 import {cloudConfigured,signIn,signOut,currentSession,loadIdentity,posFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 
-const APP_VERSION='0.6.0';
+const APP_VERSION='0.7.0';
 const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
@@ -193,18 +193,23 @@ async function closeSession(countedCash){
   await queueCommand('close_cash_session',{sessionId:state.cashSession.id,countedCash:Number(countedCash)||0});
   render();flushQueue().catch(()=>{});
 }
-function orderLines(){
-  return state.cart.map(x=>({id:uuid(),catalog_item_id:x.quick?null:x.id,recipe_id:x.recipe_id,sku:x.sku,name:x.name,quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate}));
+function linePayload(x){
+  return {id:uuid(),catalog_item_id:x.quick?null:(x.catalog_item_id||x.id),recipe_id:x.recipe_id,sku:x.sku,name:x.name,quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate};
 }
+function orderLines(){return state.cart.map(linePayload)}
+function deltaLines(){return state.cart.filter(x=>x.delta).map(linePayload)}
+function hasPendingDelta(){return state.cart.some(x=>x.delta)}
 function openTable(table){
   const existing=state.openOrders.find(o=>o.table_id===table.id||(!o.table_id&&o.table_label===table.label));
   state.activeTableId=table.id;state.tableLabel=table.label;state.serviceType='dine_in';
   if(existing){
     state.activeOrderId=existing.id;state.covers=Number(existing.covers)||table.seats||1;
+    const locked=existing.status!=='open';
     state.cart=(existing.items||[]).map(item=>({
-      id:item.catalog_item_id||('saved:'+item.id),recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',
-      name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,
-      qty:Number(item.quantity)||1,quick:!item.catalog_item_id
+      id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,
+      recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,
+      price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',
+      qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false
     }));
   }else{
     state.activeOrderId=uuid();state.covers=table.seats||1;state.cart=[];
@@ -267,6 +272,7 @@ function normalizePaymentMethod(value){
 }
 function currentServerOrder(){return state.openOrders.find(o=>o.id===state.activeOrderId)||null}
 function orderLocked(){const o=currentServerOrder();return !!o&&o.status!=='open'}
+function paymentBlockedByDelta(){return orderLocked()&&hasPendingDelta()}
 async function transferCurrentOrder(){
   const order=currentServerOrder();
   if(!order){alert('Enregistrez d’abord la note avant de la transférer.');return}
@@ -295,6 +301,7 @@ async function cancelCurrentOrder(){
 }
 async function splitCheckout(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
+  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return}
   const raw=prompt('Nombre de parts / moyens de paiement','2');if(raw===null)return;
   const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){alert('Nombre invalide');return}
   const total=Math.round(cartTotal()*100)/100;
@@ -311,13 +318,16 @@ async function splitCheckout(){
   }
   if(Math.abs(remaining)>0.01){alert('Le total des parts doit correspondre exactement à l’addition.');return}
   const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
-  const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
-  await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+  const existing=currentServerOrder();
+  if(!existing||existing.status==='open'){
+    const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
+    await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+    state.openOrders=[localOpenOrder(order,'payment_pending'),...state.openOrders.filter(x=>x.id!==orderId)];
+  }
   await queuePut({
     client_event_id:payEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order_split',restaurantId:state.restaurant.id,
     payload:{orderId,clientEventId:payEventId,deviceId:device.id,cashSessionId:state.cashSession.id,payments,occurredAt:now.toISOString()}
   });
-  state.openOrders=[localOpenOrder(order,'payment_pending'),...state.openOrders.filter(x=>x.id!==orderId)];
   state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
 }
@@ -361,13 +371,23 @@ async function sendCurrentOrderProduction(){
   const order=currentServerOrder();
   if(!order){alert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
   if(!state.online){alert('L’envoi cuisine/bar nécessite une connexion.');return}
-  if(order.status!=='open'){alert('Cette note a déjà été envoyée en production.');return}
   try{
-    const device=await ensureDevice(),eventId=uuid(),payload=buildOpenOrder(order.id,eventId);payload.deviceId=device.id;
-    await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
-    await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId:order.id});
+    if(order.status==='open'){
+      const device=await ensureDevice(),eventId=uuid(),payload=buildOpenOrder(order.id,eventId);payload.deviceId=device.id;
+      await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order:payload});
+    }else{
+      const lines=deltaLines();
+      if(!lines.length){alert('Aucun nouvel article à envoyer.');return}
+      await posFunction({
+        action:'append_order_items',restaurantId:state.restaurant.id,orderId:order.id,
+        clientEventId:uuid(),lines,occurredAt:new Date().toISOString()
+      });
+    }
+    const sent=await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId:order.id});
+    state.cart=state.cart.map(x=>({...x,locked:true,delta:false}));
     await Promise.all([refreshFloorData(),refreshProductionQueue()]);
-    state.error='Commande envoyée en production.';render();
+    state.error=Number(sent.order?.sentItems||0)>0?'Nouveaux articles envoyés en production.':'Commande déjà en production.';
+    render();
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function updateProductionItem(itemId,status){
@@ -378,7 +398,27 @@ async function updateProductionItem(itemId,status){
     state.error='';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
-function addItem(item){if(orderLocked()){alert('Cette note a déjà été envoyée en production et ne peut plus être modifiée.');return}const line=state.cart.find(x=>x.id===item.id);if(line)line.qty+=1;else state.cart.push({id:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.production_station||'kitchen',qty:1,quick:!!item.quick});render()}
+function addItem(item){
+  if(orderLocked()){
+    const catalogId=item.quick?null:item.id;
+    const line=state.cart.find(x=>x.delta&&x.catalog_item_id===catalogId&&x.name===item.name);
+    if(line)line.qty+=1;
+    else state.cart.push({
+      id:'delta:'+uuid(),catalog_item_id:catalogId,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,
+      price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.production_station||'kitchen',
+      qty:1,quick:!!item.quick,locked:false,delta:true
+    });
+  }else{
+    const line=state.cart.find(x=>x.id===item.id&&!x.locked);
+    if(line)line.qty+=1;
+    else state.cart.push({
+      id:item.id,catalog_item_id:item.quick?null:item.id,recipe_id:item.recipe_id||null,sku:item.sku||'',name:item.name,
+      price:Number(item.price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.production_station||'kitchen',
+      qty:1,quick:!!item.quick,locked:false,delta:false
+    });
+  }
+  render();
+}
 function addQuickItem(){
   const name=prompt('Nom de l’article libre');if(!name?.trim())return;
   const raw=prompt('Prix TTC (CHF)','0.00');if(raw===null)return;
@@ -394,24 +434,28 @@ async function refreshCatalog(){
   }catch(error){state.error=error.message||String(error)}
   render();
 }
-function changeQty(id,delta){if(orderLocked()){alert('Cette note a déjà été envoyée en production.');return}const line=state.cart.find(x=>x.id===id);if(!line)return;line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){alert('Cet article a déjà été envoyé en production.');return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
+  if(paymentBlockedByDelta()){alert('Envoyez d’abord les nouveaux articles en production.');return}
   const tip=askTip('0.00');if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
 
   if(state.activeTableId||state.activeOrderId||state.serviceType==='dine_in'){
     const orderId=state.activeOrderId||uuid(),saveEventId=uuid(),settleEventId=uuid();
-    const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
-    await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+    const existing=currentServerOrder();
+    if(!existing||existing.status==='open'){
+      const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
+      await queuePut({client_event_id:saveEventId,queued_at:now.toISOString(),action:'save_open_order',restaurantId:state.restaurant.id,payload:{order}});
+      const local=localOpenOrder(order,'payment_pending');
+      state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];
+    }
     await queuePut({
       client_event_id:settleEventId,queued_at:new Date(now.getTime()+1).toISOString(),action:'settle_open_order',restaurantId:state.restaurant.id,
       payload:{orderId,clientEventId:settleEventId,deviceId:device.id,cashSessionId:state.cashSession.id,paymentMethod:method,paymentProvider:'',paymentReference:'',tipAmount:tip,occurredAt:now.toISOString()}
     });
-    const local=localOpenOrder(order,'payment_pending');
-    state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];
   }else{
     const orderId=uuid(),eventId=uuid();
     const order={
@@ -484,11 +528,11 @@ function mainView(){
   return `<div class="shell">${topbar()}
   ${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
   <main class="workspace"><nav class="categories">${cats.map(c=>`<button class="category ${c===state.category?'active':''}" data-category="${esc(c)}">${esc(c)}</button>`).join('')}</nav>
-  <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item" ${orderLocked()?'disabled':''}>+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}" ${orderLocked()?'disabled':''}><strong>${esc(p.name)}</strong><small>${p.production_station==='bar'?'Bar':p.production_station==='none'?'Sans production':'Cuisine'}</small><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
+  <section class="products"><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>${catalog.length} article${catalog.length>1?'s':''}</span></div>${visible.length?`<div class="product-grid">${visible.map(p=>`<button class="product" data-product="${p.id}"><strong>${esc(p.name)}</strong><small>${p.production_station==='bar'?'Bar':p.production_station==='none'?'Sans production':'Cuisine'}</small><span class="price">${money(p.price)}</span></button>`).join('')}</div>`:'<div class="empty"><h3>Catalogue POS vide</h3><p>Les articles seront publiés depuis ReMaPro Hub.</p></div>'}</section>
   <aside class="cart"><div class="cart-head"><h2>Commande</h2><div class="order-meta"><select id="service-type"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select><input id="table-label" placeholder="Table" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div></div>
-  <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line"><div><strong>${esc(x.name)}</strong><div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}" ${orderLocked()?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${orderLocked()?'disabled':''}>+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
+  <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line ${x.delta?'delta-line':x.locked?'locked-line':''}"><div><strong>${esc(x.name)}</strong>${x.delta?'<span class="delta-badge">Ajout</span>':x.locked?'<span class="sent-badge">Envoyé</span>':''}<div>${money(x.price)} × ${x.qty}</div></div><div class="qty"><button data-minus="${x.id}" ${x.locked?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${x.locked?'disabled':''}>+</button></div></div>`).join(''):'<div class="empty">Touchez un article pour commencer.</div>'}</div>
   <div class="cart-foot"><div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
-    ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(currentServerOrder()?.status!=='open'?'disabled':'')+'>Envoyer cuisine/bar</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
+    ${currentServerOrder()?'<div class="order-actions production-actions"><button class="secondary" id="transfer-order">Transférer</button><button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>'+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order">Annuler</button></div>':''}
     ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="save-note" id="save-open-order" '+(!state.cart.length||orderLocked()?'disabled':'')+'>Enregistrer la note</button>':''}
     <button class="split-pay" id="split-pay" ${!state.cart.length?'disabled':''}>Partager / plusieurs paiements</button><div class="payments"><button data-pay="cash" ${!state.cart.length?'disabled':''}>Espèces</button><button data-pay="card" ${!state.cart.length?'disabled':''}>Carte</button><button data-pay="twint" ${!state.cart.length?'disabled':''}>TWINT</button></div>${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}</div></aside></main></div>`;
 }
@@ -511,7 +555,7 @@ function wire(){
   document.querySelector('#nav-tickets')?.addEventListener('click',()=>{state.view='tickets';refreshReceipts().then(render)});
   document.querySelector('#add-table')?.addEventListener('click',()=>addDiningTable());
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
-  document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,qty:Number(item.quantity)||1,quick:!item.catalog_item_id}));state.view='sale';render()}));
+  document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;const locked=o.status!=='open';state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false}));state.view='sale';render()}));
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());
   document.querySelector('#split-pay')?.addEventListener('click',()=>splitCheckout());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
