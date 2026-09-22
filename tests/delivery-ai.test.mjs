@@ -38,7 +38,9 @@ const migration=fs.readFileSync(new URL('../supabase/migrations/033_delivery_ai_
 const pkg=JSON.parse(fs.readFileSync(new URL('../package.json',import.meta.url),'utf8'));
 
 for(const token of ['deliveryScanCamera','deliveryScanGallery','deliveryScanReviewForm','finalizeDeliveryAnalysis','applyDeliveryAiReceiving'])assert.ok(app.includes(token),token);
-assert.ok(app.indexOf('await finalizeDeliveryAnalysis')<app.indexOf('applyDeliveryAiReceiving(state',{fromIndex:app.indexOf('await finalizeDeliveryAnalysis')}));
+const finalizeIndex=app.indexOf('await finalizeDeliveryAnalysis');
+assert.ok(finalizeIndex>0);
+assert.ok(finalizeIndex<app.indexOf('applyDeliveryAiReceiving(state',finalizeIndex));
 for(const token of ["Capacitor?.Plugins?.Camera","pickImages","delivery-ai-temp","remapro-delivery-ai"])assert.ok(client.includes(token),token);
 assert.equal(pkg.dependencies['@capacitor/camera'],'7.0.5');
 assert.ok(edge.includes('Deno.env.get("OPENAI_API_KEY")'));
