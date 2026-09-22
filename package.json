@@ -1,6 +1,6 @@
 {
   "name": "remapro-pos",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,7 +13,5 @@
     "@capacitor/cli": "^7.4.3",
     "@capacitor/core": "^7.4.3"
   },
-  "engines": {
-    "node": ">=20"
-  }
+  "engines": {"node": ">=20"}
 }

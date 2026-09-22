@@ -2,45 +2,35 @@
 
 Application de caisse distincte de ReMaPro Hub, connectée à la même plateforme ReMaPro/Supabase.
 
-Version initiale: **0.1.0**  
+Version actuelle: **0.2.0**  
 Android package: **com.remapro.pos**
 
-## Objectif de cette branche
-Cette branche contient uniquement la codebase POS. Elle ne contient pas ReMaPro Hub.
-
-## État actuel
-- authentification avec le compte ReMaPro existant ;
+## Fonctionnel dans ce socle
+- compte ReMaPro partagé avec Hub ;
 - sélection du restaurant autorisé ;
-- appel de l'Edge Function `remapro-pos-sync` ;
-- récupération et cache du catalogue POS ;
-- enregistrement/heartbeat d'un terminal ;
-- interface tablette avec catégories, produits et panier ;
-- cache IndexedDB et file d'événements hors ligne ;
-- paiement local de démonstration (espèces/carte/TWINT) mis en file de synchronisation ;
-- aucune donnée bancaire sensible n'est collectée.
+- terminal POS identifié par UUID ;
+- catalogue POS synchronisé et mis en cache ;
+- ouverture de caisse avec fond initial ;
+- commande avec type de service, table et couverts ;
+- paiement espèces, carte ou TWINT comme moyen de paiement ;
+- écriture serveur atomique commande + lignes + TVA + paiement + ticket + audit ;
+- ticket numéroté par restaurant et date ;
+- clôture de caisse et calcul espèces attendues / comptées / écart ;
+- file offline ordonnée via IndexedDB ;
+- resynchronisation automatique après retour du réseau ;
+- historique local des derniers tickets.
 
-## Configuration
-Les valeurs publiques Supabase sont injectées dans `runtime-config.js` pendant le build :
+## Sécurité
+Le client n'embarque jamais de clé service-role. Les RPC financiers sont réservés au service role et ne sont appelés que par l'Edge Function authentifiée `remapro-pos-sync`. Aucune donnée PAN/CVV n'est collectée.
 
-- `SUPABASE_URL`
-- `SUPABASE_PUBLISHABLE_KEY`
+## Encore à construire
+- publication/édition du catalogue depuis Hub ;
+- plan de salle et commandes ouvertes ;
+- partage de note et paiements multiples ;
+- annulation/remboursement ;
+- KDS/imprimantes cuisine ;
+- impression ticket ;
+- intégration réelle Worldline/TWINT ;
+- stockage natif SQLite pour une résilience offline de production.
 
-Ne jamais ajouter de service role ou secret serveur dans cette application.
-
-## Commandes
-```bash
-npm install
-npm test
-node scripts/inject-runtime-config.mjs
-npx cap add android
-npx cap sync android
-```
-
-## Prochaines étapes
-1. écriture atomique des commandes/paiements dans le ledger POS ;
-2. ouverture/clôture de caisse ;
-3. plan de salle ;
-4. routage cuisine/KDS ;
-5. numérotation et impression des tickets ;
-6. paiements terminaux Worldline/TWINT ;
-7. rapprochement et clôtures.
+Aucun build Android automatique n'est attaché à cette branche pendant la phase de développement.
