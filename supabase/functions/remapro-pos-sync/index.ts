@@ -105,10 +105,10 @@ export default {
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
-        commit_order:"sale",save_open_order:"sale",append_order_items:"sale",settle_open_order:"sale",settle_open_order_split:"sale",
+        commit_order:"sale",save_open_order:"sale",append_order_items:"sale",settle_open_order:"sale",settle_open_order_split:"sale",list_direct_orders:"sale",claim_direct_order:"sale",link_direct_order:"sale",
         settle_open_order_allocated:"sale",pay_allocated_group:"sale",create_terminal_intent:"sale",
         refund_order:"refund",create_terminal_refund_intent:"refund",confirm_external_refund:"refund",
-        cancel_open_order:"cancel",transfer_open_order:"transfer",
+        cancel_open_order:"cancel",reject_direct_order:"cancel",transfer_open_order:"transfer",
         send_to_production:"production",update_production_item:"production",
         sync_catalog:"settings",sync_tables:"settings",upsert_terminal:"settings",set_terminal_connection:"settings",
         upsert_printer:"settings",set_printer_status:"settings"
@@ -1048,6 +1048,51 @@ export default {
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,report:data});
+      }
+
+      if(action==="list_direct_orders"){
+        const statuses=(Array.isArray(body.statuses)?body.statuses:["pending","accepted"]).map((x:any)=>clean(x,30)).filter((x:string)=>["pending","accepted","imported","preparing","ready"].includes(x)).slice(0,10);
+        const {data,error}=await ctx.supabaseAdmin.from("direct_orders")
+          .select("id,public_reference,service_type,status,payment_status,payment_method,customer_name,customer_phone,customer_email,marketing_consent,table_label,requested_for,note,subtotal,tax_total,total,currency,created_at,accepted_at,pos_order_id,direct_order_items(id,catalog_item_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,station_snapshot,note,modifiers)")
+          .eq("restaurant_id",restaurantId).in("status",statuses.length?statuses:["pending","accepted"]).order("created_at",{ascending:true}).limit(200);
+        if(error)return json({error:error.message},500);
+        return json({ok:true,rows:data||[]});
+      }
+
+      if(action==="claim_direct_order"){
+        const orderId=clean(body.directOrderId,64);if(!validUuid(orderId))return json({error:"Valid directOrderId required"},400);
+        const now=new Date().toISOString();
+        const {data,error}=await ctx.supabaseAdmin.from("direct_orders").update({status:"accepted",accepted_by:userId,accepted_at:now,updated_at:now})
+          .eq("id",orderId).eq("restaurant_id",restaurantId).eq("status","pending")
+          .select("id,public_reference,status,accepted_at,total,currency").maybeSingle();
+        if(error)return json({error:error.message},409);
+        if(!data){
+          const {data:existing}=await ctx.supabaseAdmin.from("direct_orders").select("id,public_reference,status,accepted_at,total,currency").eq("id",orderId).eq("restaurant_id",restaurantId).maybeSingle();
+          if(existing&&["accepted","imported","preparing","ready"].includes(existing.status))return json({ok:true,replayed:true,order:existing});
+          return json({error:"Direct order is no longer available"},409);
+        }
+        await ctx.supabaseAdmin.from("direct_order_events").insert({direct_order_id:orderId,event_type:"accepted",actor_user_id:userId,details:{}});
+        return json({ok:true,order:data});
+      }
+
+      if(action==="link_direct_order"){
+        const directOrderId=clean(body.directOrderId,64),posOrderId=clean(body.posOrderId,64);if(!validUuid(directOrderId)||!validUuid(posOrderId))return json({error:"Valid order ids required"},400);
+        const {data:posOrder}=await ctx.supabaseAdmin.from("pos_orders").select("id,restaurant_id,status").eq("id",posOrderId).eq("restaurant_id",restaurantId).maybeSingle();
+        if(!posOrder)return json({error:"POS order not found"},404);
+        const now=new Date().toISOString(),{data,error}=await ctx.supabaseAdmin.from("direct_orders").update({status:"imported",pos_order_id:posOrderId,updated_at:now})
+          .eq("id",directOrderId).eq("restaurant_id",restaurantId).in("status",["accepted","imported"]).select("id,public_reference,status,pos_order_id").maybeSingle();
+        if(error||!data)return json({error:error?.message||"Direct order cannot be linked"},409);
+        await ctx.supabaseAdmin.from("direct_order_events").insert({direct_order_id:directOrderId,event_type:"imported_to_pos",actor_user_id:userId,details:{posOrderId}});
+        return json({ok:true,order:data});
+      }
+
+      if(action==="reject_direct_order"){
+        const orderId=clean(body.directOrderId,64),reason=clean(body.reason,400);if(!validUuid(orderId)||!reason)return json({error:"Direct order and reason required"},400);
+        const now=new Date().toISOString(),{data,error}=await ctx.supabaseAdmin.from("direct_orders").update({status:"rejected",updated_at:now})
+          .eq("id",orderId).eq("restaurant_id",restaurantId).in("status",["pending","accepted"]).select("id,public_reference,status").maybeSingle();
+        if(error||!data)return json({error:error?.message||"Direct order cannot be rejected"},409);
+        await ctx.supabaseAdmin.from("direct_order_events").insert({direct_order_id:orderId,event_type:"rejected",actor_user_id:userId,details:{reason}});
+        return json({ok:true,order:data});
       }
 
       if(action==="daily_summary"){
