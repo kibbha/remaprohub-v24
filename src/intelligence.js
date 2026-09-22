@@ -16,6 +16,30 @@ export function plannedLabor(state,now=new Date(),days=7){
   return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),weeklyLimit,byEmployee,overWeeklyHours,missingRates:[...missingRates].filter(Boolean),shifts:rows.length,rows};
 }
 
+export function actualLabor(state,now=new Date(),days=7){
+  const end=new Date(now),start=new Date(end);start.setDate(start.getDate()-Math.max(1,Math.trunc(days))+1);start.setHours(0,0,0,0);
+  const members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x]));let hours=0,cost=0;const rows=[];
+  for(const row of state?.timeClock||[]){const clockIn=new Date(row?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;const stop=row.clockOut?new Date(row.clockOut):end;if(Number.isNaN(stop.getTime())||stop<=clockIn)continue;
+    let breakMinutes=0;for(const pause of row.breaks||[]){const a=new Date(pause?.start||''),b=new Date(pause?.end||end);if(!Number.isNaN(a.getTime())&&!Number.isNaN(b.getTime())&&b>a)breakMinutes+=(b-a)/60000}
+    const worked=Math.max(0,(stop-clockIn)/3600000-breakMinutes/60),member=members.get(String(row.employee||'').trim().toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),amount=worked*rate;
+    hours+=worked;cost+=amount;rows.push({employee:String(row.employee||''),clockIn:clockIn.toISOString(),clockOut:row.clockOut||'',hours:round(worked,2),breakHours:round(breakMinutes/60,2),rate,cost:round(amount,2),open:row.status==='open'});
+  }
+  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),rows:rows.sort((a,b)=>b.clockIn.localeCompare(a.clockIn)),open:rows.filter(x=>x.open).length}
+}
+
+export function laborForecast(state,now=new Date(),days=7){
+  const history=(state?.financeHistory||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x?.date||''))),byDow=new Map();
+  for(const row of history){const d=new Date(String(row.date)+'T12:00:00');if(Number.isNaN(d.getTime()))continue;const key=d.getDay(),bucket=byDow.get(key)||[];bucket.push({covers:n(row.covers),revenue:n(row.revenue)});byDow.set(key,bucket)}
+  const rows=[];for(let i=0;i<Math.max(1,Math.trunc(days));i++){const day=new Date(now);day.setHours(12,0,0,0);day.setDate(day.getDate()+i);const date=localDate(day),hist=(byDow.get(day.getDay())||[]).slice(-8),histCovers=hist.length?hist.reduce((sum,x)=>sum+x.covers,0)/hist.length:0,histRevenue=hist.length?hist.reduce((sum,x)=>sum+x.revenue,0)/hist.length:0,reservations=(state?.reservations||[]).filter(x=>String(x.time||'').slice(0,10)===date&&!['cancelled','noShow'].includes(x.status)),reservedCovers=reservations.reduce((sum,x)=>sum+n(x.covers),0),forecastCovers=Math.max(Math.round(histCovers),reservedCovers),forecastRevenue=histCovers>0?round(histRevenue*(forecastCovers/histCovers),2):round(histRevenue,2),recommendedHours=round(Math.max(forecastCovers?4:0,forecastCovers*.22),1),recommendedStaff=forecastCovers?Math.max(1,Math.ceil(recommendedHours/6)):0,scheduled=(state?.shifts||[]).filter(x=>x.date===date).reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),gap=round(recommendedHours-scheduled,1);rows.push({date,forecastCovers,forecastRevenue,reservedCovers,recommendedHours,recommendedStaff,scheduledHours:round(scheduled,1),gap})}
+  return{rows,understaffed:rows.filter(x=>x.gap>1).length,overstaffed:rows.filter(x=>x.gap<-2).length}
+}
+
+export function availabilityConflicts(state,now=new Date(),days=14){
+  const start=localDate(now),endDate=new Date(now);endDate.setDate(endDate.getDate()+Math.max(1,Math.trunc(days)));const end=localDate(endDate),rows=[];
+  for(let index=0;index<(state?.shifts||[]).length;index++){const shift=state.shifts[index];if(String(shift.date||'')<start||String(shift.date||'')>=end)continue;const blocks=(state?.availability||[]).filter(x=>x.employee===shift.employee&&x.date===shift.date&&x.status==='unavailable');if(blocks.length)rows.push({index,shift,blocks})}
+  return{rows,count:rows.length}
+}
+
 export function recipePortfolio(state){
   const target=Math.max(0,n(state?.recipeTarget)||30),warning=Math.max(target,n(state?.recipeWarning)||35),items=[];
   for(const recipe of state?.recipes||[]){const metrics=calculateRecipeCost(state,recipe)||null,costPerPortion=metrics?metrics.costPerPortion:n(recipe?.costPerPortion??recipe?.cost),netPrice=metrics?metrics.netPrice:n(recipe?.price),foodCostPercent=metrics?metrics.foodCostPercent:(netPrice?costPerPortion/netPrice*100:0),margin=metrics?metrics.margin:netPrice-costPerPortion,vatRate=n(recipe?.vatRate),suggestedNet=target>0?costPerPortion/(target/100):0,suggestedPrice=suggestedNet*(1+vatRate/100);items.push({name:String(recipe?.name||''),foodCostPercent:round(foodCostPercent,1),costPerPortion:round(costPerPortion,2),netPrice:round(netPrice,2),margin:round(margin,2),suggestedPrice:round(suggestedPrice,2),status:foodCostPercent<=target?'good':foodCostPercent<=warning?'warning':'bad'})}
