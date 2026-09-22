@@ -69,3 +69,16 @@ create policy delivery_ai_temp_delete on storage.objects for delete to authentic
     when coalesce((storage.foldername(name))[1],'') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
     then public.is_restaurant_member(((storage.foldername(name))[1])::uuid) else false end
 );
+
+drop policy if exists delivery_ai_temp_update on storage.objects;
+create policy delivery_ai_temp_update on storage.objects for update to authenticated
+using (
+  bucket_id='delivery-ai-temp' and case
+    when coalesce((storage.foldername(name))[1],'') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    then public.is_restaurant_member(((storage.foldername(name))[1])::uuid) else false end
+)
+with check (
+  bucket_id='delivery-ai-temp' and case
+    when coalesce((storage.foldername(name))[1],'') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    then public.is_restaurant_member(((storage.foldername(name))[1])::uuid) else false end
+);
