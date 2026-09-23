@@ -1,0 +1,5 @@
+asset_id,product,path_or_family,category,provenance,rights_or_license,evidence_location,status,notes
+HUB-ICON-001,ReMaPro Hub,app/icons.svg,icons,Tabler Icons locally incorporated,MIT,Repository history + upstream licence reference,approved,Keep upstream attribution/licence evidence
+HUB-BRAND-001,ReMaPro Hub,app product branding,logo/brand,Created or commissioned for ReMaPro under project direction,Proprietary project asset subject to any underlying element,External evidence vault: original exports/briefs/approval history,needs-evidence,Retain original design/generation source and dated approval
+HUB-UI-001,ReMaPro Hub,app/ and src/,interface,ReMaPro product design and implementation,Proprietary project material,Git history + product specifications,approved,Third-party icons/components remain under their own licences
+HUB-MKT-001,ReMaPro Hub,marketing/store screenshots,marketing,Derived from ReMaPro UI,ReMaPro-specific composition subject to underlying elements,External evidence vault: source screenshots and release version,planned,Populate when store assets are final
