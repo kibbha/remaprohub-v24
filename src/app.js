@@ -1627,29 +1627,60 @@ async function addQuickItem(){
 }
 async function refreshCatalog(){
   if(!state.restaurant||!state.online)return;
-  try{
-    const device=await ensureDevice();
-    const data=await posFunction({action:'bootstrap',restaurantId:state.restaurant.id,deviceId:device.id});
-    state.bootstrap=data;await kvSet(catalogKey(state.restaurant.id),data);state.error='';
-  }catch(error){state.error=error.message||String(error)}
+  const changed=await syncHubManagedConfiguration({force:true});
+  if(changed)state.error='';
   render();
 }
 
-async function syncPublishedHubConfiguration({force=false}={}){
+async function refreshHubManagedConfiguration(head=null){
+  const device=await ensureDevice(),restaurantId=state.restaurant.id;
+  const [bootstrap,tables,terminals,printers,providers]=await Promise.all([
+    posFunction({action:'bootstrap',restaurantId,deviceId:device.id}),
+    posFunction({action:'list_tables',restaurantId}),
+    posFunction({action:'list_terminals',restaurantId}),
+    posFunction({action:'list_printers',restaurantId}),
+    posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]}))
+  ]);
+  if(head?.revision&&Number(bootstrap.configurationRevision||0)!==Number(head.revision)){
+    bootstrap.configurationRevision=Number(head.revision)||0;
+    bootstrap.configurationUpdatedAt=head.updatedAt||bootstrap.configurationUpdatedAt||null;
+  }
+  state.bootstrap=bootstrap;
+  state.tables=tables.rows||[];
+  state.terminals=terminals.rows||[];
+  state.printers=printers.rows||[];
+  state.providerConnections=providers.rows||[];
+  await Promise.all([
+    kvSet(catalogKey(restaurantId),state.bootstrap),
+    kvSet(tablesKey(restaurantId),state.tables),
+    kvSet(terminalsKey(restaurantId),state.terminals),
+    kvSet(printersKey(restaurantId),state.printers),
+    kvSet(providersKey(restaurantId),state.providerConnections)
+  ]);
+  await refreshOperators();
+  ensureLayoutSelection(publishedLayout(state.bootstrap));
+}
+async function syncHubManagedConfiguration({force=false}={}){
   if(hubConfigSyncInFlight||!state.online||!state.restaurant||!currentSession())return false;
   hubConfigSyncInFlight=true;
   try{
-    const result=await posFunction({action:'layout_current',restaurantId:state.restaurant.id});
-    const next=result?.layout||null,current=publishedLayout(state.bootstrap);
-    const changed=force
-      ? (Number(next?.version||0)!==Number(current?.version||0)||String(next?.checksum||'')!==String(current?.checksum||''))
-      : (!!next&&(Number(next.version||0)>Number(current?.version||0)||String(next.checksum||'')!==String(current?.checksum||'')));
-    if(!changed)return false;
-    state.bootstrap={...(state.bootstrap||{}),layout:next};
-    await kvSet(catalogKey(state.restaurant.id),state.bootstrap);
-    ensureLayoutSelection(publishedLayout(state.bootstrap));
+    const head=await posFunction({action:'configuration_head',restaurantId:state.restaurant.id});
+    if(head?.legacy===true){
+      const result=await posFunction({action:'layout_current',restaurantId:state.restaurant.id});
+      const next=result?.layout||null,current=publishedLayout(state.bootstrap);
+      const changed=!!next&&(Number(next.version||0)!==Number(current?.version||0)||String(next.checksum||'')!==String(current?.checksum||''));
+      if(!changed)return false;
+      state.bootstrap={...(state.bootstrap||{}),layout:next};
+      await kvSet(catalogKey(state.restaurant.id),state.bootstrap);
+      ensureLayoutSelection(publishedLayout(state.bootstrap));
+      recordDiagnostic('hub_config.legacy_layout_updated',{version:Number(next?.version)||0});
+      return true;
+    }
+    const currentRevision=Number(state.bootstrap?.configurationRevision)||0,nextRevision=Number(head?.revision)||0;
+    if(!force&&nextRevision===currentRevision)return false;
+    await refreshHubManagedConfiguration(head);
     state.syncLastRun=new Date().toISOString();
-    recordDiagnostic('hub_config.layout_updated',{version:Number(next?.version)||0,checksum:String(next?.checksum||'')});
+    recordDiagnostic('hub_config.updated',{fromRevision:currentRevision,toRevision:nextRevision,forced:!!force});
     return true;
   }catch(error){
     recordDiagnostic('hub_config.sync_error',{message:error?.message||String(error)});
@@ -1660,7 +1691,7 @@ function startHubConfigurationPolling(){
   if(hubConfigPollTimer)clearInterval(hubConfigPollTimer);
   hubConfigPollTimer=setInterval(async()=>{
     if(document.visibilityState==='hidden')return;
-    if(await syncPublishedHubConfiguration())render();
+    if(await syncHubManagedConfiguration())render();
   },HUB_CONFIG_POLL_MS);
 }
 function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
@@ -2152,9 +2183,9 @@ async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
-  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncPublishedHubConfiguration({force:true}).then(changed=>{if(changed)render()}).catch(()=>{})});
+  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncHubManagedConfiguration().then(changed=>{if(changed)render()}).catch(()=>{})});
   window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncPublishedHubConfiguration({force:true}).then(changed=>{if(changed)render()}).catch(()=>{})});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncHubManagedConfiguration().then(changed=>{if(changed)render()}).catch(()=>{})});
   startHubConfigurationPolling();
   setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
