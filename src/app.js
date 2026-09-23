@@ -17,7 +17,7 @@ const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
-  tables:[],openOrders:[],floorPlan:null,floorZoneId:'',view:'sale',activeOrderId:null,activeTableId:null,
+  tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
@@ -637,7 +637,9 @@ async function refreshFloorData(){
   if(!state.online){
     state.tables=await kvGet(tablesKey(state.restaurant.id))||state.tables||[];
     state.openOrders=await kvGet(openOrdersKey(state.restaurant.id))||state.openOrders||[];
-    state.floorPlan=await kvGet(floorPlanKey(state.restaurant.id))||state.floorPlan||null;
+    const cachedFloor=await kvGet(floorPlanKey(state.restaurant.id));
+    state.floorPlan=cachedFloor?.plan||cachedFloor||state.floorPlan||null;
+    state.floorReservations=Array.isArray(cachedFloor?.reservations)?cachedFloor.reservations:state.floorReservations||[];
     return;
   }
   try{
@@ -649,9 +651,10 @@ async function refreshFloorData(){
     state.tables=tables.rows||[];
     state.openOrders=orders.rows||[];
     state.floorPlan=floor.plan||null;
+    state.floorReservations=Array.isArray(floor.reservations)?floor.reservations:[];
     const zones=Array.isArray(state.floorPlan?.document?.zones)?state.floorPlan.document.zones:[];
     if(!zones.some(z=>z.id===state.floorZoneId))state.floorZoneId=zones[0]?.id||'';
-    await Promise.all([saveFloorCache(),kvSet(floorPlanKey(state.restaurant.id),state.floorPlan)]);
+    await Promise.all([saveFloorCache(),kvSet(floorPlanKey(state.restaurant.id),{plan:state.floorPlan,reservations:state.floorReservations})]);
   }catch(error){state.error=error.message||String(error)}
 }
 async function saveReceipt(receipt){
@@ -776,7 +779,7 @@ async function bootstrapRestaurant(restaurant){
   state.receipts=await kvGet(receiptsKey(restaurant.id))||[];
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
-  state.floorPlan=await kvGet(floorPlanKey(restaurant.id))||null;
+  {const cachedFloor=await kvGet(floorPlanKey(restaurant.id));state.floorPlan=cachedFloor?.plan||cachedFloor||null;state.floorReservations=Array.isArray(cachedFloor?.reservations)?cachedFloor.reservations:[];}
   state.floorZoneId=state.floorPlan?.document?.zones?.[0]?.id||'';
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
@@ -1989,9 +1992,15 @@ function floorView(){
         const table=tableMap.get(String(e.tableId||''))||byLabel.get(String(e.label||'').trim().toLocaleLowerCase())||null;
         if(!table)return'';
         const order=state.openOrders.find(o=>String(o.table_id||'')===String(table.id)||(!o.table_id&&o.table_label===table.label));
-        const status=order?(order.status==='payment_pending'?'payment':order.status==='served'?'served':'occupied'):'free';
+        const now=Date.now(),reservation=(state.floorReservations||[]).filter(r=>{
+          const same=(r.tableId&&String(r.tableId)===String(table.id))||(!r.tableId&&String(r.tableLabel||'').trim().toLocaleLowerCase()===String(table.label||'').trim().toLocaleLowerCase());
+          if(!same)return false;const start=Date.parse(r.time),duration=Math.max(15,Number(r.durationMinutes)||120)*60000;if(!Number.isFinite(start))return false;
+          return start+duration>=now-15*60000&&start<=now+4*60*60000;
+        }).sort((a,b)=>Date.parse(a.time)-Date.parse(b.time))[0]||null;
+        const status=order?(order.status==='payment_pending'?'payment':order.status==='served'?'served':'occupied'):(reservation?'reserved':'free');
         const age=order?.updated_at?Math.max(0,Math.floor((Date.now()-Date.parse(order.updated_at))/60000)):0;
-        return '<button class="pos-floor-table floor-shape-'+esc(e.shape||'round')+' '+status+'" data-table="'+esc(table.id)+'" style="'+style+'"><span class="floor-table-label">'+esc(e.label||table.label)+'</span><small>'+Number(e.seats||table.seats||0)+' pl.</small><strong>'+(order?money(order.total):'Libre')+'</strong>'+(order?'<em>'+age+' min</em>':'')+'</button>';
+        const reservationTime=reservation?new Intl.DateTimeFormat(language(),{hour:'2-digit',minute:'2-digit'}).format(new Date(reservation.time)):'';
+        return '<button class="pos-floor-table floor-shape-'+esc(e.shape||'round')+' '+status+'" data-table="'+esc(table.id)+'" style="'+style+'"><span class="floor-table-label">'+esc(e.label||table.label)+'</span><small>'+Number(e.seats||table.seats||0)+' pl.</small><strong>'+(order?money(order.total):reservation?'Réservée '+esc(reservationTime):'Libre')+'</strong>'+(order?'<em>'+age+' min</em>':reservation?'<em>'+esc(reservation.name)+' · '+Number(reservation.covers||0)+' pers.</em>':'')+'</button>';
       }
       return '<div class="pos-floor-static pos-floor-'+esc(e.type||'label')+'" style="'+style+'"><span>'+esc(e.type==='toilet'?'WC':e.label||e.type)+'</span></div>';
     }).join('')+'</div>':'';
@@ -2000,7 +2009,7 @@ function floorView(){
     <main class="floor-page visual-floor-page"><div class="floor-head"><div><h2>Plan de salle</h2><p>${plan?esc(plan.name)+' · v'+Number(plan.version||0):'Configuration classique'} · ${state.openOrders.length} note${state.openOrders.length>1?'s':''} ouverte${state.openOrders.length>1?'s':''}</p></div>
       ${isManager()&&!plan?'<button class="primary compact" id="add-table">+ Table</button>':''}</div>
       ${zones.length?'<div class="pos-floor-zone-tabs">'+zones.map(z=>'<button data-floor-zone="'+esc(z.id)+'" class="'+(String(z.id)===String(state.floorZoneId)?'active':'')+'">'+esc(z.name)+'</button>').join('')+'</div>':''}
-      <div class="pos-floor-legend"><span><i class="free"></i>Libre</span><span><i class="occupied"></i>En cours</span><span><i class="served"></i>Servie</span><span><i class="payment"></i>Encaissement</span></div>
+      <div class="pos-floor-legend"><span><i class="free"></i>Libre</span><span><i class="reserved"></i>Réservée</span><span><i class="occupied"></i>En cours</span><span><i class="served"></i>Servie</span><span><i class="payment"></i>Encaissement</span></div>
       ${stage||fallback||'<div class="empty">Aucune table configurée.</div>'}
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
     </main></div>`;

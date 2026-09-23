@@ -4,6 +4,8 @@ const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 assert.ok(app.includes("floorPlan:null"));
+assert.ok(app.includes("floorReservations:[]"));
+assert.ok(app.includes("Réservée "));
 assert.ok(app.includes("action:'floor_plan_current'"));
 assert.ok(app.includes('pos-floor-stage'));
 assert.ok(app.includes('data-floor-zone'));
