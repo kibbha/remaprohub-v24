@@ -63,15 +63,18 @@ jobs:
           PY
       - name: Apply ReMaPro Android branding
         run: |
-          mkdir -p android/app/src/main/res/drawable-nodpi
           mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/mipmap-anydpi
           mkdir -p android/app/src/main/res/mipmap-anydpi-v26
           mkdir -p android/app/src/main/res/values
-          install -m 644 app/assets-remaprohub-logo.png android/app/src/main/res/drawable-nodpi/remaprohub_logo.png
           install -m 644 android-native/remaprohub_foreground.xml android/app/src/main/res/drawable/remaprohub_foreground.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml
           install -m 644 android-native/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
           install -m 644 android-native/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
           install -m 644 android-native/remaprohub_colors.xml android/app/src/main/res/values/remaprohub_colors.xml
+          grep -q '#8D7B6A' android/app/src/main/res/values/remaprohub_colors.xml
+          test ! -e android/app/src/main/res/drawable-nodpi/remaprohub_logo.png
       - name: Verify packaged runtime
         run: |
           test -s android/app/src/main/assets/public/src/app.js
