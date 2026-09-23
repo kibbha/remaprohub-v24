@@ -1,4 +1,3 @@
-RC Hub final validation trigger
-Scope: corrected availability UI assertion; automatic matching, manual replenishment, recipe-derived stock portions and stable server keys.
-Expected: Node suite green; external RevenueCat gate may remain the only workflow-level blocker.
+RC Hub branding validation
+Scope: selected “Les initiales” identity; full-frame Hub icon; new header lockup; PWA favicon/manifest; Android adaptive and legacy launcher without inset.
 No Android build.
