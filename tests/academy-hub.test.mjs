@@ -12,8 +12,8 @@ assert.ok(app.includes('canManageVisibility:cloudOrgAdmin()'),'visibility admin 
 assert.ok(app.includes('hubAcademyAutoRows'),'automatic onboarding progress');
 assert.ok(academy.includes('academy-onboarding'),'first steps onboarding');
 assert.ok(academy.includes('Guide mis à jour'),'stale content warning');
-assert.ok(pack.includes("'academy-content.js'"));assert.ok(pack.includes("'academy.js'"));
-assert.ok(sw.includes("./src/academy-content.js"));assert.ok(sw.includes("./src/academy.js"));
+assert.match(pack,/readdir\(source/);assert.match(pack,/moduleFiles\.map\(name=>'src\/'\+name\)/);
+assert.match(sw,/["'](?:\.\/)?src\/academy-content\.js["']/);assert.match(sw,/["'](?:\.\/)?src\/academy\.js["']/);
 assert.equal(packagedApp,app,'packaged Hub app matches source');
 assert.equal(packagedAcademy,academy,'packaged Academy matches source');
 console.log('Hub Academy integration and packaged runtime checks passed');
