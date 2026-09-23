@@ -1,4 +1,3 @@
-ReMaPro POS Android beta validation trigger
-version=0.27.0
-source=21d7b77c7fc68492346761cc0a514628ab8c8b43
-reason=release-candidate-green
+ReMaPro POS V0.27.0 beta APK build
+Requested: 2026-09-23
+Includes: selected initials branding, standalone POS buttons, auto-linking, live dish availability, network printing.
