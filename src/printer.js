@@ -1,5 +1,6 @@
 const nativePlatform=()=>Boolean(globalThis.Capacitor?.isNativePlatform?.());
 const nativePrinterPlugin=()=>globalThis.Capacitor?.Plugins?.EscPosPrinter||null;
+const nativeNetworkPrinterPlugin=()=>globalThis.Capacitor?.Plugins?.NetworkPrinter||null;
 const safeAscii=value=>String(value??'')
   .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
   .replace(/[’‘]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-')
@@ -54,7 +55,7 @@ function printerPlugin(){
   return plugin;
 }
 
-export const nativePrinterReady=()=>nativePlatform()&&Boolean(nativePrinterPlugin());
+export const nativePrinterReady=()=>nativePlatform()&&Boolean(nativePrinterPlugin()||nativeNetworkPrinterPlugin());
 
 export async function discoverNativePrinters(){
   if(!nativePlatform())return[];
@@ -83,9 +84,19 @@ export async function printEscPosText(profile,text){
   if(!profile)throw new Error('PRINTER_PROFILE_REQUIRED');
   if(profile.connection_type==='system'||profile.connectionType==='system')return{system:true};
   const type=profile.connection_type||profile.connectionType;
-  if(!['bluetooth','usb'].includes(type))throw new Error(type==='network'?'NETWORK_ESC_POS_NOT_AVAILABLE_ON_CAPACITOR7':'UNSUPPORTED_PRINTER_CONNECTION');
+  if(!['bluetooth','usb','network'].includes(type))throw new Error('UNSUPPORTED_PRINTER_CONNECTION');
   const address=String(profile.address||'').trim();
   if(!address)throw new Error('PRINTER_ADDRESS_REQUIRED');
+  const payload=escPosBytes(text,profile.cut_after_print!==false&&profile.cutAfterPrint!==false);
+  if(type==='network'){
+    const plugin=nativeNetworkPrinterPlugin();
+    if(!plugin)throw new Error('NETWORK_ESC_POS_PLUGIN_UNAVAILABLE');
+    const [host,portRaw]=address.split(':');
+    const port=Number(portRaw)||Number(profile.port)||9100;
+    if(!host?.trim())throw new Error('PRINTER_HOST_REQUIRED');
+    const result=await plugin.print({host:host.trim(),port,timeoutMs:Math.max(500,Math.min(15000,Number(profile.timeoutMs)||4000)),data:Array.from(payload)});
+    return{ok:result?.ok!==false,bytes:Number(result?.bytes)||payload.length,network:true,host:host.trim(),port};
+  }
   const plugin=printerPlugin();
   let hashKey='';
   try{
@@ -101,7 +112,6 @@ export async function printEscPosText(profile,text){
     hashKey=String(created?.value||'');
     if(!hashKey)throw new Error('PRINTER_LINK_FAILED');
     await plugin.connectPrinter({hashKey});
-    const payload=escPosBytes(text,profile.cut_after_print!==false&&profile.cutAfterPrint!==false);
     await plugin.sendToPrinter({hashKey,data:Array.from(payload)});
     return{ok:true,bytes:payload.length};
   }finally{
