@@ -950,6 +950,8 @@ function printServiceReport(report){
   const payments=Array.isArray(report.payments)?report.payments:[];
   const refunds=Array.isArray(report.refundsByMethod)?report.refundsByMethod:[];
   const taxes=Array.isArray(report.taxGroups)?report.taxGroups:[];
+  const tipsByOperator=Array.isArray(report.tipsByOperator)?report.tipsByOperator:[];
+  const tipRows=tipsByOperator.map(x=>'<div class="print-line"><span>Tip · '+esc(x.name||'Non attribué')+' ('+Number(x.count||0)+')</span><span>'+money(x.amount)+'</span></div>').join('');
   const sessions=report.cashSessions||{};
   const paymentRows=payments.map(x=>'<div class="print-line"><span>'+esc(String(x.method||'').toUpperCase())+' ('+Number(x.count||0)+')</span><span>'+money(x.amount)+'</span></div>').join('');
   const refundRows=refunds.map(x=>'<div class="print-line refund"><span>Remb. '+esc(String(x.method||'').toUpperCase())+'</span><span>− '+money(x.amount)+'</span></div>').join('');
@@ -962,6 +964,7 @@ function printServiceReport(report){
     +'<div class="print-line refund"><span>Remboursements</span><span>− '+money(report.refundTotal)+'</span></div>'
     +'<div class="print-line total"><span>CA net</span><span>'+money(report.netSales)+'</span></div>'
     +'<div class="print-line"><span>Pourboires nets</span><span>'+money(report.netTips)+'</span></div>'
+    +(tipRows?'<hr><div class="print-section-title">Pourboires par employé</div>'+tipRows:'')
     +'<hr>'+paymentRows+refundRows+'<hr>'+taxRows
     +'<hr><div class="print-line"><span>Fond caisse</span><span>'+money(sessions.openingCash)+'</span></div>'
     +'<div class="print-line"><span>Espèces attendues</span><span>'+money(sessions.expectedCash)+'</span></div>'
@@ -2015,7 +2018,7 @@ function ticketsView(){
       const payments=Array.isArray(r.payments)?r.payments:[];
       return `<article class="receipt-card"><div><strong>${esc(r.receipt_number||r.receiptNumber||'Ticket')}</strong><small>${esc(r.business_date||r.businessDate||'')} · ${esc(r.table_label||r.service_type||'')}</small></div>
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
-        <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip':''}</span>`).join('')}</div>
+        <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip'+(p.tip_operator_name_snapshot?' · '+esc(p.tip_operator_name_snapshot):''):''}</span>`).join('')}</div>
         <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Ticket maître</button>${payments.filter(p=>['items','progressive_items'].includes(p.metadata?.splitType)).map(p=>`<button class="secondary split-ticket-btn" data-print-split-payment="${r.id}:${p.id}">${esc(p.metadata?.splitLabel||'Part')}</button>`).join('')}${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
           ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
@@ -2027,6 +2030,7 @@ function reportView(){
   const payments=Array.isArray(r?.payments)?r.payments:[];
   const refunds=Array.isArray(r?.refundsByMethod)?r.refundsByMethod:[];
   const taxes=Array.isArray(r?.taxGroups)?r.taxGroups:[];
+  const tipsByOperator=Array.isArray(r?.tipsByOperator)?r.tipsByOperator:[];
   const sessions=r?.cashSessions||{};
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="report-page"><div class="floor-head"><div><h2>Rapport de service</h2><p>Ventes et mouvements de caisse du jour sélectionné.</p></div><div class="report-controls"><input id="report-date" type="date" value="${esc(state.reportDate||dateKey())}"><button class="secondary" id="refresh-report" ${!state.online?'disabled':''}>Actualiser</button><button class="primary compact" id="print-report" ${!r?'disabled':''}>Imprimer Z</button></div></div>
@@ -2043,6 +2047,7 @@ function reportView(){
     </section>
     <section class="report-columns">
       <article class="report-card"><h3>Moyens de paiement</h3>${payments.length?payments.map(x=>`<div class="report-row"><span>${esc(String(x.method||'').toUpperCase())} · ${Number(x.count)||0}</span><strong>${money(x.amount)}</strong></div>`).join(''):'<div class="muted">Aucun paiement.</div>'}</article>
+      <article class="report-card"><h3>Pourboires par employé</h3>${tipsByOperator.length?tipsByOperator.map(x=>`<div class="report-row"><span>${esc(x.name||'Non attribué')} · ${Number(x.count)||0}</span><strong>${money(x.amount)}</strong></div>`).join(''):'<div class="muted">Aucun pourboire attribué.</div>'}</article>
       <article class="report-card"><h3>Remboursements du service</h3>${refunds.length?refunds.map(x=>`<div class="report-row"><span>${esc(String(x.method||'').toUpperCase())} · ${Number(x.count)||0}</span><strong>− ${money(x.amount)}</strong></div>`).join(''):'<div class="muted">Aucun remboursement.</div>'}</article>
       <article class="report-card"><h3>TVA brute</h3>${taxes.length?taxes.map(x=>`<div class="report-row"><span>${Number(x.tax_rate)||0}% · ${money(x.gross)}</span><strong>${money(x.tax)}</strong></div>`).join(''):'<div class="muted">Aucune TVA.</div>'}</article>
       <article class="report-card"><h3>Caisse espèces</h3><div class="report-row"><span>Sessions</span><strong>${Number(sessions.count)||0}</strong></div><div class="report-row"><span>Fond de caisse</span><strong>${money(sessions.openingCash)}</strong></div><div class="report-row"><span>Attendu clôturé</span><strong>${money(sessions.expectedCash)}</strong></div><div class="report-row"><span>Compté</span><strong>${money(sessions.countedCash)}</strong></div><div class="report-row"><span>Écart</span><strong class="${Math.abs(Number(sessions.differenceCash)||0)>0.005?'report-negative':''}">${money(sessions.differenceCash)}</strong></div></article>
