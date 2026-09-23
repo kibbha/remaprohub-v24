@@ -228,3 +228,31 @@ body{background:#f5efe8}
 .pos-floor-wall{border-radius:3px;background:#6c6057;color:#fff;border:0}.pos-floor-door{background:#f7eee5;border-style:dashed}.pos-floor-kitchen{background:#f0dcd0;color:#7d3f2b}.pos-floor-toilet{background:#e4ece8;color:#49675a}.pos-floor-bar{background:#d9c5b3;color:#5c4739}.pos-floor-banquette{background:#d5c3b5}.pos-floor-label{background:transparent;border:0;font-size:12px}
 @media(max-width:820px){.visual-floor-page{padding:10px}.pos-floor-stage{min-height:430px;max-height:none}.floor-table-label{font-size:11px}.pos-floor-table strong{font-size:9px}}
 @media(max-width:560px){.pos-floor-stage{min-height:360px}.pos-floor-legend{gap:8px}.pos-floor-table small,.pos-floor-table em{display:none}.floor-table-label{font-size:9px}}
+
+
+/* ReMaPro POS — compact operational shell aligned with Hub V27.12 */
+:root{--pos-orange:#f26a2e;--pos-green:#1f6047;--pos-warm:#fffaf5;--pos-line:#eadfd4}
+body{background:linear-gradient(180deg,#fffdf9,#fff8f1)}
+.topbar{background:#fffdf9;border-bottom:1px solid var(--pos-line);box-shadow:0 4px 18px #5934180d}
+.pos-primary-nav{padding:4px;background:#f5eee7;border-radius:14px;gap:3px}
+.pos-primary-nav .nav-tab{border-radius:11px;min-height:42px;font-weight:800}
+.pos-primary-nav .nav-tab.active{background:linear-gradient(135deg,#f26a2e,#ff8848);color:#fff;box-shadow:0 5px 13px #e45f2730}
+.pos-global-search{background:#fff;border:1px solid #ead8c7;border-radius:14px}
+.pos-more-panel{border-radius:18px;border:1px solid var(--pos-line);box-shadow:0 18px 45px #442b1930}
+.sale-shell,.pos-shell{min-height:0}
+.product-panel,.cart-panel,.floor-shell,.production-shell,.tickets-shell,.report-shell,.terminals-shell,.printers-shell,.team-shell,.sync-shell{border-radius:18px}
+.category-tabs{gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:4px}.category-tabs::-webkit-scrollbar{display:none}
+.category-tabs button{white-space:nowrap;border-radius:999px;border:1px solid #ecd8c6;background:#fff8f1;font-weight:750}
+.category-tabs button.active{background:var(--pos-green);color:#fff;border-color:var(--pos-green)}
+.product-grid{gap:8px}
+.product-button{border-radius:15px;border:1px solid #eadfd4;background:#fffdf9;box-shadow:0 4px 12px #56351d0b;min-height:78px}
+.product-button:active{transform:scale(.98)}
+.cart-panel{background:#fffdf9;border-left:1px solid var(--pos-line)}
+.payments{gap:7px}.payments button{border-radius:14px;min-height:52px}.payments .payment-primary{background:linear-gradient(135deg,#f26a2e,#ff8747);box-shadow:0 8px 20px #e45f2730}
+@media(max-width:720px){
+ .topbar{padding:7px 8px;gap:6px}.pos-top-brand .brand-lockup img{width:31px;height:31px}.pos-global-search{order:4;width:100%;max-width:none}
+ .pos-primary-nav{flex:1}.pos-primary-nav .nav-tab{padding:8px 10px;font-size:12px}
+ .pos-order-context{display:none}.operator-chip span:not(.operator-avatar){display:none}
+ .main-pos,.sale-shell{grid-template-columns:1fr;gap:7px}
+ .product-panel{min-height:0}.cart-panel{border-left:0;border-top:1px solid var(--pos-line)}
+}
