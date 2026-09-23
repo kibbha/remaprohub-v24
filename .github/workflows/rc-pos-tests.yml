@@ -1,0 +1,37 @@
+name: RC POS test suite
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [pos/remapro-pos]
+    paths:
+      - '.github/rc-pos-tests.trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: pos/remapro-pos
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install exact POS dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run full POS test suite
+        run: npm test
+      - name: Prepare packaged POS runtime
+        run: npm run prepare:web
+      - name: Verify RC runtime additions
+        run: |
+          test -s app/customer-display.html
+          test -s app/src/customer-display.js
+          test -s app/src/customer-display-page.js
+          grep -q "publishCustomerDisplay" app/src/app.js
+          grep -q "send_to_production" app/src/app.js
+          grep -q "statuses:\['pending','accepted','imported'\]" app/src/app.js
