@@ -1,4 +1,4 @@
-RC Hub final pre-APK audit validation
-Scope: current HEAD after floor-plan work; full test suite, security and packaging checks.
+RC Hub final audited validation
+Scope: complete pre-APK audit after runtime, CSP, network, Supabase and biometric security fixes.
 No Android build.
-Audit: 2026-09-23 final pass.
+Audit rerun: 2026-09-23.
