@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run reached PWA packaging and exposed cache drift after new runtime modules were added.
-Retry base: 727ea4cb3470bf223757a824a5088d3985cb1d65
-Fix: accounting/integrations are now offline-cached and cache hashing/tests include the complete packaged runtime, including workspace storage.
+Previous run confirmed offline assets exist but the package-hash test omitted the public order shell already included by the packager.
+Retry base: 615938473ba125de06c5ebbbbda559a969474659
+Fix: web-package cache hash now uses exactly the same order assets as package-web.mjs.
