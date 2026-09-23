@@ -20,7 +20,7 @@ assert.match(app,/form\('stockForm',f=>[\s\S]{0,420}min:f\.get\('min'\)/,'stock 
 const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(mixed,{reference:'M1',amount:75,status:'paid',date:'2026-09-18'});recordPurchase(mixed,{supplier:'S',amount:20,date:'2026-09-18',note:''});recordFinance(mixed,{date:'2026-09-18',revenue:100,covers:8,expenses:30});assert.equal(mixed.financeHistory[0].revenue,175);assert.equal(mixed.financeHistory[0].expenses,50);recordFinance(mixed,{date:'2026-09-18',revenue:120,covers:9,expenses:35});assert.equal(mixed.financeHistory[0].revenue,195);assert.equal(mixed.financeHistory[0].expenses,55);
 
 // Current dashboard exposes operational KPIs, activity, quick actions and context while every operational screen remains reachable through More.
-for(const token of ['dashboard-welcome','hub-kpi-grid','hub-dashboard-layout','hub-quick-grid','hub-context-panel'])
+for(const token of ['remapro-dashboard-v2','hub-kpi-grid','hub-dashboard-layout','hub-quick-grid','hub-category-grid'])
   assert.ok(app.includes(token),`dashboard block missing ${token}`);
 const secondary=['products','categories','stock','haccp','recipes','customers','loyalty','incidents','waste','suppliers','invoices','team','recalls','allergens','deliveries','cleaning','audits','equipment','leave','training','goals','alerts','checklists','briefing','maintenance','handover','organization','ai','help','settings'];
 for(const m of secondary)
