@@ -262,7 +262,7 @@ export async function uploadStorageObject(bucket,path,blob,{attempts=3,upsert=tr
       const data=await response.json().catch(()=>({}));
       if(response.ok)return data;
       const error=new Error(data?.message||data?.error||'STORAGE_UPLOAD_FAILED');error.status=response.status;last=error;recordDiagnostic('storage.upload_error',{bucket:safeBucket,status:response.status,attempt:attempt+1,message:error.message});
-      if((response.status===401||RETRYABLE_FUNCTION_STATUS.has(response.status))&&attempt+1<tries){if(response.status===401)try{await refreshCloudSession()}catch{}await sleep(300*(2**attempt));continue}
+      if((response.status===401||RETRYABLE_FUNCTION_STATUS.has(response.status))&&attempt+1<tries){if(response.status===401)try{await refreshCloudSession()}catch(error){cloudDiag('cloud.refresh_session_error',error)}await sleep(300*(2**attempt));continue}
       throw error;
     }catch(error){last=error;recordDiagnostic('storage.upload_transport_error',{bucket:safeBucket,attempt:attempt+1,message:error?.message||String(error)});if(attempt+1<tries){await sleep(300*(2**attempt));continue}throw error}
   }
