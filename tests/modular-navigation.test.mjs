@@ -7,12 +7,11 @@ const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
 
 for(const token of [
   'modular-dashboard',
-  "t('modularPilotage')",
-  "t('modularExploitation')",
-  "t('modularAdministration')",
-  "posTile('layout','posLayout'",
-  "posTile('history','posHistory'",
-  "posTile('terminals','posTerminals'",
+  'remapro-dashboard-v2',
+  "t('modularPilotageHint')",
+  "t('allTools')",
+  'id="pos-layout-editor-root"',
+  'id="floor-plan-editor-root"',
   "document.querySelectorAll('[data-pos-focus]')",
   'data-pos-section="catalog"',
   'data-pos-section="terminals"',
@@ -20,18 +19,25 @@ for(const token of [
   "scrollIntoView?.({behavior:'smooth',block:'start'})"
 ]) assert.ok(app.includes(token),token+' missing');
 
-const modularNav="[['dashboard','dashboard','home'],['operations','operations','operations'],['posAdmin','posAdmin','modularPos'],['finance','finance','financeNav'],['more','more','more']]";
-assert.ok(app.includes(modularNav));
+for(const navEntry of [
+  "['dashboard','dashboard','home']",
+  "['operations','operations','operations']",
+  "['posAdmin','posAdmin','modularPos']",
+  "['finance','finance','financeNav']",
+  "['more','more','more']"
+]) assert.ok(app.includes(navEntry),navEntry+' navigation entry missing');
 assert.equal(app.includes("['documents','documents']"),false);
 
 for(const token of [
   '.modular-block.pos',
   '.modular-tiles',
-  '.nav button[data-page="posAdmin"]'
+  '.nav button[data-page="posAdmin"]',
+  '.hub-kpi-grid',
+  '.hub-quick-grid'
 ]) assert.ok(css.includes(token),token+' missing');
 
 for(const key of [
-  'home','modularPilotage','modularExploitation','modularPos','modularAdministration',
+  'home','modularPos','modularPilotageHint','allTools',
   'posCatalog','posLayout','posHistory','posTerminals'
 ]) assert.ok(i18n.includes(key+':'),key+' translation key missing');
 
