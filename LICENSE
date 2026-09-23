@@ -1,0 +1,41 @@
+ReMaPro Proprietary Software Notice and License
+
+Copyright (c) 2026 Romain Di-spigno. All rights reserved.
+
+1. Proprietary material
+Except for Third-Party Material identified below, the ReMaPro-specific source code,
+documentation, product specifications, workflows, database definitions, tests,
+configuration, branding and visual assets contained in this repository are
+proprietary. No permission is granted to copy, modify, publish, distribute,
+sublicense, sell, reverse engineer, create derivative works from, or otherwise
+exploit that proprietary material without prior written authorization from the
+rights holder.
+
+Making source code available in a public repository does not, by itself, grant
+an open-source licence to the proprietary material.
+
+2. Third-Party Material
+Open-source libraries, SDKs, icons and other third-party material remain subject
+to their own licences and notices. They are excluded from the proprietary grant
+above. The current direct-dependency register and SBOM are maintained under
+docs/ip-compliance/. If a third-party licence conflicts with this notice, that
+third-party licence controls for the relevant third-party material only.
+
+3. Contributions
+No external contribution may be merged unless the project owner has documented
+the contributor's right to contribute and, where required by the project's IP
+policy, obtained a written assignment or other agreement sufficient for ReMaPro
+to commercialise and transfer the contribution.
+
+4. AI-assisted development
+Parts of the project may have been created with AI-assisted development tools.
+This notice claims only rights that may lawfully be held or transferred and does
+not override third-party rights, mandatory law, or limits on copyrightability.
+
+5. Transfer
+Rights in ReMaPro-specific material may be assigned only by a written agreement
+executed by the rights holder. Operational accounts, subscriptions and
+third-party services are transferred separately subject to their own terms.
+
+THIS SOFTWARE IS PROVIDED WITHOUT ANY WARRANTY EXCEPT TO THE EXTENT EXPRESSLY
+AGREED IN WRITING OR REQUIRED BY APPLICABLE LAW.
