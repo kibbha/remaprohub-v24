@@ -255,6 +255,7 @@ export default {
             configurableLayout:true,
             layoutModifiers:true,
             layoutMenus:true,
+            standaloneLayoutItems:true,
             paymentProviders:false
           }
         });
@@ -407,6 +408,18 @@ export default {
         }
         if(document.pages.length>50||document.categories.length>200||document.buttons.length>1000||document.modifierGroups.length>200||document.menus.length>200){
           return json({error:"Layout limit exceeded"},400);
+        }
+        for(const button of document.buttons){
+          const productId=clean(button?.productId,80);
+          if(productId)continue;
+          const item=button?.item;
+          const name=clean(item?.name,120),price=Number(item?.price),taxRate=Number(item?.taxRate??item?.tax_rate);
+          const type=clean(item?.type,20),station=clean(item?.station||button?.station,20);
+          if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100){
+            return json({error:"Standalone layout item requires name, price and valid tax rate"},400);
+          }
+          if(type&&!["dish","drink","other"].includes(type))return json({error:"Invalid standalone layout item type"},400);
+          if(station&&!["kitchen","bar","none"].includes(station))return json({error:"Invalid standalone layout station"},400);
         }
         const {data:existing,error:existingError}=await ctx.supabaseAdmin.from("pos_layout_drafts")
           .select("draft_revision").eq("restaurant_id",restaurantId).maybeSingle();
