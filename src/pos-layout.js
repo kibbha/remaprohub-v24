@@ -1,9 +1,20 @@
 const uid=prefix=>prefix+'_'+Math.random().toString(36).slice(2,9);
 const clone=value=>JSON.parse(JSON.stringify(value));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const itemTypeLabel=type=>type==='drink'?'Boisson':type==='dish'?'Plat':'Autre';
+const defaultStation=type=>type==='drink'?'bar':type==='dish'?'kitchen':'none';
+const defaultCategory=type=>type==='drink'?'Boissons':type==='dish'?'Plats':'Autres';
 
 export function emptyPosLayout(){
   return {schemaVersion:1,pages:[],categories:[],buttons:[],modifierGroups:[],productModifiers:[],menus:[]};
+}
+function normalizeEmbeddedItem(item){
+  if(!item||typeof item!=='object')return null;
+  const name=String(item.name||'').trim(),price=Number(item.price),taxRate=Number(item.taxRate??item.tax_rate??8.1);
+  if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100)return null;
+  const type=['dish','drink','other'].includes(String(item.type))?String(item.type):'other';
+  const station=['kitchen','bar','none'].includes(String(item.station))?String(item.station):defaultStation(type);
+  return{name,price:Math.round(price*100)/100,taxRate,sku:String(item.sku||''),type,station};
 }
 export function normalizePosLayout(input){
   const src=input&&typeof input==='object'?clone(input):emptyPosLayout();
@@ -13,11 +24,11 @@ export function normalizePosLayout(input){
   doc.categories=doc.categories.map((x,i)=>({id:String(x.id||uid('cat')),name:String(x.name||'Catégorie'),parentId:String(x.parentId||''),sortOrder:Number.isFinite(Number(x.sortOrder))?Number(x.sortOrder):i,color:String(x.color||'#d9c4a7')}));
   doc.buttons=doc.buttons.map((x,i)=>({
     id:String(x.id||uid('btn')),pageId:String(x.pageId||doc.pages[0]?.id||''),categoryId:String(x.categoryId||''),
-    productId:String(x.productId||''),label:String(x.label||''),sortOrder:Number.isFinite(Number(x.sortOrder))?Number(x.sortOrder):i,
+    productId:String(x.productId||''),item:normalizeEmbeddedItem(x.item),label:String(x.label||''),sortOrder:Number.isFinite(Number(x.sortOrder))?Number(x.sortOrder):i,
     x:Number.isFinite(Number(x.x))?Number(x.x):i%4,y:Number.isFinite(Number(x.y))?Number(x.y):Math.floor(i/4),
     w:Math.max(1,Math.min(4,Number(x.w)||1)),h:Math.max(1,Math.min(4,Number(x.h)||1)),
     color:String(x.color||'#d6b98c'),hidden:!!x.hidden,unavailable:!!x.unavailable,favorite:!!x.favorite,
-    station:['kitchen','bar','none'].includes(String(x.station))?String(x.station):'',modifierGroupIds:Array.isArray(x.modifierGroupIds)?x.modifierGroupIds.map(String):[]
+    station:['kitchen','bar','none'].includes(String(x.station))?String(x.station):(normalizeEmbeddedItem(x.item)?.station||''),modifierGroupIds:Array.isArray(x.modifierGroupIds)?x.modifierGroupIds.map(String):[]
   }));
   doc.modifierGroups=doc.modifierGroups.map((g,i)=>({
     id:String(g.id||uid('mod')),name:String(g.name||'Modificateurs'),type:String(g.type||'supplement'),
@@ -39,12 +50,18 @@ export function seedPosLayoutFromCatalog(catalog=[]){
   doc.categories=[...groups.values()];
   doc.buttons=catalog.filter(x=>x.active!==false).map((item,i)=>({
     id:uid('btn'),pageId:'page_main',categoryId:groups.get(String(item.category||'Autres').trim()||'Autres')?.id||'',
-    productId:String(item.id||''),label:String(item.name||''),sortOrder:i,x:i%4,y:Math.floor(i/4),w:1,h:1,
+    productId:String(item.id||''),item:null,label:String(item.name||''),sortOrder:i,x:i%4,y:Math.floor(i/4),w:1,h:1,
     color:'#d6b98c',hidden:false,unavailable:false,favorite:i<4,station:String(item.production_station||''),modifierGroupIds:[]
   }));
   return normalizePosLayout(doc);
 }
 export function layoutProduct(layout,catalog,id){return(catalog||[]).find(x=>String(x.id)===String(id))||null}
+export function layoutButtonItem(button,catalog=[]){
+  const linked=button?.productId?layoutProduct(null,catalog,button.productId):null;
+  if(linked)return{...linked,source:'hub'};
+  const item=normalizeEmbeddedItem(button?.item);
+  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,source:'layout'}:null;
+}
 function move(list,id,delta){
   const sorted=[...list].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   const index=sorted.findIndex(x=>String(x.id)===String(id)),target=index+delta;
@@ -57,6 +74,7 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
   const page=pages.find(p=>p.id===selectedPageId)||pages.find(p=>p.id===selectedRaw?.pageId)||pages[0]||null;
   const buttons=doc.buttons.filter(b=>!page||b.pageId===page.id).sort((a,b)=>a.sortOrder-b.sortOrder);
   const selected=doc.buttons.find(b=>b.id===selectedButtonId)||buttons[0]||null;
+  const selectedItem=selected?layoutButtonItem(selected,catalog):null;
   const productOptions=catalog.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+' · '+Number(p.price||0).toFixed(2)+'</option>').join('');
   const pageOptions=pages.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===page?.id?'selected':'')+'>'+esc(p.name)+'</option>').join('');
   const categories=[...doc.categories].sort((a,b)=>a.sortOrder-b.sortOrder);
@@ -67,12 +85,15 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
   const versions=(Array.isArray(history)?history:[]).slice(0,12);
   const historyHtml=versions.length?'<details class="pos-layout-history"><summary>Historique des publications ('+versions.length+')</summary><div class="pos-layout-list">'+versions.map(v=>'<article><span><strong>Version '+esc(v.version)+'</strong><small>'+esc(v.publishedAt?new Date(v.publishedAt).toLocaleString('fr-CH'):'date inconnue')+' · '+esc(String(v.checksum||'').slice(0,8))+'</small></span>'+(Number(v.version)===Number(published?.version)?'<span class="pill good">Actuelle</span>':'<button type="button" class="btn compact" data-layout-restore-version="'+esc(v.version)+'">Restaurer en brouillon</button>')+'</article>').join('')+'</div><p class="muted">Une restauration ne modifie pas les caisses tant que vous ne republiez pas le brouillon.</p></details>':'';
   return '<section class="card pos-layout-editor">'
-    +'<div class="pos-layout-head"><div><h2>Implantation caisse</h2><p class="muted">Brouillon manager · version publiée '+esc(published?.version||'—')+'</p></div><div class="actions"><button class="btn" id="posLayoutSeed">Générer depuis le catalogue</button><button class="btn" id="posLayoutSave">Enregistrer brouillon</button><button class="btn primary" id="posLayoutPublish">Publier vers les POS</button></div></div>'
+    +'<div class="pos-layout-head"><div><h2>Configuration POS</h2><p class="muted">Créez ici toutes les touches de caisse. Un produit Hub est optionnel.</p></div><div class="actions"><button class="btn" id="posLayoutSeed">Importer le catalogue Hub</button><button class="btn" id="posLayoutSave">Enregistrer brouillon</button><button class="btn primary" id="posLayoutPublish">Publier vers les POS</button></div></div>'
     +historyHtml
-    +'<div class="pos-layout-meta"><form id="posLayoutPageForm"><input name="name" required placeholder="Nouvelle page"><button class="btn compact">+ Page</button></form><form id="posLayoutCategoryForm"><input name="name" required placeholder="Catégorie / sous-catégorie"><select name="parentId"><option value="">Catégorie racine</option>'+catOptions+'</select><button class="btn compact">+ Catégorie</button></form><form id="posLayoutButtonForm"><select name="productId" required><option value="">Produit…</option>'+productOptions+'</select><select name="pageId">'+pageOptions+'</select><select name="categoryId"><option value="">Sans catégorie</option>'+catOptions+'</select><button class="btn compact">+ Touche</button></form></div>'
+    +'<section class="pos-layout-create"><div class="pos-layout-create-head"><div><strong>Créer une touche de caisse</strong><small>Plat, boisson ou article libre — sans création préalable dans Hub.</small></div></div>'
+    +'<form id="posLayoutButtonForm" class="pos-layout-create-form"><label>Type<select name="itemType"><option value="dish">Plat</option><option value="drink">Boisson</option><option value="other">Autre</option></select></label><label>Nom<input name="name" required maxlength="120" placeholder="Ex. Burger maison"></label><label>Prix CHF<input name="price" required type="number" min="0" step="0.01" inputmode="decimal" placeholder="18.50"></label><label>TVA %<input name="taxRate" required type="number" min="0" max="100" step="0.1" value="8.1"></label><label>Destination<select name="station"><option value="">Auto</option><option value="kitchen">Cuisine</option><option value="bar">Bar</option><option value="none">Aucune</option></select></label><label>Page<select name="pageId"><option value="">Auto : Caisse</option>'+pageOptions+'</select></label><label>Catégorie<select name="categoryId"><option value="">Auto selon le type</option>'+catOptions+'</select></label><label>Lien Hub facultatif<select name="productId"><option value="">Aucun — touche autonome</option>'+productOptions+'</select></label><button class="btn primary pos-layout-create-submit">+ Ajouter la touche</button></form>'
+    +'<p class="muted pos-layout-create-note">Une touche autonome fonctionne en caisse, hors ligne, sur les tickets et en cuisine/bar. Sans lien Hub, elle ne décrémente simplement pas le stock et n’a pas de food cost associé.</p></section>'
+    +'<div class="pos-layout-meta"><form id="posLayoutPageForm"><input name="name" required placeholder="Nouvelle page"><button class="btn compact">+ Page</button></form><form id="posLayoutCategoryForm"><input name="name" required placeholder="Catégorie / sous-catégorie"><select name="parentId"><option value="">Catégorie racine</option>'+catOptions+'</select><button class="btn compact">+ Catégorie</button></form></div>'
     +'<div class="pos-layout-order"><div><strong>Ordre pages</strong>'+pageOrder+'</div><div><strong>Ordre catégories</strong>'+categoryOrder+'</div></div>'
-    +'<div class="pos-layout-workspace"><div class="pos-layout-preview"><div class="pos-layout-pages">'+pages.map(p=>'<button type="button" data-layout-page-select="'+esc(p.id)+'" class="'+(p.id===page?.id?'active':'')+'">'+esc(p.name)+'</button>').join('')+'</div><div class="pos-layout-grid" id="posLayoutGrid">'+buttons.map(b=>{const p=layoutProduct(doc,catalog,b.productId);return '<button type="button" class="pos-layout-tile '+(b.id===selected?.id?'selected ':'')+(b.hidden?'is-hidden ':'')+(b.unavailable?'is-unavailable ':'')+'" draggable="true" data-layout-button="'+esc(b.id)+'" style="--tile-color:'+esc(b.color)+';--tile-w:'+b.w+';--tile-h:'+b.h+'"><strong>'+esc(b.label||p?.name||'Produit')+'</strong><small>'+esc(p?.category||'')+(b.favorite?' · ★':'')+'</small></button>'}).join('')+'</div></div>'
-    +(selected?'<aside class="pos-layout-inspector"><h3>Propriétés touche</h3><label>Libellé<input id="posLayoutLabel" value="'+esc(selected.label)+'"></label><label>Couleur<input id="posLayoutColor" type="color" value="'+esc(selected.color)+'"></label><div class="pos-layout-size"><label>Largeur<select id="posLayoutW">'+[1,2,3,4].map(n=>'<option '+(selected.w===n?'selected':'')+'>'+n+'</option>').join('')+'</select></label><label>Hauteur<select id="posLayoutH">'+[1,2,3,4].map(n=>'<option '+(selected.h===n?'selected':'')+'>'+n+'</option>').join('')+'</select></label></div><label>Routage<select id="posLayoutStation"><option value="">Produit</option><option value="kitchen" '+(selected.station==='kitchen'?'selected':'')+'>Cuisine</option><option value="bar" '+(selected.station==='bar'?'selected':'')+'>Bar</option><option value="none" '+(selected.station==='none'?'selected':'')+'>Aucun</option></select></label><label class="pos-layout-check"><input id="posLayoutFavorite" type="checkbox" '+(selected.favorite?'checked':'')+'> Favori</label><label class="pos-layout-check"><input id="posLayoutHidden" type="checkbox" '+(selected.hidden?'checked':'')+'> Masqué</label><label class="pos-layout-check"><input id="posLayoutUnavailable" type="checkbox" '+(selected.unavailable?'checked':'')+'> Temporairement indisponible</label><div><strong>Modificateurs</strong>'+modChecks+'</div><button class="btn danger" id="posLayoutDeleteButton">Supprimer la touche</button></aside>':'<aside class="pos-layout-inspector"><p class="muted">Sélectionnez une touche.</p></aside>')+'</div>'
+    +'<div class="pos-layout-workspace"><div class="pos-layout-preview"><div class="pos-layout-pages">'+pages.map(p=>'<button type="button" data-layout-page-select="'+esc(p.id)+'" class="'+(p.id===page?.id?'active':'')+'">'+esc(p.name)+'</button>').join('')+'</div><div class="pos-layout-grid" id="posLayoutGrid">'+buttons.map(b=>{const p=layoutButtonItem(b,catalog),cat=categories.find(c=>c.id===b.categoryId);return '<button type="button" class="pos-layout-tile '+(b.id===selected?.id?'selected ':'')+(b.hidden?'is-hidden ':'')+(b.unavailable?'is-unavailable ':'')+'" draggable="true" data-layout-button="'+esc(b.id)+'" style="--tile-color:'+esc(b.color)+';--tile-w:'+b.w+';--tile-h:'+b.h+'"><strong>'+esc(b.label||p?.name||'Article')+'</strong><small>'+esc(cat?.name||itemTypeLabel(b.item?.type||''))+(p?.price!=null?' · '+Number(p.price).toFixed(2)+' CHF':'')+(b.favorite?' · ★':'')+'</small></button>'}).join('')+'</div></div>'
+    +(selected?'<aside class="pos-layout-inspector"><h3>Propriétés touche</h3><label>Libellé<input id="posLayoutLabel" value="'+esc(selected.label||selectedItem?.name||'')+'"></label>'+(selected.item?'<label>Prix CHF<input id="posLayoutItemPrice" type="number" min="0" step="0.01" value="'+esc(selected.item.price)+'"></label><label>TVA %<input id="posLayoutItemTax" type="number" min="0" max="100" step="0.1" value="'+esc(selected.item.taxRate)+'"></label>':'<div class="pos-layout-linked-note">Liée au catalogue Hub · '+esc(selectedItem?.name||'produit')+'</div>')+'<label>Couleur<input id="posLayoutColor" type="color" value="'+esc(selected.color)+'"></label><div class="pos-layout-size"><label>Largeur<select id="posLayoutW">'+[1,2,3,4].map(n=>'<option '+(selected.w===n?'selected':'')+'>'+n+'</option>').join('')+'</select></label><label>Hauteur<select id="posLayoutH">'+[1,2,3,4].map(n=>'<option '+(selected.h===n?'selected':'')+'>'+n+'</option>').join('')+'</select></label></div><label>Routage<select id="posLayoutStation"><option value="kitchen" '+(selected.station==='kitchen'?'selected':'')+'>Cuisine</option><option value="bar" '+(selected.station==='bar'?'selected':'')+'>Bar</option><option value="none" '+(selected.station==='none'?'selected':'')+'>Aucun</option></select></label><label class="pos-layout-check"><input id="posLayoutFavorite" type="checkbox" '+(selected.favorite?'checked':'')+'> Favori</label><label class="pos-layout-check"><input id="posLayoutHidden" type="checkbox" '+(selected.hidden?'checked':'')+'> Masqué</label><label class="pos-layout-check"><input id="posLayoutUnavailable" type="checkbox" '+(selected.unavailable?'checked':'')+'> Temporairement indisponible</label><div><strong>Modificateurs</strong>'+modChecks+'</div><button class="btn danger" id="posLayoutDeleteButton">Supprimer la touche</button></aside>':'<aside class="pos-layout-inspector"><p class="muted">Créez une touche ou sélectionnez-en une pour la modifier.</p></aside>')+'</div>'
     +'<div class="pos-layout-bottom"><section><h3>Groupes de modificateurs</h3><form id="posLayoutModifierForm" class="pos-layout-inline"><input name="name" required placeholder="Ex. Cuisson"><select name="type"><option value="cooking">Cuisson</option><option value="side">Accompagnement</option><option value="supplement">Supplément</option><option value="without">Sans ingrédient</option><option value="notes">Notes</option></select><select name="station"><option value="">Même routage que l’article</option><option value="kitchen">Cuisine</option><option value="bar">Bar</option><option value="none">Aucun</option></select><label><input type="checkbox" name="required"> Obligatoire</label><input type="number" name="min" min="0" value="0" title="Minimum"><input type="number" name="max" min="1" value="1" title="Maximum"><button class="btn compact">+ Groupe</button></form><div class="pos-layout-list">'+doc.modifierGroups.map(g=>'<article><strong>'+esc(g.name)+'</strong><small>'+esc(g.type)+' · '+(g.required?'obligatoire':'optionnel')+' · '+g.min+'–'+g.max+(g.station?' · '+esc(g.station):'')+'</small><button class="btn compact" data-layout-add-option="'+esc(g.id)+'">+ Option</button><span>'+g.options.map(o=>esc(o.name)+(o.priceDelta?' +'+o.priceDelta.toFixed(2):'')+(o.station?' ['+esc(o.station)+']':'')).join(' · ')+'</span></article>').join('')+'</div></section>'
     +'<section><h3>Menus / compositions</h3><form id="posLayoutMenuForm" class="pos-layout-inline"><input name="name" required placeholder="Ex. Menu midi"><select name="productId"><option value="">Produit maître optionnel</option>'+productOptions+'</select><input name="price" type="number" min="0" step="0.01" placeholder="Prix"><button class="btn compact">+ Menu</button></form><div class="pos-layout-list">'+doc.menus.map(m=>'<article><strong>'+esc(m.name)+'</strong><small>'+Number(m.price||0).toFixed(2)+'</small><button class="btn compact" data-layout-add-choice="'+esc(m.id)+'">+ Choix</button><span>'+m.choices.map(c=>{const cat=categories.find(x=>x.id===c.categoryId);return esc(c.name)+' ('+(c.required?'obligatoire':'optionnel')+(cat?' · '+esc(cat.name):c.productIds?.length?' · '+c.productIds.length+' produits':' · tout catalogue')+')'}).join(' · ')+'</span></article>').join('')+'</div></section></div>'
     +'</section>';
@@ -89,7 +110,28 @@ export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSel
   root.querySelectorAll('[data-layout-category-move]').forEach(el=>el.addEventListener('click',()=>{const [id,d]=String(el.dataset.layoutCategoryMove).split(':');mutate(doc=>{doc.categories=move(doc.categories,id,Number(d));})}));
   root.querySelector('#posLayoutPageForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>{const id=uid('page');doc.pages.push({id,name:String(d.get('name')||'Page'),sortOrder:doc.pages.length,color:'#efe5d7'});setPage?.(id);setSelected('')})});
   root.querySelector('#posLayoutCategoryForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>doc.categories.push({id:uid('cat'),name:String(d.get('name')||'Catégorie'),parentId:String(d.get('parentId')||''),sortOrder:doc.categories.length,color:'#d9c4a7'}));});
-  root.querySelector('#posLayoutButtonForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget),p=(catalog||[]).find(x=>String(x.id)===String(d.get('productId')));if(!p)return;mutate(doc=>{const i=doc.buttons.length,id=uid('btn'),pageId=String(d.get('pageId')||getPage?.()||doc.pages[0]?.id||'');doc.buttons.push({id,pageId,categoryId:String(d.get('categoryId')||''),productId:String(p.id),label:String(p.name||''),sortOrder:i,x:i%4,y:Math.floor(i/4),w:1,h:1,color:'#d6b98c',hidden:false,unavailable:false,favorite:false,station:String(p.production_station||''),modifierGroupIds:[]});setPage?.(pageId);setSelected(id)});});
+  root.querySelector('#posLayoutButtonForm')?.addEventListener('submit',e=>{
+    e.preventDefault();const d=new FormData(e.currentTarget),type=['dish','drink','other'].includes(String(d.get('itemType')))?String(d.get('itemType')):'other',linked=(catalog||[]).find(x=>String(x.id)===String(d.get('productId')))||null;
+    const name=String(d.get('name')||linked?.name||'').trim(),price=Number(d.get('price')),taxRate=Number(d.get('taxRate'));
+    if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100)return;
+    mutate(doc=>{
+      let pageId=String(d.get('pageId')||getPage?.()||doc.pages[0]?.id||'');
+      if(!pageId){const p={id:uid('page'),name:'Caisse',sortOrder:doc.pages.length,color:'#efe5d7'};doc.pages.push(p);pageId=p.id}
+      let categoryId=String(d.get('categoryId')||'');
+      if(!categoryId){
+        const categoryName=defaultCategory(type),existing=doc.categories.find(c=>String(c.name).trim().toLowerCase()===categoryName.toLowerCase());
+        if(existing)categoryId=existing.id;else{const c={id:uid('cat'),name:categoryName,parentId:'',sortOrder:doc.categories.length,color:'#d9c4a7'};doc.categories.push(c);categoryId=c.id}
+      }
+      const station=String(d.get('station')||'')||defaultStation(type),i=doc.buttons.length,id=uid('btn');
+      doc.buttons.push({
+        id,pageId,categoryId,productId:linked?String(linked.id):'',
+        item:linked?null:{name,price:Math.round(price*100)/100,taxRate,sku:'',type,station},
+        label:name,sortOrder:i,x:i%4,y:Math.floor(i/4),w:1,h:1,color:type==='drink'?'#c9d9df':type==='dish'?'#d6b98c':'#ded6ca',
+        hidden:false,unavailable:false,favorite:false,station:linked?String(linked.production_station||station):station,modifierGroupIds:[]
+      });
+      setPage?.(pageId);setSelected(id)
+    });
+  });
   root.querySelectorAll('[data-layout-button]').forEach(el=>{
     el.addEventListener('click',()=>{setSelected(el.dataset.layoutButton);onRender?.()});
     el.addEventListener('dragstart',e=>e.dataTransfer?.setData('text/plain',el.dataset.layoutButton));
@@ -98,6 +140,8 @@ export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSel
   });
   const bindValue=(sel,key,parse=v=>v)=>root.querySelector(sel)?.addEventListener('change',e=>mutate(doc=>{const b=doc.buttons.find(x=>x.id===getSelected());if(b)b[key]=parse(e.target.type==='checkbox'?e.target.checked:e.target.value)}));
   bindValue('#posLayoutLabel','label',String);bindValue('#posLayoutColor','color',String);bindValue('#posLayoutW','w',Number);bindValue('#posLayoutH','h',Number);bindValue('#posLayoutStation','station',String);bindValue('#posLayoutFavorite','favorite',Boolean);bindValue('#posLayoutHidden','hidden',Boolean);bindValue('#posLayoutUnavailable','unavailable',Boolean);
+  root.querySelector('#posLayoutItemPrice')?.addEventListener('change',e=>mutate(doc=>{const b=doc.buttons.find(x=>x.id===getSelected());if(b?.item)b.item.price=Math.max(0,Number(e.target.value)||0)}));
+  root.querySelector('#posLayoutItemTax')?.addEventListener('change',e=>mutate(doc=>{const b=doc.buttons.find(x=>x.id===getSelected());if(b?.item)b.item.taxRate=Math.max(0,Math.min(100,Number(e.target.value)||0))}));
   root.querySelectorAll('[data-layout-button-mod]').forEach(el=>el.addEventListener('change',()=>mutate(doc=>{const b=doc.buttons.find(x=>x.id===getSelected());if(!b)return;const id=el.dataset.layoutButtonMod;b.modifierGroupIds=el.checked?[...new Set([...b.modifierGroupIds,id])]:b.modifierGroupIds.filter(x=>x!==id)})));
   root.querySelector('#posLayoutDeleteButton')?.addEventListener('click',()=>mutate(doc=>{doc.buttons=doc.buttons.filter(x=>x.id!==getSelected());setSelected(doc.buttons.find(x=>x.pageId===getPage?.())?.id||'')}));
   root.querySelector('#posLayoutModifierForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>doc.modifierGroups.push({id:uid('mod'),name:String(d.get('name')||'Modificateurs'),type:String(d.get('type')||'supplement'),required:d.get('required')==='on',min:Number(d.get('min'))||0,max:Math.max(1,Number(d.get('max'))||1),station:String(d.get('station')||''),options:[]}))});
