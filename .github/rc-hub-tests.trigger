@@ -1,3 +1,3 @@
 RC Hub validation trigger
-Scope: direct standalone POS button creation from empty configuration; automatic Caisse page/category; embedded name/price/tax/station; server validation.
+Scope: automatic standalone-button to Hub product/recipe matching, catalog auto-sync, recipe-derived portions, manual/live stock availability, strict stock guards.
 No Android build.
