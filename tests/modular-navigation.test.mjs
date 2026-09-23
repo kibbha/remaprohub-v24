@@ -44,6 +44,10 @@ for(const key of [
   'posCatalog','posLayout','posHistory','posTerminals'
 ]) assert.ok(i18n.includes(key+':'),key+' translation key missing');
 
+
+for(const section of ['overview','analysis','accounting','entry','inventory','count','receiving','intelligence','shifts','workforce','conflicts','readiness','general','access','business','data']) assert.ok(app.includes(`data-module-pane="${section}"`),section+' section pane missing');
+for(const id of ['profitLeakCockpit','accountingExportForm','financeForm','stockPhotoInput','stockPhotoAnalyze','visionStockForm','stockForm','copyPreviousWeek']) assert.ok(app.includes(id),id+' binding target missing');
+
 console.log('Hub modular home and direct POS navigation checks passed');
 
 assert.ok(css.includes('.shell{width:100vw;max-width:100vw;margin:0;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}'),'edge-to-edge shell missing');
