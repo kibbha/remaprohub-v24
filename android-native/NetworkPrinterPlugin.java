@@ -1,4 +1,4 @@
-package com.remapro.pos;
+package com.remaprohub.pos;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
