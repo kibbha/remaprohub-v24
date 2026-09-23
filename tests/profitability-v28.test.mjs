@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {profitLeakCockpit,multiRestaurantBenchmark} from '../src/intelligence.js';
+const app=readFileSync('src/app.js','utf8');
 
 const base={
  activeRestaurantId:'r1',recipeTarget:30,recipeWarning:35,
@@ -27,4 +29,6 @@ assert.equal(benchmark.rows.length,2);
 assert.equal(benchmark.network.restaurants,2);
 assert.ok(benchmark.rows.some(x=>x.name==='Site A'&&x.revenue===1000));
 assert.ok(benchmark.rows.every(x=>'revenueVsNetwork' in x));
+assert.ok(app.includes('profitLeakCockpit(state)'),'Finance UI must expose the profitability cockpit');
+assert.ok(app.includes('multiRestaurantBenchmark(state)'),'Finance UI must expose multi-site benchmark');
 console.log('Profit leak cockpit and multi-restaurant benchmark checks passed');
