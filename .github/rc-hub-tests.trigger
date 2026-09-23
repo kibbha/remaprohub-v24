@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run passed i18n gates and found CRM customer CRUD regression.
-Retry base: a01bb52a483e2a364b473cc78262b5f2b1c83e79
-Fix: customer rows now retain edit/delete lifecycle while preserving CRM insights and consent controls.
+Previous run found advanced CRM screens had lost shared reservation/loyalty edit lifecycle.
+Retry base: a409d1d59440d475a810d26c659c87444574d7df
+Fix: restore inline edit/delete and protect reservation table conflicts.
