@@ -96,10 +96,12 @@ async function posAvailabilitySnapshot(db:any,restaurantId:string,organizationId
     let remaining:number|null=null,source="unlimited";
     if(cfg.mode==="manual"){
       const existing=manualMap.get(key);
-      const changed=!existing||Number(existing.configured_quantity)!==Number(cfg.manualQuantity)||Number(existing.low_threshold)!==Number(cfg.lowThreshold);
-      if(changed){
-        desiredManual.push({restaurant_id:restaurantId,organization_id:organizationId,availability_key:key,mode:"manual",configured_quantity:cfg.manualQuantity,remaining_quantity:cfg.manualQuantity,low_threshold:cfg.lowThreshold,version:Number(existing?.version||0)+1,updated_at:new Date().toISOString()});
-        remaining=cfg.manualQuantity;
+      const quantityChanged=!existing||Number(existing.configured_quantity)!==Number(cfg.manualQuantity);
+      const thresholdChanged=!existing||Number(existing.low_threshold)!==Number(cfg.lowThreshold);
+      if(quantityChanged||thresholdChanged){
+        const nextRemaining=quantityChanged?cfg.manualQuantity:Math.max(0,Number(existing?.remaining_quantity)||0);
+        desiredManual.push({restaurant_id:restaurantId,organization_id:organizationId,availability_key:key,mode:"manual",configured_quantity:cfg.manualQuantity,remaining_quantity:nextRemaining,low_threshold:cfg.lowThreshold,version:Number(existing?.version||0)+1,updated_at:new Date().toISOString()});
+        remaining=nextRemaining;
       }else remaining=Math.max(0,Number(existing.remaining_quantity)||0);
       source="manual";
     }else if(cfg.mode==="stock"&&catalogItem){
