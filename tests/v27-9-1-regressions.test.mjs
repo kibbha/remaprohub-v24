@@ -37,7 +37,9 @@ const roundIcon=readFileSync('android-native/ic_launcher_round.xml','utf8');
 const safeForeground=readFileSync('android-native/remaprohub_foreground.xml','utf8');
 assert.match(icon,/@drawable\/remaprohub_foreground/);
 assert.match(roundIcon,/@drawable\/remaprohub_foreground/);
-assert.match(safeForeground,/@drawable\/remaprohub_logo/);
-for(const side of ['Left','Top','Right','Bottom'])assert.match(safeForeground,new RegExp(`android:inset${side}="21dp"`));
+assert.match(safeForeground,/<vector\b/);
+assert.match(safeForeground,/M430,225/);
+assert.doesNotMatch(safeForeground,/<inset\b/);
+for(const side of ['Left','Top','Right','Bottom'])assert.doesNotMatch(safeForeground,new RegExp(`android:inset${side}=`));
 
-console.log('V27.9.1 finance reset, visible back control and safe adaptive launcher icon OK');
+console.log('V27.9.1 finance reset, visible back control and full-frame initials adaptive launcher icon OK');
