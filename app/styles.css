@@ -367,3 +367,78 @@ h2{font-size:clamp(14px,2.8vw,17px)}
 .nav button[data-page="posAdmin"] svg{transform:scale(1.05)}.nav button[data-page="posAdmin"].active{color:#c95f32}
 @media(max-width:720px){.modular-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.modular-kpis{grid-template-columns:1fr 1fr}.modular-kpis button:first-child{grid-column:1/-1}.modular-block{padding:12px}.modular-block-head strong{font-size:17px}.modular-view-all{font-size:12px}.modular-pos-status{grid-template-columns:auto 1fr}.modular-pos-status .btn{grid-column:1/-1;width:100%}}
 @media(max-width:420px){.modular-tile{min-height:80px}.modular-block-head small{font-size:11px}.modular-kpis strong{font-size:16px}}
+
+
+/* V27.12 — ReMaPro clarity redesign */
+.hub-sidebar{display:none}
+.hub-global-search{display:none}
+.remapro-dashboard-v2{max-width:1220px;margin:0 auto}
+.dashboard-welcome{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:8px 0 18px;padding:4px 2px}
+.dashboard-welcome h1{font-family:Georgia,ui-serif,serif;font-size:34px;line-height:1.02;margin:4px 0 5px;letter-spacing:-1px}
+.dashboard-welcome p{margin:0;color:var(--muted);font-size:13px}
+.dashboard-modules-link{display:flex;align-items:center;gap:8px;border:1px solid #e8d8c8;background:#fffaf5;color:var(--accent);padding:11px 13px;border-radius:13px;font-weight:850}
+.dashboard-modules-link .icon{width:20px;height:20px}
+.hub-kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.hub-kpi-card{position:relative;text-align:left;border:1px solid #eadfd4;background:#fffdf9;border-radius:18px;padding:15px 14px;color:var(--text);box-shadow:0 7px 22px #6842210a;overflow:hidden}
+.hub-kpi-card:after{content:"";position:absolute;width:70px;height:70px;border-radius:50%;right:-26px;bottom:-28px;background:#f3d7c052}
+.hub-kpi-card small{display:block;color:var(--muted);font-size:11px;font-weight:750;margin:8px 0 4px}
+.hub-kpi-card strong{display:block;font-family:Georgia,ui-serif,serif;font-size:25px;letter-spacing:-.7px}
+.hub-kpi-card em{display:block;margin-top:5px;color:#6e7d6e;font-size:10px;font-style:normal;font-weight:800}
+.hub-kpi-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#fff0e4;color:#c4512a}
+.hub-kpi-icon .icon{width:19px;height:19px}
+.hub-dashboard-layout{display:grid;gap:12px}
+.hub-dashboard-main{display:grid;gap:12px;min-width:0}
+.hub-panel,.hub-context-panel{border:1px solid #eadfd4;background:#fffdf9;border-radius:20px;padding:15px;box-shadow:0 7px 22px #6842210a}
+.hub-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.hub-panel-head small{display:block;text-transform:uppercase;letter-spacing:.9px;color:#a06b4b;font-size:9px;font-weight:900}
+.hub-panel-head h2{font-family:Georgia,ui-serif,serif;font-size:18px;margin:3px 0 0}
+.hub-revenue-chart{height:190px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:end;gap:9px;padding:15px 3px 0;border-top:1px solid #f0e5db}
+.hub-chart-bar{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px}
+.hub-chart-bar i{width:72%;min-height:8px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,#f3bd97,#c85b31);box-shadow:inset 0 1px 0 #fff8}
+.hub-chart-bar span{font-size:9px;color:var(--muted);font-weight:700}
+.hub-activity-list{display:grid}
+.hub-activity-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;border:0;border-bottom:1px solid #f0e5db;background:transparent;padding:11px 2px;text-align:left;color:var(--text)}
+.hub-activity-row:last-child{border-bottom:0}
+.hub-activity-row>.icon{width:32px;height:32px;padding:7px;border-radius:11px;background:#fff0e4;color:#bd5d32}
+.hub-activity-row span{display:grid;gap:2px}.hub-activity-row strong{font-size:12px}.hub-activity-row small{font-size:10px;color:var(--muted)}.hub-activity-row b{color:#bd5d32;font-size:18px}
+.hub-quick-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.hub-quick-grid button{display:flex;align-items:center;gap:9px;min-height:54px;border:1px solid #eadfd4;border-radius:13px;background:#fffaf5;color:var(--text);padding:10px;text-align:left;font-weight:800;font-size:11px}
+.hub-quick-grid .icon{width:22px;height:22px;color:#bd5d32}
+.hub-context-panel{align-self:start}
+.hub-count-badge{display:grid;place-items:center;min-width:25px;height:25px;border-radius:999px;background:#bd5d32;color:white;font-size:11px;font-weight:900}
+.hub-context-alert{width:100%;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;border:0;border-top:1px solid #f0e5db;background:transparent;padding:13px 2px;text-align:left;color:var(--text)}
+.hub-context-alert>span:first-child{display:grid;place-items:center;width:31px;height:31px;border-radius:50%;background:#f6e7d9;color:#a85a35;font-weight:900}
+.hub-context-alert.urgent>span:first-child{background:#fae3df;color:#aa4138}
+.hub-context-alert div{display:grid;gap:2px}.hub-context-alert strong{font-size:12px}.hub-context-alert small{font-size:10px;color:var(--muted)}.hub-context-alert>b{color:#bd5d32}
+.hub-context-alert .status-dot{width:12px;height:12px;border-radius:50%;padding:0;background:#c8b7a5}.hub-context-alert .status-dot.good{background:#4b8c61}
+.hub-context-cta{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;border:0;border-radius:13px;background:#c4512a;color:#fff;padding:12px;font-weight:850}.hub-context-cta .icon{width:19px;height:19px}
+@media(min-width:760px){.hub-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hub-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1180px){
+  body{background:#f7f2eb}
+  .shell{max-width:none;padding:18px 24px 34px 282px}
+  .hub-sidebar{position:fixed;left:14px;top:14px;bottom:14px;width:244px;display:flex;flex-direction:column;border:1px solid #eadfd4;border-radius:22px;background:#fffaf5;box-shadow:0 16px 40px #67401f12;z-index:40;overflow:hidden}
+  .hub-sidebar-brand{padding:22px 20px 16px;border-bottom:1px solid #eee2d7}
+  .hub-sidebar-brand span{font-family:Georgia,ui-serif,serif;font-size:27px;font-weight:800;letter-spacing:-1px}
+  .hub-sidebar-brand b{font-family:Georgia,ui-serif,serif;font-size:21px;color:#c4512a;margin-left:5px}
+  .hub-sidebar-brand small{display:block;margin-top:3px;color:#9c8d80;font-size:9px;text-transform:uppercase;letter-spacing:1.15px}
+  .hub-sidebar-scroll{padding:10px 12px 18px;overflow:auto}
+  .hub-sidebar-group{padding:8px 0 5px;border-bottom:1px solid #f0e6dc}
+  .hub-sidebar-group:last-child{border-bottom:0}
+  .hub-sidebar-group>small{display:block;padding:4px 10px 6px;color:#a29285;font-size:8px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase}
+  .hub-sidebar-group button{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:#5d554e;border-radius:11px;padding:9px 10px;text-align:left;font-size:11px;font-weight:760}
+  .hub-sidebar-group button .icon{width:18px;height:18px;color:#71665c}
+  .hub-sidebar-group button:hover,.hub-sidebar-group button.active{background:#f9e7da;color:#b44924}
+  .hub-sidebar-group button.active .icon{color:#c4512a}
+  .nav{display:none!important}
+  .artisan-top{position:sticky;top:10px;z-index:30;display:grid;grid-template-columns:minmax(280px,620px) auto;gap:18px;align-items:center;margin-bottom:18px;padding:10px 12px;background:#fffdf9e8;border:1px solid #eadfd4;border-radius:17px;box-shadow:0 8px 28px #66401f0d;backdrop-filter:blur(14px)}
+  .artisan-top>div:first-child{display:none}
+  .hub-global-search{display:flex;align-items:center;gap:10px;min-width:0;border:1px solid #e7ddd3;background:#fff;color:#8a7d72;border-radius:12px;padding:10px 12px;text-align:left}
+  .hub-global-search span{font-size:20px;color:#5d554e}.hub-global-search b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.hub-global-search kbd{border:1px solid #e6ded6;background:#f8f4ef;border-radius:7px;padding:3px 7px;color:#8b8178;font-size:9px}
+  .top-controls{justify-content:flex-end}
+  .remapro-dashboard-v2{max-width:1320px}
+  .dashboard-welcome{margin-top:4px}
+  .hub-dashboard-layout{grid-template-columns:minmax(0,1fr) 300px}
+  .hub-dashboard-main{grid-template-columns:minmax(0,1.35fr) minmax(290px,.85fr)}
+  .hub-revenue-panel{grid-row:span 2}
+  .hub-context-panel{position:sticky;top:92px}
+}

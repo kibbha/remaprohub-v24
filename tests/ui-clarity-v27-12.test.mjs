@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../app/styles.css',import.meta.url),'utf8');
+assert.ok(app.includes('function hubSidebar()'));
+assert.ok(app.includes('remapro-dashboard-v2'));
+assert.ok(app.includes('hub-global-search'));
+assert.ok(app.includes('hub-kpi-grid'));
+assert.ok(css.includes('V27.12 — ReMaPro clarity redesign'));
+assert.ok(css.includes('.hub-sidebar'));
+assert.ok(css.includes('.hub-dashboard-layout'));
+assert.ok(css.includes('@media(min-width:1180px)'));
+console.log('ReMaPro Hub clarity redesign checks passed');
