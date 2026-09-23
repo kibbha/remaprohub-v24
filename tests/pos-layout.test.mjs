@@ -68,7 +68,6 @@ assert.match(editorHtml,/Boisson/);
 assert.match(editorHtml,/Quantité manuelle/);
 assert.match(editorHtml,/Calculée par stock\/recette/);
 assert.match(editorHtml,/Alerte basse/);
-assert.match(editorHtml,/Remettre la quantité disponible/);
 
 const normalized=normalizePosLayout(seeded);
 assert.equal(normalized.buttons[0].w,2);
@@ -81,6 +80,8 @@ assert.equal(normalized.menus[0].choices[0].required,true);
 const source=fs.readFileSync(new URL('../src/pos-layout.js',import.meta.url),'utf8');
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
+assert.ok(source.includes('Remettre la quantité disponible'));
+assert.ok(source.includes('posLayoutAvailabilityReset'));
 
 assert.ok(edge.includes('Standalone layout item requires name, price and valid tax rate'));
 assert.ok(edge.includes('standaloneLayoutItems:true'));
