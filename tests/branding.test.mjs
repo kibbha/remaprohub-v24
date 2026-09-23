@@ -27,3 +27,7 @@ assert.doesNotMatch(foreground,/<inset\b/);
 assert.match(legacy,/#C75232/);
 assert.match(colors,/#C75232/);
 console.log('ReMaPro POS selected initials branding checks passed');
+
+assert.match(foreground,/<!-- POS -->/);
+assert.match(foreground,/M250,690h25v120h-25z/);
+assert.match(legacy,/<!-- POS -->/);

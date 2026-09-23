@@ -56,10 +56,12 @@ jobs:
           node scripts/stamp-android-version.mjs
           grep -q 'versionName "0.27.0"' android/app/build.gradle
 
-      - name: Add ReMaPro network ESC/POS bridge
+      - name: Add ReMaPro network ESC/POS bridge and immersive fullscreen
         run: |
           node scripts/patch-network-printer.mjs
           grep -q 'registerPlugin(NetworkPrinterPlugin.class)' android/app/src/main/java/com/remaprohub/pos/MainActivity.java
+          grep -q 'WindowInsetsCompat.Type.systemBars()' android/app/src/main/java/com/remaprohub/pos/MainActivity.java
+          grep -q 'BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE' android/app/src/main/java/com/remaprohub/pos/MainActivity.java
           grep -q '@CapacitorPlugin(name = "NetworkPrinter")' android/app/src/main/java/com/remaprohub/pos/NetworkPrinterPlugin.java
 
       - name: Synchronize native plugins

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 const printer=fs.readFileSync(new URL('../src/printer.js',import.meta.url),'utf8');
 const java=fs.readFileSync(new URL('../android-native/NetworkPrinterPlugin.java',import.meta.url),'utf8');
 const patch=fs.readFileSync(new URL('../scripts/patch-network-printer.mjs',import.meta.url),'utf8');
+const activity=fs.readFileSync(new URL('../android-native/MainActivity.java',import.meta.url),'utf8');
 const workflow=fs.readFileSync(new URL('../.github/workflows/pos-android-validation.yml',import.meta.url),'utf8');
 assert.ok(printer.includes("['bluetooth','usb','network']"));
 assert.ok(printer.includes("nativeNetworkPrinterPlugin"));
@@ -14,3 +15,9 @@ assert.ok(java.includes('socket.setTcpNoDelay(true)'));
 assert.ok(patch.includes('registerPlugin(NetworkPrinterPlugin.class)'));
 assert.ok(workflow.includes('patch-network-printer.mjs'));
 console.log('Network ESC/POS native TCP bridge checks passed');
+
+assert.match(activity,/WindowCompat\.setDecorFitsSystemWindows\(getWindow\(\), false\)/);
+assert.match(activity,/controller\.hide\(WindowInsetsCompat\.Type\.systemBars\(\)\)/);
+assert.match(activity,/BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE/);
+assert.match(activity,/onResume\(\)/);
+assert.match(activity,/registerPlugin\(NetworkPrinterPlugin\.class\)/);
