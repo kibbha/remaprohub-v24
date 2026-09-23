@@ -7,5 +7,9 @@ assert.ok(app.includes("remapro-direct-order-admin"),'Hub must call direct-order
 for(const token of ['directOrderAdminCard','createDirectOrderChannel','rotateDirectOrderChannel','directOrderPrint'])assert.ok(app.includes(token),token+' missing');
 assert.ok(admin.includes('token_hash'),'plain QR secret must not be persisted');
 assert.ok(admin.includes('QRCode.toString'),'QR SVG generation required');
+assert.ok(admin.includes('paymentMethods'),'QR payment preferences must be manager-configurable');
+for(const token of ['patchDirectOrderFromPos','syncDirectProductionFromPos','syncDirectPaymentFromPos'])assert.ok(sync.includes(token),token+' lifecycle bridge missing');
+assert.ok(sync.includes('production_started'),'web order must expose KDS progression');
+assert.ok(sync.includes('payment_synced'),'web order must expose POS-confirmed payment state');
 for(const action of ['list_direct_orders','claim_direct_order','link_direct_order','reject_direct_order'])assert.ok(sync.includes(action),action+' POS bridge missing');
 console.log('Hub QR administration and POS bridge checks passed');

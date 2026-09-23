@@ -11,6 +11,10 @@ assert.ok(js.includes("x-remapro-order-token"),'QR token must be sent separately
 assert.ok(js.includes("location.hash"),'QR secret must be read from fragment');
 assert.ok(js.includes("crypto.randomUUID()"),'client idempotency key required');
 assert.ok(!js.includes('payment_status:"paid"'),'client must never mark payment as paid');
+assert.ok(pub.includes('paymentMethod==="counter"?"unpaid":"pending"'),'public server may request payment but never self-confirm it');
+assert.ok(pub.includes('Payment method unavailable'),'payment preference must be server allowlisted');
+assert.ok(pub.includes('Invalid pickup time'),'pickup scheduling must be validated server-side');
+assert.ok(pub.includes('payment_method'),'public status must expose payment state from the POS');
 assert.ok(pub.includes('token_hash'),'server token hash validation required');
 assert.ok(pub.includes('Too many recent orders'),'rate limit required');
 assert.ok(pub.includes('pos_catalog_items'),'server-side catalog pricing required');

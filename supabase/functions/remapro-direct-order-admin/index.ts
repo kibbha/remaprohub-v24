@@ -32,7 +32,7 @@ export default {
       }
       if(action==="create_channel"){
         const plain=token(),tokenHash=await sha(plain),requested=slugify(body.slug||restaurant.name),slug=(requested||"restaurant")+"-"+crypto.randomUUID().slice(0,8),modes=Array.isArray(body.modes)?body.modes.map(String).filter((x:string)=>["dine_in","takeaway"].includes(x)):["dine_in","takeaway"];
-        const publicConfig={title:clean(body.title||restaurant.name,100),accent:clean(body.accent,30),allowNotes:body.allowNotes!==false};
+        const paymentMethods=Array.isArray(body.paymentMethods)?body.paymentMethods.map(String).filter((x:string)=>["counter","card","twint"].includes(x)):["counter"],publicConfig={title:clean(body.title||restaurant.name,100),accent:clean(body.accent,30),allowNotes:body.allowNotes!==false,paymentMethods:paymentMethods.length?paymentMethods:["counter"]};
         const {data,error}=await ctx.supabaseAdmin.from("direct_order_channels").insert({organization_id:restaurant.organization_id,restaurant_id:restaurantId,slug,token_hash:tokenHash,modes:modes.length?modes:["dine_in","takeaway"],public_config:publicConfig,created_by:userId}).select("id,slug,active,modes,public_config,created_at").single();
         if(error)return json({error:error.message},409);const url=publicUrl(slug,plain);return json({ok:true,channel:data,token:plain,url,qrSvg:await qrSvg(url)});
       }
@@ -43,7 +43,7 @@ export default {
       }
       if(action==="set_channel"){
         const id=clean(body.channelId,64);if(!validUuid(id))return json({error:"Valid channel required"},400);
-        const patch:any={updated_at:new Date().toISOString()};if(typeof body.active==="boolean")patch.active=body.active;if(Array.isArray(body.modes)){const modes=body.modes.map(String).filter((x:string)=>["dine_in","takeaway"].includes(x));if(modes.length)patch.modes=modes}
+        const patch:any={updated_at:new Date().toISOString()};if(typeof body.active==="boolean")patch.active=body.active;if(Array.isArray(body.modes)){const modes=body.modes.map(String).filter((x:string)=>["dine_in","takeaway"].includes(x));if(modes.length)patch.modes=modes}if(Array.isArray(body.paymentMethods)){const methods=body.paymentMethods.map(String).filter((x:string)=>["counter","card","twint"].includes(x));if(methods.length){const {data:current}=await ctx.supabaseAdmin.from("direct_order_channels").select("public_config").eq("id",id).eq("restaurant_id",restaurantId).maybeSingle();patch.public_config={...(current?.public_config||{}),paymentMethods:methods}}
         const {data,error}=await ctx.supabaseAdmin.from("direct_order_channels").update(patch).eq("id",id).eq("restaurant_id",restaurantId).select("id,slug,active,modes,public_config,updated_at").single();
         if(error||!data)return json({error:error?.message||"Channel not found"},404);return json({ok:true,channel:data});
       }

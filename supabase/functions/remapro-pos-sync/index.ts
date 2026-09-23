@@ -5,6 +5,22 @@ const clean=(value:unknown,max=160)=>String(value??"").trim().slice(0,max);
 const validUuid=(value:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));
 const validDate=(value:unknown)=>/^\d{4}-\d{2}-\d{2}$/.test(String(value||""));
 
+async function patchDirectOrderFromPos(db:any,posOrderId:string,patch:any,eventType:string,actorUserId:string){
+  const now=new Date().toISOString(),payload={...patch,updated_at:now};if(patch.status==="completed")payload.completed_at=now;
+  const {data}=await db.from("direct_orders").update(payload).eq("pos_order_id",posOrderId).select("id").maybeSingle();
+  if(data?.id)await db.from("direct_order_events").insert({direct_order_id:data.id,event_type:eventType,actor_user_id:actorUserId,details:{posOrderId,...patch}});
+}
+async function syncDirectProductionFromPos(db:any,posOrderId:string,actorUserId:string){
+  const {data:items}=await db.from("pos_order_items").select("kitchen_status,station_snapshot").eq("order_id",posOrderId);
+  const routed=(items||[]).filter((x:any)=>String(x.station_snapshot||"")!=="none"&&String(x.kitchen_status||"")!=="cancelled");if(!routed.length)return;
+  const allDone=routed.every((x:any)=>["ready","served"].includes(String(x.kitchen_status))),status=allDone?"ready":"preparing";
+  await patchDirectOrderFromPos(db,posOrderId,{status},"production_synced",actorUserId);
+}
+async function syncDirectPaymentFromPos(db:any,posOrderId:string,actorUserId:string){
+  const {data:order}=await db.from("pos_orders").select("status").eq("id",posOrderId).maybeSingle();if(!order)return;
+  if(["paid","refunded"].includes(String(order.status)))await patchDirectOrderFromPos(db,posOrderId,{status:"completed",payment_status:String(order.status)==="refunded"?"refunded":"paid"},"payment_synced",actorUserId);
+}
+
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
@@ -524,6 +540,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
 
@@ -550,6 +567,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
 
@@ -590,6 +608,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
 
@@ -613,6 +632,7 @@ export default {
           p_actor_user_id:userId,p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,payment:data});
       }
 
@@ -763,6 +783,7 @@ export default {
           p_order_id:orderId,p_actor_user_id:userId
         });
         if(error)return json({error:error.message},409);
+        await patchDirectOrderFromPos(ctx.supabaseAdmin,orderId,{status:"preparing"},"production_started",userId);
         return json({ok:true,order:data});
       }
 
@@ -842,6 +863,7 @@ export default {
           p_item_id:itemId,p_status:status,p_actor_user_id:userId
         });
         if(error)return json({error:error.message},409);
+        const posOrderId=clean((data as any)?.orderId,64);if(validUuid(posOrderId))await syncDirectProductionFromPos(ctx.supabaseAdmin,posOrderId,userId);
         return json({ok:true,item:data});
       }
 
