@@ -37,9 +37,9 @@ for(const module of modules){
 }
 
 const assets=JSON.parse(sw.match(/const ASSETS=(\[[\s\S]*?\]);/)?.[1]||'[]');
-for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
+for(const asset of assets.filter(asset=>asset!=='./'))assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
 
 const hash=createHash('sha256');
-for(const asset of assets){hash.update(asset);hash.update(readFileSync(`app/${asset}`))}
+for(const asset of assets.filter(asset=>asset!=='./')){hash.update(asset);hash.update(readFileSync(`app/${asset}`))}
 assert.ok(sw.includes(`const CACHE='remaprohub-v27-shell-${hash.digest('hex').slice(0,12)}';`),'offline cache must match packaged assets');
 console.log(`PWA offline shell and packaged module graph OK (${modules.length} modules)`);

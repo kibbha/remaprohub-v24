@@ -32,9 +32,10 @@ for(const name of moduleFiles){
 }
 
 const baseAssets=['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','order.html','order.css','order.js','styles.css','icons.svg','manifest.json','icon.svg'];
-const assets=[...baseAssets,...moduleFiles.map(name=>'src/'+name)];
+const fileAssets=[...baseAssets.map(name=>'./'+name),...moduleFiles.map(name=>'./src/'+name)];
+const assets=['./',...fileAssets];
 const hash=createHash('sha256');
-for(const asset of assets){hash.update(asset);hash.update(await readFile(resolve(root,'app',asset)))}
+for(const asset of fileAssets){hash.update(asset);hash.update(await readFile(resolve(root,'app',asset.slice(2))))}
 const cache=`remaprohub-v27-shell-${hash.digest('hex').slice(0,12)}`;
 
 const swPath=resolve(root,'app/sw.js');
@@ -42,7 +43,7 @@ let sw=await readFile(swPath,'utf8');
 sw=sw.replace(/const CACHE='[^']+';/,`const CACHE='${cache}';`);
 sw=sw.replace(/const ASSETS=\[[\s\S]*?\];/,`const ASSETS=${JSON.stringify(assets)};`);
 if(!sw.includes(`const CACHE='${cache}';`))throw new Error('Service worker cache declaration missing');
-for(const name of moduleFiles)if(!sw.includes(`"src/${name}"`))throw new Error('Service worker module list incomplete: '+name);
+for(const name of moduleFiles)if(!sw.includes(`"./src/${name}"`))throw new Error('Service worker module list incomplete: '+name);
 await writeFile(swPath,sw);
 
 console.log(`Web runtime packaged in app/src: ${moduleFiles.length} modules (${cache})`);
