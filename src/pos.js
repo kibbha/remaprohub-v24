@@ -43,7 +43,7 @@ const availabilityOf=(item,state,components)=>{
   if(mode==='stock'&&components.length){
     availablePortions=Math.max(0,Math.floor(Math.min(...components.map(row=>stockAvailableLocal(state,stockById(state,row.stockId))/row.quantity))));
   }
-  return{mode,manualQuantity,lowThreshold,availablePortions};
+  return{mode,manualQuantity,lowThreshold,availablePortions,resetAt:String(item?.posAvailabilityResetAt||'')};
 };
 const itemUnitCost=(item,state)=>{
   const direct=Math.max(0,n(item?.cost));
