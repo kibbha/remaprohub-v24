@@ -4,7 +4,7 @@
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f3eee6",
-  "theme_color": "#352f2b",
+  "theme_color": "#C75232",
   "description": "Point of sale for restaurants connected to ReMaPro Hub",
   "icons": [
     {
@@ -12,6 +12,12 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }
