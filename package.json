@@ -16,7 +16,7 @@
     "@capacitor/local-notifications": "7.0.0",
     "@revenuecat/purchases-capacitor": "11.3.2",
     "capacitor-secure-storage-plugin": "0.12.0",
-    "@capgo/capacitor-native-biometric": "7.0.0",
+    "@capgo/capacitor-native-biometric": "^7.1.13",
     "@capacitor/camera": "7.0.5"
   },
   "engines": {
