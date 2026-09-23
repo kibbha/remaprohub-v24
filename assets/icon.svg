@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#352f2b"/>
-  <path d="M122 144h268v224H122z" fill="#f3eee6" rx="28"/>
-  <path d="M160 190h192v42H160zm0 72h84v72h-84zm108 0h84v72h-84z" fill="#b86f43"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+  <title id="title">ReMaPro POS</title>
+  <rect width="1024" height="1024" fill="#C75232"/>
+  <g fill="#FFFDF9">
+    <path d="M165 370c0-27 22-49 49-49h174v474l-56-47-56 47-56-47-55 47V370Z"/>
+    <rect x="225" y="402" width="105" height="22" rx="11" fill="#C75232"/>
+    <rect x="225" y="458" width="105" height="22" rx="11" fill="#C75232"/>
+    <rect x="225" y="514" width="105" height="22" rx="11" fill="#C75232"/>
+    <path fill-rule="evenodd" d="M392 225h263c122 0 205 78 205 190 0 84-47 147-126 176l154 204H722L594 618h-74v177H392V225Zm128 119v161h125c53 0 83-29 83-81 0-51-30-80-83-80H520Z"/>
+  </g>
 </svg>
