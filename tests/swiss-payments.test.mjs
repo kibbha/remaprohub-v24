@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+assert.ok(app.includes("data-pay=\"card\""));
+assert.ok(app.includes("data-pay=\"twint\""));
+assert.ok(app.includes("action:'create_terminal_intent'"));
+assert.ok(app.includes("connectedTerminal(method)"));
+assert.ok(app.includes("Worldline TIM"));
+assert.ok(app.includes("capture automatique reste désactivée"));
+console.log('Swiss card/TWINT POS intent readiness checks passed');
