@@ -346,3 +346,10 @@ h2{font-size:clamp(14px,2.8vw,17px)}
 .pos-availability-config{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--soft,#f7f1e9)}
 .pos-availability-config label{display:grid;gap:5px;font-size:12px;font-weight:700}.pos-availability-config input,.pos-availability-config select{border:1px solid var(--line);border-radius:9px;padding:8px;background:var(--surface,#fff);min-width:0}
 @media(max-width:700px){.pos-availability-config{grid-template-columns:1fr}}
+
+/* ReMaPro brand identity — selected concept: Les initiales */
+.remapro-brand{display:flex;align-items:center;gap:10px;min-width:0;color:#2f2925}
+.remapro-brand img{width:48px!important;height:48px!important;max-height:none!important;object-fit:cover!important;border-radius:12px;box-shadow:0 5px 14px #5f51451f;flex:0 0 auto}
+.remapro-wordmark{display:grid;line-height:.92;min-width:0}.remapro-wordmark strong{font-size:22px;letter-spacing:-.7px;font-weight:900;color:#2f2925}.remapro-wordmark b{font-size:15px;letter-spacing:3.8px;color:#8D7B6A;margin-top:5px}
+@media(max-width:520px){.remapro-brand{gap:8px}.remapro-brand img{width:42px!important;height:42px!important;border-radius:11px}.remapro-wordmark strong{font-size:18px}.remapro-wordmark b{font-size:12px;letter-spacing:3px}.brand-tagline{display:none}}
+@media(min-width:1200px){.nav:before{content:"ReMaPro HUB\A Restaurant Management";white-space:pre;line-height:1.45}}
