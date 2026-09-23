@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+assert.ok(app.includes("productSearch:''"));
+assert.ok(app.includes('function productGlyph'));
+assert.ok(app.includes('pos-global-search'));
+assert.ok(app.includes('service-segments'));
+assert.ok(app.includes('payment-primary'));
+assert.ok(app.includes('data-service-type-ui'));
+assert.ok(css.includes('V0.28 — ReMaPro POS clarity redesign'));
+assert.ok(css.includes('.pos-more-menu'));
+assert.ok(css.includes('.product-visual'));
+assert.ok(css.includes('.cart-tools'));
+assert.ok(sw.includes('v0280-ui-20260923'));
+console.log('ReMaPro POS clarity redesign checks passed');
