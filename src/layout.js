@@ -1,11 +1,19 @@
 const clone=v=>JSON.parse(JSON.stringify(v));
+function normalizeStandaloneItem(item){
+  if(!item||typeof item!=='object')return null;
+  const name=String(item.name||'').trim(),price=Number(item.price),taxRate=Number(item.taxRate??item.tax_rate??8.1);
+  if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100)return null;
+  const type=['dish','drink','other'].includes(String(item.type))?String(item.type):'other';
+  const station=['kitchen','bar','none'].includes(String(item.station))?String(item.station):(type==='drink'?'bar':type==='dish'?'kitchen':'none');
+  return{name,price:Math.round(price*100)/100,taxRate,sku:String(item.sku||''),type,station};
+}
 export function normalizeLayout(input){
   const src=input&&typeof input==='object'?clone(input):{};
   const doc={
     schemaVersion:1,
     pages:Array.isArray(src.pages)?src.pages:[],
     categories:Array.isArray(src.categories)?src.categories:[],
-    buttons:Array.isArray(src.buttons)?src.buttons:[],
+    buttons:Array.isArray(src.buttons)?src.buttons.map(button=>({...button,productId:String(button?.productId||''),item:normalizeStandaloneItem(button?.item)})):[],
     modifierGroups:Array.isArray(src.modifierGroups)?src.modifierGroups:[],
     productModifiers:Array.isArray(src.productModifiers)?src.productModifiers:[],
     menus:Array.isArray(src.menus)?src.menus:[]
@@ -18,6 +26,12 @@ export function publishedLayout(bootstrap){
   return {version:Number(layout.version)||0,checksum:String(layout.checksum||''),publishedAt:layout.publishedAt||null,document:normalizeLayout(layout.document)};
 }
 export function productById(catalog,id){return(catalog||[]).find(x=>String(x.id)===String(id))||null}
+export function itemForButton(button,catalog=[]){
+  const linked=button?.productId?productById(catalog,button.productId):null;
+  if(linked)return{...linked,layoutStandalone:false};
+  const item=normalizeStandaloneItem(button?.item);
+  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,layoutStandalone:true}:null;
+}
 export function buttonById(doc,id){return normalizeLayout(doc).buttons.find(x=>String(x.id)===String(id))||null}
 export function pageButtons(doc,pageId){
   return normalizeLayout(doc).buttons.filter(x=>String(x.pageId||'')===String(pageId||'')).sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
@@ -29,13 +43,14 @@ export function categoriesForPage(doc,pageId){
 export function modifierGroupsForButton(doc,button){
   const d=normalizeLayout(doc);
   const direct=Array.isArray(button?.modifierGroupIds)?button.modifierGroupIds.map(String):[];
-  const linked=d.productModifiers.find(x=>String(x.productId)===String(button?.productId))?.groupIds||[];
+  const linked=button?.productId?d.productModifiers.find(x=>String(x.productId)===String(button.productId))?.groupIds||[]:[];
   const ids=[...new Set([...direct,...linked.map(String)])];
   return ids.map(id=>d.modifierGroups.find(g=>String(g.id)===id)).filter(Boolean);
 }
 export function menuForButton(doc,button){
   const d=normalizeLayout(doc);
-  return d.menus.find(m=>String(m.productId||'')===String(button?.productId||''))||null;
+  const productId=String(button?.productId||'');if(!productId)return null;
+  return d.menus.find(m=>String(m.productId||'')===productId)||null;
 }
 export function menuChoiceProducts(doc,choice,catalog){
   const d=normalizeLayout(doc),list=Array.isArray(catalog)?catalog:[];
