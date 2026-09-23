@@ -21,6 +21,35 @@ async function syncDirectPaymentFromPos(db:any,posOrderId:string,actorUserId:str
   if(["paid","refunded"].includes(String(order.status)))await patchDirectOrderFromPos(db,posOrderId,{status:"completed",payment_status:String(order.status)==="refunded"?"refunded":"paid"},"payment_synced",actorUserId);
 }
 
+async function attributeOrderTips(db:any,orderId:string,operatorContext:any){
+  const operator=operatorContext?.operator;
+  const operatorId=clean(operator?.id,64);
+  if(!validUuid(operatorId))return;
+  const operatorName=clean(operator?.display_name||operator?.displayName||"Opérateur",120)||"Opérateur";
+  await db.from("pos_payments")
+    .update({tip_operator_id:operatorId,tip_operator_name_snapshot:operatorName})
+    .eq("order_id",orderId).gt("tip_amount",0).is("tip_operator_id",null);
+}
+
+async function tipsByOperatorForDate(db:any,restaurantId:string,businessDate:string){
+  const {data:orders,error:orderError}=await db.from("pos_orders").select("id")
+    .eq("restaurant_id",restaurantId).eq("business_date",businessDate);
+  if(orderError||!orders?.length)return[];
+  const ids=orders.map((x:any)=>x.id);
+  const {data:payments,error}=await db.from("pos_payments")
+    .select("tip_amount,tip_operator_id,tip_operator_name_snapshot")
+    .in("order_id",ids).eq("status","captured").gt("tip_amount",0);
+  if(error)return[];
+  const map=new Map<string,{operatorId:string|null,name:string,amount:number,count:number}>();
+  for(const p of payments||[]){
+    const operatorId=validUuid(p.tip_operator_id)?String(p.tip_operator_id):null;
+    const key=operatorId||"unattributed",name=clean(p.tip_operator_name_snapshot,120)||(operatorId?"Opérateur":"Non attribué");
+    const row=map.get(key)||{operatorId,name,amount:0,count:0};
+    row.amount+=Number(p.tip_amount)||0;row.count+=1;map.set(key,row);
+  }
+  return[...map.values()].map(x=>({...x,amount:Math.round(x.amount*100)/100})).sort((a,b)=>b.amount-a.amount);
+}
+
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
@@ -315,6 +344,7 @@ export default {
           p_occurred_at:order.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await attributeOrderTips(ctx.supabaseAdmin,orderId,operatorContext);
         return json({ok:true,receipt:data});
       }
 
@@ -591,6 +621,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await attributeOrderTips(ctx.supabaseAdmin,orderId,operatorContext);
         await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
@@ -618,6 +649,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await attributeOrderTips(ctx.supabaseAdmin,orderId,operatorContext);
         await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
@@ -659,6 +691,7 @@ export default {
           p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await attributeOrderTips(ctx.supabaseAdmin,orderId,operatorContext);
         await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,receipt:data});
       }
@@ -683,6 +716,7 @@ export default {
           p_actor_user_id:userId,p_occurred_at:body.occurredAt||new Date().toISOString()
         });
         if(error)return json({error:error.message},409);
+        await attributeOrderTips(ctx.supabaseAdmin,orderId,operatorContext);
         await syncDirectPaymentFromPos(ctx.supabaseAdmin,orderId,userId);
         return json({ok:true,payment:data});
       }
@@ -703,7 +737,7 @@ export default {
           ctx.supabaseAdmin.from("pos_payment_allocations")
             .select("order_item_id,payment_id,quantity,amount,tax_amount").eq("order_id",orderId),
           ctx.supabaseAdmin.from("pos_payments")
-            .select("id,method,amount,tip_amount,status,paid_at,metadata,receipt_number")
+            .select("id,method,amount,tip_amount,tip_operator_id,tip_operator_name_snapshot,status,paid_at,metadata,receipt_number")
             .eq("order_id",orderId).eq("status","captured").order("paid_at")
         ]);
         if(itemResult.error||allocationResult.error||paymentResult.error){
@@ -921,7 +955,7 @@ export default {
       if(action==="recent_receipts"){
         const limit=Math.max(1,Math.min(100,Math.trunc(Number(body.limit)||30)));
         const {data,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note,modifiers),payments:pos_payments(id,method,amount,tip_amount,status,provider,provider_reference,metadata,receipt_number),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
+          .select("id,business_date,receipt_number,status,total,tip_total,currency,service_type,table_label,covers,closed_at,items:pos_order_items(id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,note,modifiers),payments:pos_payments(id,method,amount,tip_amount,tip_operator_id,tip_operator_name_snapshot,status,provider,provider_reference,metadata,receipt_number),refunds:pos_refunds(id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at)")
           .eq("restaurant_id",restaurantId).in("status",["paid","refunded"]).order("closed_at",{ascending:false}).limit(limit);
         if(error)return json({error:error.message},500);
         return json({ok:true,rows:data||[]});
@@ -1162,7 +1196,7 @@ export default {
           p_order_id:orderId,p_client_event_id:eventId,p_terminal_id:terminalId,p_device_id:deviceId,p_cash_session_id:sessionId,
           p_method:clean(body.method,20).toLowerCase(),p_amount:Math.round((Number(body.amount)||0)*100)/100,
           p_tip_amount:Math.max(0,Math.round((Number(body.tipAmount)||0)*100)/100),
-          p_actor_user_id:userId,p_metadata:body.metadata&&typeof body.metadata==="object"?body.metadata:{}
+          p_actor_user_id:userId,p_metadata:{...(body.metadata&&typeof body.metadata==="object"?body.metadata:{}),...(operatorContext?.operator?.id?{tipOperatorId:String(operatorContext.operator.id),tipOperatorName:clean(operatorContext.operator.display_name||operatorContext.operator.displayName,120)}:{})}
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,intent:data});
@@ -1198,7 +1232,8 @@ export default {
           p_actor_user_id:userId
         });
         if(error)return json({error:error.message},409);
-        return json({ok:true,report:data});
+        const tipsByOperator=await tipsByOperatorForDate(ctx.supabaseAdmin,restaurantId,businessDate);
+        return json({ok:true,report:{...(data&&typeof data==="object"?data:{}),tipsByOperator}});
       }
 
       if(action==="list_direct_orders"){
