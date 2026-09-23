@@ -21,7 +21,7 @@ const state={
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
-let terminalPollTimer=null,directOrderPollTimer=null;
+let terminalPollTimer=null,directOrderPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false;
 const money=v=>new Intl.NumberFormat(({fr:'fr-CH',en:'en-CH',de:'de-CH',it:'it-CH'})[language()]||'fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -254,6 +254,8 @@ async function finalizeTerminalUi(intent){
   return false;
 }
 async function pollTerminalIntent(intentId,orderId){
+  if(terminalPollInFlight)return;
+  terminalPollInFlight=true;
   try{
     const r=await posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,orderId,limit:20});
     const intent=(r.rows||[]).find(x=>x.id===intentId);
@@ -268,7 +270,7 @@ async function pollTerminalIntent(intentId,orderId){
     const modal=document.querySelector('#terminal-intent-modal');
     const msg=modal?.querySelector('#terminal-live-error');
     if(msg)msg.textContent=error.message||String(error);
-  }
+  }finally{terminalPollInFlight=false}
 }
 function showTerminalIntentModal(order,intent,terminal){
   closeTerminalIntentModal();
@@ -640,10 +642,13 @@ async function refreshReceipts(){
     }
   }catch(error){state.error=error.message||String(error)}
 }
+function queuedPayload(item){
+  return{...item.payload,clientEventId:item.payload?.clientEventId||item.client_event_id};
+}
 async function executeQueued(item){
   assertQueuedOperator(item);
   if(item.action==='open_cash_session'){
-    const r=await posFunction({action:'open_cash_session',restaurantId:item.restaurantId,...item.payload});
+    const r=await posFunction({action:'open_cash_session',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(state.cashSession?.id===item.payload.sessionId){state.cashSession={...state.cashSession,...r.session,synced:true};await kvSet(sessionKey(item.restaurantId),state.cashSession)}
     return r;
   }
@@ -656,30 +661,30 @@ async function executeQueued(item){
     return posFunction({action:'save_open_order',restaurantId:item.restaurantId,order:item.payload.order});
   }
   if(item.action==='append_order_items'){
-    return posFunction({action:'append_order_items',restaurantId:item.restaurantId,...item.payload});
+    return posFunction({action:'append_order_items',restaurantId:item.restaurantId,...queuedPayload(item)});
   }
   if(item.action==='send_to_production'){
-    return posFunction({action:'send_to_production',restaurantId:item.restaurantId,...item.payload});
+    return posFunction({action:'send_to_production',restaurantId:item.restaurantId,...queuedPayload(item)});
   }
   if(item.action==='update_production_item'){
-    return posFunction({action:'update_production_item',restaurantId:item.restaurantId,...item.payload});
+    return posFunction({action:'update_production_item',restaurantId:item.restaurantId,...queuedPayload(item)});
   }
   if(item.action==='settle_open_order'){
-    const r=await posFunction({action:'settle_open_order',restaurantId:item.restaurantId,...item.payload});
+    const r=await posFunction({action:'settle_open_order',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(r.receipt)await saveReceipt(r.receipt);
     state.openOrders=state.openOrders.filter(x=>x.id!==item.payload.orderId);
     await saveFloorCache();
     return r;
   }
   if(item.action==='settle_open_order_split'){
-    const r=await posFunction({action:'settle_open_order_split',restaurantId:item.restaurantId,...item.payload});
+    const r=await posFunction({action:'settle_open_order_split',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(r.receipt)await saveReceipt(r.receipt);
     state.openOrders=state.openOrders.filter(x=>x.id!==item.payload.orderId);
     await saveFloorCache();
     return r;
   }
   if(item.action==='close_cash_session'){
-    const r=await posFunction({action:'close_cash_session',restaurantId:item.restaurantId,...item.payload});
+    const r=await posFunction({action:'close_cash_session',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(state.cashSession?.id===item.payload.sessionId){
       await kvSet('lastClosedSession:'+item.restaurantId,r.session||state.cashSession);
       state.cashSession=null;await kvDelete(sessionKey(item.restaurantId));
@@ -688,7 +693,7 @@ async function executeQueued(item){
   }
   throw new Error('UNKNOWN_QUEUE_ACTION');
 }
-async function flushQueue(){
+async function flushQueueInternal(){
   if(state.trainingMode)return;
   if(!state.online||!state.restaurant)return;
   const list=await queueAll();
@@ -715,6 +720,11 @@ async function flushQueue(){
   if(state.pendingAutoReceiptNumber&&state.online)await refreshReceipts();
   state.syncLastRun=new Date().toISOString();
   await updateQueueCount();render();
+}
+async function flushQueue(){
+  if(queueFlushPromise)return queueFlushPromise;
+  queueFlushPromise=flushQueueInternal();
+  try{return await queueFlushPromise}finally{queueFlushPromise=null}
 }
 async function queueCommand(action,payload,options={}){
   if(state.trainingMode)throw new Error('TRAINING_REAL_ACTION_BLOCKED');
