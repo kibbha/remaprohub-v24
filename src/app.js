@@ -1,7 +1,7 @@
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
-import {publishedLayout,productById,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
+import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
@@ -1526,11 +1526,11 @@ function addConfiguredLine(product,button,modifiers,menu){
   const supplement=modifierPriceDelta(modifiers);
   const basePrice=menu&&Number(menu.price)>0?Number(menu.price):Number(product.price)||0;
   const line={
-    id:'cart:'+uuid(),catalog_item_id:product.id,recipe_id:product.recipe_id||null,sku:product.sku||'',
+    id:'cart:'+uuid(),catalog_item_id:product.layoutStandalone?null:product.id,recipe_id:product.recipe_id||null,sku:product.sku||'',
     name:menu?.name||button?.label||product.name,price:Math.round((basePrice+supplement)*100)/100,
     tax_rate:Number(product.tax_rate)||0,
     production_station:button?.station||product.production_station||'kitchen',
-    qty:1,quick:false,locked:false,delta:orderLocked(),modifiers:modifiers||[],
+    qty:1,quick:!!product.layoutStandalone,locked:false,delta:orderLocked(),modifiers:modifiers||[],
     note:modifierSummary(modifiers||[]),layout_button_id:button?.id||'',layout_version:activeLayout()?.version||0
   };
   state.cart.push(line);closeItemConfigurator();render();
@@ -1540,7 +1540,7 @@ function openItemConfigurator(buttonId){
   if(!doc)return;
   const button=buttonById(doc,buttonId);if(!button||button.hidden)return;
   if(button.unavailable){uiAlert('Article temporairement indisponible.');return}
-  const product=productById(catalog,button.productId);if(!product){uiAlert('Produit introuvable dans le catalogue publié.');return}
+  const product=itemForButton(button,catalog);if(!product){uiAlert('Cette touche POS est incomplète. Modifiez-la dans ReMaPro Hub.');return}
   const config=configurationForButton(doc,button,catalog);
   if(!config.groups.length&&!config.menu){addConfiguredLine(product,button,[],null);return}
 
@@ -2063,7 +2063,7 @@ function mainView(){
     const cats=categoriesForPage(doc,state.layoutPageId),buttons=layoutVisibleButtons(layout);
     categoryArea='<nav class="categories layout-categories"><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button><button class="category '+(state.layoutCategoryId==='favorites'?'active':'')+'" data-layout-category="favorites">★ Favoris</button>'+cats.map(c=>'<button class="category '+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+(c.parentId?'↳ ':'')+esc(c.name)+'</button>').join('')+'</nav>';
     productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>Implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</span></div>'
-      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=productById(catalog,b.productId);if(!p)return'';return '<button class="product layout-product '+(b.unavailable?'unavailable':'')+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable?'disabled':'')+' style="--pos-color:'+esc(b.color||'#d6b98c')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.unavailable?'Indisponible · ':'')+(b.favorite?'★ · ':'')+esc(b.station||p.production_station||'kitchen')+'</small><span class="price">'+money((doc.menus||[]).find(m=>String(m.productId)===String(p.id))?.price||p.price)+'</span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucune touche sur cette page</h3><p>Configurez l’implantation dans ReMaPro Hub.</p></div>')+'</section>';
+      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null;return '<button class="product layout-product '+(b.unavailable?'unavailable':'')+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable?'disabled':'')+' style="--pos-color:'+esc(b.color||'#d6b98c')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.unavailable?'Indisponible · ':'')+(b.favorite?'★ · ':'')+esc(b.station||p.production_station||'kitchen')+(p.layoutStandalone?' · POS':'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucune touche sur cette page</h3><p>Configurez l’implantation dans ReMaPro Hub.</p></div>')+'</section>';
   }else{
     const cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
     if(!cats.includes(state.category))state.category='Tous';
