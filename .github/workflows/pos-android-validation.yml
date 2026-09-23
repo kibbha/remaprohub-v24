@@ -59,8 +59,8 @@ jobs:
       - name: Add ReMaPro network ESC/POS bridge
         run: |
           node scripts/patch-network-printer.mjs
-          grep -q 'registerPlugin(NetworkPrinterPlugin.class)' android/app/src/main/java/com/remapro/pos/MainActivity.java
-          grep -q '@CapacitorPlugin(name = "NetworkPrinter")' android/app/src/main/java/com/remapro/pos/NetworkPrinterPlugin.java
+          grep -q 'registerPlugin(NetworkPrinterPlugin.class)' android/app/src/main/java/com/remaprohub/pos/MainActivity.java
+          grep -q '@CapacitorPlugin(name = "NetworkPrinter")' android/app/src/main/java/com/remaprohub/pos/NetworkPrinterPlugin.java
 
       - name: Synchronize native plugins
         run: npx cap sync android
