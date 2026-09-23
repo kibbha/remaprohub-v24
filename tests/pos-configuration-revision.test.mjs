@@ -5,6 +5,7 @@ const sql=fs.readFileSync(new URL('../supabase/migrations/20260923130000_pos_con
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 
 assert.ok(sql.includes('create table if not exists public.pos_configuration_revisions'),'revision table');
+assert.ok(sql.includes('language plpgsql security invoker set search_path=public as $'),'trigger uses valid invoker PL/pgSQL delimiter');
 assert.ok(sql.includes('pos_bump_configuration_revision'),'revision trigger function');
 for(const table of ['pos_catalog_items','pos_tables','pos_operators','pos_printers','pos_payment_terminals','pos_provider_connections','pos_layout_versions']){
   assert.ok(sql.includes('on public.'+table),'tracks '+table);
