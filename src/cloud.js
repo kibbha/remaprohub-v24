@@ -1,4 +1,5 @@
 import{recordDiagnostic}from'./telemetry.js';
+const cloudDiag=(type,error,details={})=>recordDiagnostic(type,{...details,message:error?.message||String(error||'unknown')});
 const URL_KEY='remaprohub-sb-url';
 const KEY_KEY='remaprohub-sb-key';
 const SESSION_KEY='remaprohub-sb-session';
@@ -6,11 +7,11 @@ const IDENTITY_KEY='remaprohub-cloud-identity';
 let SESSION_CACHE=null,SESSION_READY=false;
 const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
 function parseSession(raw){try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}}
-async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){try{await plugin.remove({key:SESSION_KEY})}catch{}try{await plugin.remove({key:IDENTITY_KEY})}catch{}}}
+async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){try{await plugin.remove({key:SESSION_KEY})}catch(error){cloudDiag('cloud.secure_storage_remove_error',error,{key:'session'})}try{await plugin.remove({key:IDENTITY_KEY})}catch(error){cloudDiag('cloud.secure_storage_remove_error',error,{key:'identity'})}}}
 async function persistCloudIdentity(identity){if(!identity||typeof identity!=='object')return false;const raw=JSON.stringify(identity),plugin=secureStorage();if(plugin){await plugin.set({key:IDENTITY_KEY,value:raw});localStorage.removeItem(IDENTITY_KEY)}else localStorage.setItem(IDENTITY_KEY,raw);return identity}
-export async function loadCachedCloudIdentity(){const plugin=secureStorage();let raw='';if(plugin)try{raw=String((await plugin.get({key:IDENTITY_KEY}))?.value||'')}catch{};if(!raw)raw=String(localStorage.getItem(IDENTITY_KEY)||'');try{const value=JSON.parse(raw||'null');return value&&typeof value==='object'?value:null}catch{return null}}
+export async function loadCachedCloudIdentity(){const plugin=secureStorage();let raw='';if(plugin)try{raw=String((await plugin.get({key:IDENTITY_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'identity'})};if(!raw)raw=String(localStorage.getItem(IDENTITY_KEY)||'');try{const value=JSON.parse(raw||'null');return value&&typeof value==='object'?value:null}catch{return null}}
 async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY=true;const plugin=secureStorage();if(plugin){await plugin.set({key:SESSION_KEY,value:JSON.stringify(session)});localStorage.removeItem(SESSION_KEY)}else localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session}
-export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
+export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'session'})}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch(error){cloudDiag('cloud.secure_storage_write_error',error,{key:'session'})}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
 function runtimeCloudConfig(){
   return {
@@ -42,13 +43,13 @@ export function saveCloudConfig(url,key){
   const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
-  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}}
+  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error));plugin.remove({key:IDENTITY_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error))}}
   return true;
 }
 export function disconnectCloud(){
   localStorage.removeItem(URL_KEY);
   localStorage.removeItem(KEY_KEY);
-  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}
+  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error));plugin.remove({key:IDENTITY_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error))}
 }
 export function cloudSession(){return SESSION_READY?SESSION_CACHE:parseSession(localStorage.getItem(SESSION_KEY))}
 async function saveSession(data){if(!data?.access_token||!data?.refresh_token)return false;const expiresAt=Number(data.expires_at)||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);return persistStoredSession({...data,expires_at:expiresAt})}
@@ -235,7 +236,7 @@ export async function cloudFunction(path,payload,{attempts=3}={}){
     }catch(error){lastError=error;recordDiagnostic('edge.function_network_error',{path,attempt:attempt+1,message:error?.message||String(error)});if(attempt+1<tries){recordDiagnostic('edge.function_retry',{path,attempt:attempt+1,reason:'network'});await sleep(250*(2**attempt));continue}throw error}
     const data=await response.json().catch(()=>({}));
     if(response.ok)return data;
-    if(response.status===401&&attempt+1<tries){try{await refreshCloudSession()}catch{}await sleep(100);continue}
+    if(response.status===401&&attempt+1<tries){try{await refreshCloudSession()}catch(error){cloudDiag('cloud.refresh_session_error',error)}await sleep(100);continue}
     const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;lastError=error;recordDiagnostic('edge.function_error',{path,status:response.status,attempt:attempt+1,message:error.message});
     if(RETRYABLE_FUNCTION_STATUS.has(response.status)&&attempt+1<tries){recordDiagnostic('edge.function_retry',{path,status:response.status,attempt:attempt+1,reason:'status'});await sleep(250*(2**attempt));continue}
     throw error;
