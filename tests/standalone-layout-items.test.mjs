@@ -9,6 +9,6 @@ assert.ok(layout.includes('layoutStandalone:true'));
 assert.ok(app.includes('itemForButton(button,catalog)'));
 assert.ok(app.includes('catalog_item_id:product.layoutStandalone?null:product.id'));
 assert.ok(app.includes('quick:!!product.layoutStandalone'));
-assert.ok(app.includes("p.layoutStandalone?' · POS':''"));
+assert.ok(app.includes("const linkedMenu=!p.layoutStandalone?"));
 assert.ok(app.includes("Cette touche POS est incomplète"));
 console.log('Standalone POS button sale path checks passed');
