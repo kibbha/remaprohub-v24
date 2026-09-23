@@ -14,7 +14,7 @@ function mountModal({title='',message='',fields=[],confirmLabel=t('confirm'),can
     const controls=fields.map((f,i)=>{
       const id='pos-ui-'+i+'-'+Date.now();
       if(f.type==='select')return `<label class="field" for="${id}"><span>${esc(f.label||'')}</span><select id="${id}" name="${esc(f.name)}">${(f.options||[]).map(o=>`<option value="${esc(o.value)}" ${String(o.value)===String(f.value??'')?'selected':''}>${esc(o.label)}</option>`).join('')}</select></label>`;
-      return `<label class="field" for="${id}"><span>${esc(f.label||'')}</span><input id="${id}" name="${esc(f.name)}" type="${esc(f.type||'text')}" inputmode="${esc(f.inputMode||'text')}" value="${esc(f.value??'')}" ${f.min!=null?'min="'+esc(f.min)+'"':''} ${f.max!=null?'max="'+esc(f.max)+'"':''} ${f.step!=null?'step="'+esc(f.step)+'"':''} ${f.required?'required':''}></label>`;
+      return `<label class="field" for="${id}"><span>${esc(f.label||'')}</span><input id="${id}" name="${esc(f.name)}" type="${esc(f.type||'text')}" inputmode="${esc(f.inputMode||'text')}" value="${esc(f.value??'')}" ${f.placeholder!=null?'placeholder="'+esc(f.placeholder)+'"':''} ${f.min!=null?'min="'+esc(f.min)+'"':''} ${f.max!=null?'max="'+esc(f.max)+'"':''} ${f.step!=null?'step="'+esc(f.step)+'"':''} ${f.required?'required':''}></label>`;
     }).join('');
     overlay.innerHTML=`<section id="${dialogId}" class="pos-ui-dialog" role="dialog" aria-modal="true" aria-labelledby="${dialogId}-title"><header><h2 id="${dialogId}-title">${esc(title)}</h2></header>${message?'<p class="pos-ui-message">'+esc(message)+'</p>':''}<form class="pos-ui-form">${controls}<div class="pos-ui-actions"><button type="button" class="secondary" data-ui-cancel>${esc(cancelLabel)}</button><button class="${danger?'danger':'primary'}" data-ui-confirm>${esc(confirmLabel)}</button></div></form></section>`;
     document.body.appendChild(overlay);document.body.classList.add('modal-open');
@@ -43,8 +43,8 @@ function mountModal({title='',message='',fields=[],confirmLabel=t('confirm'),can
 export async function uiConfirm({title='',message='',confirmLabel=t('confirm'),cancelLabel=t('cancel'),danger=false}={}){
   const value=await mountModal({title,message,confirmLabel,cancelLabel,danger});return value!==null;
 }
-export async function uiPrompt({title='',message='',label='',value='',name='value',type='text',inputMode='text',required=false,min,max,step}={}){
-  const result=await mountModal({title,message,fields:[{name,label,value,type,inputMode,required,min,max,step}]});return result?String(result[name]??''):null;
+export async function uiPrompt({title='',message='',label='',value='',placeholder='',name='value',type='text',inputMode='text',required=false,min,max,step}={}){
+  const result=await mountModal({title,message,fields:[{name,label,value,placeholder,type,inputMode,required,min,max,step}]});return result?String(result[name]??''):null;
 }
 export async function uiFields({title='',message='',fields=[],confirmLabel=t('confirm'),cancelLabel=t('cancel'),danger=false}={}){
   return mountModal({title,message,fields,confirmLabel,cancelLabel,danger});

@@ -13,3 +13,16 @@ assert.ok(sw.includes('./src/layout.js'));
 assert.ok(db.includes('CapacitorSQLite'));
 assert.doesNotMatch(cloud,/service[_-]?role/i);
 console.log(`ReMaPro POS ${pkg.version} layout/modifier checks passed`);
+
+const ui=read('src/ui.js');
+for(const token of [
+  "document.querySelectorAll('#progressive-payment-modal').forEach",
+  'id="progressive-tip" inputmode="decimal" value="" placeholder="0.00"',
+  'input name="opening" inputmode="decimal" value="" placeholder="0.00" required',
+  "label:t('countedCash'),value:'',placeholder:'0.00'",
+  "submit.textContent='Encaissement…'"
+]) assert.ok(app.includes(token),token+' regression');
+assert.ok(ui.includes("f.placeholder!=null?'placeholder='"),'generic prompt placeholder support');
+const progressiveFlow=app.slice(app.indexOf("action:'pay_allocated_group'"),app.indexOf("async function splitCheckout"));
+assert.ok(progressiveFlow.indexOf('closeProgressiveModal();')<progressiveFlow.indexOf('await Promise.all([refreshFloorData(),refreshReceipts()])'),'payment modal closes before network refresh');
+assert.equal(/value="0\.00"/.test(progressiveFlow),false,'progressive money fields must not be prefilled with zero');

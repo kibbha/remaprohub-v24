@@ -301,7 +301,7 @@ function showTerminalIntentModal(order,intent,terminal){
 }
 async function startTerminalPayment(method,terminal){
   const order=await prepareOrderForTerminalIntent();if(!order)return;
-  const tip=await askTip('0.00');if(tip===null)return;
+  const tip=await askTip();if(tip===null)return;
   const device=await ensureDevice();
   try{
     const r=await posFunction({
@@ -1045,8 +1045,8 @@ function printProductionOrder(order){
 function parseMoneyInput(value){
   const n=Number(String(value??'').trim().replace(',','.'));return Number.isFinite(n)?Math.round(n*100)/100:NaN;
 }
-async function askTip(defaultValue='0.00'){
-  const raw=await uiPrompt({title:t('tipTitle'),label:t('tipLabel'),value:defaultValue,type:'number',inputMode:'decimal',min:'0',step:'0.01'});if(raw===null)return null;
+async function askTip(defaultValue=''){
+  const raw=await uiPrompt({title:t('tipTitle'),label:t('tipLabel'),value:defaultValue,placeholder:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01'});if(raw===null)return null;
   const tip=parseMoneyInput(raw);if(!Number.isFinite(tip)||tip<0){uiAlert(t('invalidTip'));return null}return tip;
 }
 function normalizePaymentMethod(value){
@@ -1218,7 +1218,7 @@ async function openAllocatedSplit(){
   closeAllocatedSplit();
   const modal=document.createElement('div');
   modal.id='allocated-split-modal';modal.className='modal-overlay';modal.dataset.groups=String(groupCount);
-  const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
+  const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="" placeholder="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
   const itemRows=items.map(item=>'<tr data-split-item-row data-item-id="'+esc(item.id)+'" data-qty="'+Number(item.quantity||0)+'" data-total="'+Number(item.line_total||0)+'"><td><strong>'+esc(item.name_snapshot)+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_price)+'</small></td>'+Array.from({length:groupCount},(_,gi)=>'<td><input class="split-qty-input" data-split-group="'+gi+'" type="number" min="0" max="'+Number(item.quantity||0)+'" step="0.001" value="'+(gi===0?Number(item.quantity||0):0)+'"></td>').join('')+'<td><span class="split-remaining" data-split-remaining>OK</span></td></tr>').join('');
   modal.innerHTML='<div class="split-dialog"><div class="split-dialog-head"><div><h2>Partager par articles</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · '+money(order.total)+'</p></div><button class="split-close" id="allocated-split-close">×</button></div><div class="split-toolbar"><button class="secondary" id="allocated-auto">Répartir par unité</button><span>Chaque quantité doit être attribuée entièrement.</span></div><div class="split-table-wrap"><table class="split-table"><thead><tr><th>Article</th>'+groupHeads+'<th>Contrôle</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="split-footer"><button class="secondary" id="allocated-split-cancel">Annuler</button><button class="primary" id="allocated-split-submit">Encaisser la répartition</button></div></div>';
   document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
@@ -1266,8 +1266,8 @@ async function prepareOrderForProgressivePayment(){
   return order;
 }
 function closeProgressiveModal(){
-  document.querySelector('#progressive-payment-modal')?.remove();
-  document.body.classList.remove('modal-open');
+  document.querySelectorAll('#progressive-payment-modal').forEach(node=>node.remove());
+  if(!document.querySelector('.modal-overlay'))document.body.classList.remove('modal-open');
 }
 function updateProgressiveTotal(){
   const modal=document.querySelector('#progressive-payment-modal');if(!modal)return;
@@ -1302,7 +1302,7 @@ async function openProgressivePayment(){
   const rows=remainingItems.map(i=>'<div class="progressive-item" data-progress-item-row data-item-id="'+esc(i.id)+'" data-remaining-qty="'+Number(i.remainingQty||0)+'" data-remaining-amount="'+Number(i.remainingAmount||0)+'"><div><strong>'+esc(i.name_snapshot)+'</strong><small>Reste '+Number(i.remainingQty||0)+' · '+money(i.remainingAmount)+'</small></div><input data-progress-qty type="number" min="0" max="'+Number(i.remainingQty||0)+'" step="0.001" value="0"></div>').join('');
   modal.innerHTML='<div class="progressive-dialog"><div class="split-dialog-head"><div><h2>Encaisser une personne</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · reste '+money(progress.remainingAmount)+'</p></div><button class="split-close" id="progressive-close">×</button></div>'
     +previousHtml
-    +'<div class="progressive-form"><label>Nom / repère<input id="progressive-label" value="Personne '+(previous.length+1)+'"></label><label>Paiement<select id="progressive-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select></label><label>Pourboire<input id="progressive-tip" inputmode="decimal" value="0.00"></label><button class="secondary" id="progressive-take-rest">Prendre tout le reste</button></div>'
+    +'<div class="progressive-form"><label>Nom / repère<input id="progressive-label" value="Personne '+(previous.length+1)+'"></label><label>Paiement<select id="progressive-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select></label><label>Pourboire<input id="progressive-tip" inputmode="decimal" value="" placeholder="0.00"></label><button class="secondary" id="progressive-take-rest">Prendre tout le reste</button></div>'
     +'<div class="progressive-items">'+rows+'</div>'
     +'<div class="progressive-summary"><div><span>Cette personne</span><strong id="progressive-selected-total">'+money(0)+'</strong></div><div><span>Restera après paiement</span><strong id="progressive-after-total">'+money(progress.remainingAmount)+'</strong></div></div>'
     +'<div class="split-footer"><button class="secondary" id="progressive-cancel">Annuler</button><button class="primary" id="progressive-submit" disabled>Encaisser cette personne</button></div></div>';
@@ -1325,7 +1325,7 @@ async function openProgressivePayment(){
     const label=modal.querySelector('#progressive-label')?.value?.trim()||('Personne '+(previous.length+1));
     const method=modal.querySelector('#progressive-method')?.value||'cash';
     const tip=parseMoneyInput(modal.querySelector('#progressive-tip')?.value||'0');
-    const submit=modal.querySelector('#progressive-submit');if(submit)submit.disabled=true;
+    const submit=modal.querySelector('#progressive-submit');if(submit){submit.disabled=true;submit.textContent='Encaissement…'}
     try{
       const device=await ensureDevice(),eventId=uuid();
       const r=await posFunction({
@@ -1335,15 +1335,16 @@ async function openProgressivePayment(){
       });
       const paid=r.payment;
       closeProgressiveModal();
-      await Promise.all([refreshFloorData(),refreshReceipts()]);
       state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view=paid?.orderStatus==='paid'?'tickets':'floor';
       state.error=paid?.orderStatus==='paid'
         ?'Addition entièrement soldée.'
         :label+' encaissé · reste '+money(paid?.remainingAmount)+'.';
       render();
+      await Promise.all([refreshFloorData(),refreshReceipts()]);
+      render();
       if(paid&&await uiConfirm({title:t('printPaymentReceipt'),message:String(paid.paymentReceiptNumber||''),confirmLabel:t('print')}))printProgressivePayment(order,paid);
     }catch(error){
-      state.error=error.message||String(error);if(submit)submit.disabled=false;render();closeProgressiveModal();
+      state.error=error.message||String(error);closeProgressiveModal();render();
     }
   });
   updateProgressiveTotal();
@@ -1363,7 +1364,7 @@ async function splitCheckout(){
     ]});if(!part)return;
     const amount=parseMoneyInput(part.amount);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){uiAlert(t('invalidAmount'));return}
     const method=normalizePaymentMethod(part.method);if(!method){uiAlert(t('paymentMethod'));return}
-    const tip=await askTip('0.00');if(tip===null)return;
+    const tip=await askTip();if(tip===null)return;
     payments.push({method,amount,tipAmount:tip,provider:'',providerReference:''});
     remaining=Math.round((remaining-amount)*100)/100;
   }
@@ -1633,7 +1634,7 @@ function addItem(item){
   render();
 }
 async function addQuickItem(){
-  const form=await uiFields({title:t('quickItemTitle'),fields:[{name:'name',label:t('itemName'),required:true},{name:'price',label:t('priceGross'),value:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01',required:true}]});if(!form?.name?.trim())return;
+  const form=await uiFields({title:t('quickItemTitle'),fields:[{name:'name',label:t('itemName'),required:true},{name:'price',label:t('priceGross'),value:'',placeholder:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01',required:true}]});if(!form?.name?.trim())return;
   const price=Number(String(form.price).replace(',','.'));if(!Number.isFinite(price)||price<0){uiAlert(t('invalidPrice'));return}
   addItem({id:'quick:'+uuid(),name:String(form.name).trim(),price,tax_rate:8.1,quick:true});
 }
@@ -1740,7 +1741,7 @@ const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 async function checkout(method){
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
-  const tip=await askTip('0.00');if(tip===null)return;
+  const tip=await askTip();if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
 
   if(state.activeTableId||state.activeOrderId||state.serviceType==='dine_in'){
@@ -1919,7 +1920,7 @@ function posBrandLockup({auth=false,version=false}={}){
 }
 function loginView(){return `<div class="login-wrap"><form class="card" id="login-form">${posBrandLockup({auth:true})}<p>${t('loginSubtitle')}</p><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><p class="muted">v${APP_VERSION}</p></form></div>`}
 function pickerView(){return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('chooseRestaurant')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary" id="logout">Déconnexion</button></div></div>`}
-function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session">${posBrandLockup({auth:true})}<h1>${t('openCash')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
+function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session">${posBrandLockup({auth:true})}<h1>${t('openCash')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="" placeholder="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
   return `<header class="topbar">${posBrandLockup({version:true})}<div>${esc(state.restaurant.name)}</div>
     <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='directOrders'?'active':''}" id="nav-direct-orders">${t('directOrders')}${state.directOrders.filter(x=>x.status==='pending').length?' <span class="nav-badge">'+state.directOrders.filter(x=>x.status==='pending').length+'</span>':''}</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
@@ -2209,7 +2210,7 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
   document.querySelector('#refresh-catalog')?.addEventListener('click',()=>{refreshCatalog();refreshFloorData().then(render)});
   document.querySelector('#quick-item')?.addEventListener('click',()=>addQuickItem());
-  document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=await uiPrompt({title:t('closeCash'),label:t('countedCash'),value:'0.00',type:'number',inputMode:'decimal',min:'0',step:'0.01'});if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){uiAlert(t('invalidAmount'));return}await closeSession(n)});
+  document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=await uiPrompt({title:t('closeCash'),label:t('countedCash'),value:'',placeholder:'0.00',type:'number',inputMode:'decimal',required:true,min:'0',step:'0.01'});if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){uiAlert(t('invalidAmount'));return}await closeSession(n)});
   document.querySelector('#service-type')?.addEventListener('change',e=>state.serviceType=e.target.value);
   document.querySelector('#table-label')?.addEventListener('input',e=>state.tableLabel=e.target.value);
   document.querySelector('#covers')?.addEventListener('input',e=>state.covers=Math.max(0,Number(e.target.value)||0));
