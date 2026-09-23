@@ -1,3 +1,3 @@
-RC Hub audited validation — rerun 5
-Current dashboard/navigation assertions aligned.
+RC Hub blank-screen repair validation
+Checks dynamic module packaging, boot guard and Android runtime before rebuild.
 2026-09-23
