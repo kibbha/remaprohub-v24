@@ -413,7 +413,7 @@ function canManageSettings(){
   return isManager()&&(!state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.settings===true);
 }
 function operatorLoginView(){
-  return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card"><h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
+  return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card">${posBrandLockup({auth:true})}<h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
     ${!state.online?'<div class="terminal-warning"><strong>Hors ligne.</strong> Un PIN ne peut être revalidé sans serveur. Une session opérateur encore valide reste utilisable automatiquement.</div>':''}
     <form id="operator-login-form"><label>Profil<select name="operatorId" required>${state.operators.filter(x=>x.active!==false).map(o=>'<option value="'+o.id+'">'+esc(o.display_name)+' · '+esc(o.role)+'</option>').join('')}</select></label><label>PIN<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" required></label><button class="primary" type="submit" ${!state.online?'disabled':''}>Ouvrir ma session</button></form>
     <button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary wide" id="operator-account-logout">Changer de compte</button></div></div>`;
