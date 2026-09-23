@@ -125,7 +125,7 @@ assert.match(app,/data-edit-form="invoices"[\s\S]{0,500}<select name="supplier" 
 assert.match(app,/function purchases\(\)[\s\S]{0,7000}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);assert.match(app,/function invoices\(\)[\s\S]{0,1200}<select name="supplier" required>[\s\S]{0,250}state\.suppliers\.map/);
 
 // Customer-facing workflows must reuse CRM names while still allowing a new walk-in name.
-assert.match(app,/function reservations\(\)[\s\S]{0,1800}list="customerNames"[\s\S]{0,300}state\.customers\.map/);assert.match(app,/function loyalty\(\)[\s\S]{0,500}list="loyaltyCustomerNames"[\s\S]{0,300}state\.customers\.map/);
+assert.match(app,/function reservations\(\)[\s\S]{0,12000}list="customerNames"[\s\S]{0,500}state\.customers\.map/);assert.match(app,/function loyalty\(\)[\s\S]{0,6000}list="loyaltyCustomerNames"[\s\S]{0,500}state\.customers\.map/);
 
 // Product category selection must stay registry-linked on both create and edit flows.
 assert.match(app,/function products\(\)[\s\S]{0,650}<select name="category">[\s\S]{0,260}state\.categories\.map/);assert.match(app,/editingRow\('products',i\)[\s\S]{0,700}<select name="category">[\s\S]{0,320}k\.name===x\.category/);

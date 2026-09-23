@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run reached quantity guards; architecture test still targeted retired reservationForm/loyaltyForm paths.
-Retry base: a85ee36ababf1a8e3378ad252423cba3bc5c7afe
-Fix: gate now checks advancedReservationForm + recordAdvancedReservation and loyaltyTransactionForm + loyaltyTransaction.
+Previous run reached CRM registry reuse guard; the bounded regex predates the advanced reservation/loyalty UI.
+Retry base: 5175e2a0c52092504bc91ec0e1659cf1f4ecfc09
+Fix: retain the same CRM datalist contract with bounds sized for the current screens.
