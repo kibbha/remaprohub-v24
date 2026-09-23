@@ -1,0 +1,11 @@
+system,scope,current_owner_or_account,transfer_method,secret_values_stored_here,status,notes
+GitHub,Hub/POS repositories and Actions,,Repository/org ownership or buyer admin,false,tracked,Preserve history/tags and rotate secrets
+Supabase,Database/Auth/Storage/Edge Functions,,Organisation/project transfer or controlled recreation,false,tracked,Export schema/backups before closing
+Domain,DNS and remaprohub.com,,Registrar/account transfer,false,tracked,Coordinate DNS to avoid outage
+Google Play,Android applications/package IDs,,Play Console transfer where supported,false,tracked,Preserve signing/upload-key procedure
+RevenueCat,Subscriptions/entitlements,,Project/account transfer or recreation,false,tracked,Reconcile store products
+Email/support,Business identities,,Mailbox/domain admin transfer,false,planned,Use business-controlled accounts
+AI providers,Production API projects,,Account/project transfer or new buyer keys,false,planned,Never transfer plaintext keys in Git
+Payment providers,Merchant/payment integrations,,Provider-specific transfer/re-onboarding,false,planned,May be non-transferable
+Monitoring/analytics,Operational telemetry,,Provider-specific transfer,false,planned,Document data retention
+Android signing,Upload/signing custody,,Secure handover/recovery process,false,tracked,Never commit keystore/passwords
