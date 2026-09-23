@@ -16,5 +16,5 @@ assert.match(app,/storage\.mirror_recovered/,'mirror recovery must be observable
 assert.match(app,/await restoreStateMirror\(state\)/,'cloud-scoped state must recover after scope selection');
 assert.match(sw,/["'](?:\.\/)?src\/workspace-storage\.js["']/,'mirror runtime must be available offline');
 assert.match(pack,/readdir\(source/,'web package must discover runtime modules dynamically');
-assert.match(pack,/moduleFiles\.map\(name=>'src\/'\+name\)/,'web package must include every runtime module');
+assert.match(pack,/moduleFiles\.map\(name=>'\.\/src\/'\+name\)/,'web package must include every runtime module');
 console.log('Hub IndexedDB state mirror and recovery wiring OK');
