@@ -529,3 +529,11 @@ html[data-theme="dark"] .hub-category-hero,html[data-theme="dark"] .hub-subcateg
  .pos-admin-page .pos-admin-toolbar .btn{white-space:nowrap}
  .pos-foodcost-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+
+.module-section-nav{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin:0 0 10px;padding:2px 1px 5px;position:sticky;top:62px;z-index:8;background:var(--bg)}
+.module-section-nav::-webkit-scrollbar{display:none}
+.module-section-nav button{border:1px solid #ead7c5;background:#fffaf5;color:#59483c;border-radius:999px;padding:9px 13px;white-space:nowrap;font-weight:800;font-size:11px}
+.module-section-nav button.active{background:linear-gradient(135deg,#f26a2e,#ff8848);border-color:transparent;color:#fff;box-shadow:0 5px 14px #e45f272b}
+[data-module-pane][hidden]{display:none!important}
+@media(max-width:699px){.module-section-nav{margin-left:-2px;margin-right:-2px}.module-section-nav button{min-height:38px}}
