@@ -83,12 +83,13 @@ function categoryHub(){
 }
 function moduleSectionNav(items=[]){
   if(items.length<2)return'';
-  const active=moduleSection||items[0][0];
+  const active=items.some(([id])=>id===moduleSection)?moduleSection:items[0][0];
   return `<nav class="module-section-nav" aria-label="Sections">${items.map(([id,label])=>`<button type="button" class="${active===id?'active':''}" data-module-section="${id}">${label}</button>`).join('')}</nav>`;
 }
 function applyModuleSections(root=document){
   const nav=root.querySelector('.module-section-nav');if(!nav)return;
-  const active=moduleSection||nav.querySelector('[data-module-section]')?.dataset.moduleSection||'';
+  const sections=[...nav.querySelectorAll('[data-module-section]')].map(x=>x.dataset.moduleSection);
+  const active=sections.includes(moduleSection)?moduleSection:sections[0]||'';
   root.querySelectorAll('[data-module-pane]').forEach(x=>x.hidden=x.dataset.modulePane!==active);
 }
 
