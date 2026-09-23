@@ -1,3 +1,3 @@
 RC POS final validation trigger
-Scope: auto-match, live/cached remaining quantities, sold-out UI, stable availability metadata, offline-safe behavior.
+Scope: current HEAD including IP-compliance metadata plus automatic Hub matching and live dish availability.
 No Android build.
