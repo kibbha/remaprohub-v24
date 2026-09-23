@@ -1,4 +1,3 @@
-RC Hub final audited validation — rerun 2
-All pre-APK audit corrections included.
-No Android build.
+RC Hub final audited validation — rerun 3
+All stale assertions corrected.
 2026-09-23
