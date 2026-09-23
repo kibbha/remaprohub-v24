@@ -122,4 +122,4 @@ assert.match(client,/cloudPageAllowed/);
 
 console.log('Cloud auth sessions, RLS identity loading and permission guards OK');
 
-assert.match(cloud,/async function fetchWithTimeout/);assert.match(cloud,/NETWORK_TIMEOUT/);assert.match(cloud,/AbortController/);
+assert.match(client,/async function fetchWithTimeout/);assert.match(client,/NETWORK_TIMEOUT/);assert.match(client,/AbortController/);
