@@ -32,7 +32,7 @@ export default {
       }
       if(action==="create_channel"){
         const plain=token(),tokenHash=await sha(plain),requested=slugify(body.slug||restaurant.name),slug=(requested||"restaurant")+"-"+crypto.randomUUID().slice(0,8),modes=Array.isArray(body.modes)?body.modes.map(String).filter((x:string)=>["dine_in","takeaway"].includes(x)):["dine_in","takeaway"];
-        const paymentMethods=Array.isArray(body.paymentMethods)?body.paymentMethods.map(String).filter((x:string)=>["counter","card","twint"].includes(x)):["counter"],publicConfig={title:clean(body.title||restaurant.name,100),accent:clean(body.accent,30),allowNotes:body.allowNotes!==false,paymentMethods:paymentMethods.length?paymentMethods:["counter"]};
+        const paymentMethods=Array.isArray(body.paymentMethods)?body.paymentMethods.map(String).filter((x:string)=>["counter","card","twint"].includes(x)):["counter"],kioskEnabled=body.kioskEnabled===true,kioskResetSeconds=Math.max(8,Math.min(120,Math.trunc(Number(body.kioskResetSeconds)||20))),publicConfig={title:clean(body.title||restaurant.name,100),accent:clean(body.accent,30),allowNotes:body.allowNotes!==false,paymentMethods:paymentMethods.length?paymentMethods:["counter"],kioskEnabled,kioskResetSeconds};
         const {data,error}=await ctx.supabaseAdmin.from("direct_order_channels").insert({organization_id:restaurant.organization_id,restaurant_id:restaurantId,slug,token_hash:tokenHash,modes:modes.length?modes:["dine_in","takeaway"],public_config:publicConfig,created_by:userId}).select("id,slug,active,modes,public_config,created_at").single();
         if(error)return json({error:error.message},409);const url=publicUrl(slug,plain);return json({ok:true,channel:data,token:plain,url,qrSvg:await qrSvg(url)});
       }

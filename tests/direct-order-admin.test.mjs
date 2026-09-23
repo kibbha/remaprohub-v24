@@ -8,6 +8,9 @@ for(const token of ['directOrderAdminCard','createDirectOrderChannel','rotateDir
 assert.ok(admin.includes('token_hash'),'plain QR secret must not be persisted');
 assert.ok(admin.includes('QRCode.toString'),'QR SVG generation required');
 assert.ok(admin.includes('paymentMethods'),'QR payment preferences must be manager-configurable');
+assert.ok(admin.includes('kioskEnabled'),'kiosk enablement must be manager-configurable');
+assert.ok(admin.includes('kioskResetSeconds'),'kiosk reset timeout must be manager-configurable');
+assert.ok(app.includes('directKioskOpen'),'Hub must expose dedicated kiosk launch');
 for(const token of ['patchDirectOrderFromPos','syncDirectProductionFromPos','syncDirectPaymentFromPos'])assert.ok(sync.includes(token),token+' lifecycle bridge missing');
 assert.ok(sync.includes('production_started'),'web order must expose KDS progression');
 assert.ok(sync.includes('payment_synced'),'web order must expose POS-confirmed payment state');
