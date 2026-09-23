@@ -1,1 +1,11 @@
-{"appId":"com.remaprohub.app","appName":"ReMaPro Hub","webDir":"app","server":{"androidScheme":"https"},"android":{"backgroundColor":"#8D7B6A"}}
+{
+  "appId": "com.remaprohub.app",
+  "appName": "ReMaPro HUB",
+  "webDir": "app",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#8D7B6A"
+  }
+}

@@ -33,3 +33,9 @@ assert.match(activity,/controller\.hide\(WindowInsetsCompat\.Type\.systemBars\(\
 assert.match(activity,/BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE/);
 assert.match(activity,/onWindowFocusChanged\(boolean hasFocus\)/);
 console.log('Android fullscreen packaging checks OK');
+
+assert.match(launcherForeground,/<!-- HUB -->/);
+assert.match(launcherForeground,/M215,690h25v120h-25z/);
+assert.match(legacyLauncher,/<!-- HUB -->/);
+const capacitorConfig=JSON.parse(readFileSync('capacitor.config.json','utf8'));
+assert.equal(capacitorConfig.appName,'ReMaPro HUB');
