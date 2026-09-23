@@ -1,3 +1,3 @@
-RC POS validation trigger
-Scope: exact automatic product matching, live/cached quantities, sold-out blocking, offline-safe local decrement, server refresh.
+RC POS final validation trigger
+Scope: auto-match, live/cached remaining quantities, sold-out UI, stable availability metadata, offline-safe behavior.
 No Android build.
