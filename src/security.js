@@ -1,3 +1,4 @@
+import{recordDiagnostic}from'./telemetry.js';
 const SETTINGS_KEY='rmp.security.settings';
 const EMAIL_KEY='rmp.security.email';
 const DEVELOPER_KEY='rmp.security.developer';
@@ -12,7 +13,7 @@ export function securitySettings(){
     const raw=JSON.parse(localStorage.getItem(SETTINGS_KEY)||'null')||{};
     const lockMinutes=[0,1,5,15,30].includes(+raw.lockMinutes)?+raw.lockMinutes:DEFAULTS.lockMinutes;
     return {...DEFAULTS,...raw,lockMinutes,biometricEnabled:!!raw.biometricEnabled,lockOnBackground:raw.lockOnBackground!==false};
-  }catch{return {...DEFAULTS}}
+  }catch(error){recordDiagnostic('security.settings_parse_error',{message:error?.message||String(error)});return {...DEFAULTS}}
 }
 export function updateSecuritySettings(patch={}){
   const current=securitySettings(),next={...current,...patch};
@@ -31,13 +32,13 @@ export function rememberSecurityEmail(email){
 export function validDeveloperAlias(alias){return /^[a-z0-9._-]{3,32}$/.test(normalizeDeveloperAlias(alias))}
 export async function loadDeveloperAccess(){
   const plugin=secureStorage();let raw='';
-  if(plugin)try{raw=String((await plugin.get({key:DEVELOPER_KEY}))?.value||'')}catch{}
+  if(plugin)try{raw=String((await plugin.get({key:DEVELOPER_KEY}))?.value||'')}catch(error){recordDiagnostic('security.secure_storage_read_error',{key:'developer',message:error?.message||String(error)})}
   if(!raw)raw=String(localStorage.getItem(DEVELOPER_KEY)||'');
   try{
     const value=JSON.parse(raw||'null');
     if(!value?.enabled||!validDeveloperAlias(value.alias)||!String(value.email||'').includes('@'))return null;
     return {enabled:true,alias:normalizeDeveloperAlias(value.alias),email:String(value.email).trim().toLowerCase()};
-  }catch{return null}
+  }catch(error){recordDiagnostic('security.developer_access_parse_error',{message:error?.message||String(error)});return null}
 }
 export async function saveDeveloperAccess({alias,email,enabled=true}={}){
   const value={enabled:!!enabled,alias:normalizeDeveloperAlias(alias),email:String(email||'').trim().toLowerCase()};
@@ -50,14 +51,14 @@ export async function saveDeveloperAccess({alias,email,enabled=true}={}){
 }
 export async function clearDeveloperAccess(){
   localStorage.removeItem(DEVELOPER_KEY);
-  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:DEVELOPER_KEY})}catch{}
+  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:DEVELOPER_KEY})}catch(error){recordDiagnostic('security.secure_storage_remove_error',{key:'developer',message:error?.message||String(error)})}
   return null;
 }
 export function developerAliasMatches(input,profile){return!!profile?.enabled&&normalizeDeveloperAlias(input)===normalizeDeveloperAlias(profile.alias)}
 export async function biometricAvailability(){
   const plugin=nativeBiometric();
   if(!plugin)return{isAvailable:false,deviceIsSecure:false,strongBiometryIsAvailable:false};
-  try{return await plugin.isAvailable()}catch{return{isAvailable:false,deviceIsSecure:false,strongBiometryIsAvailable:false}}
+  try{return await plugin.isAvailable()}catch(error){recordDiagnostic('security.biometric_availability_error',{message:error?.message||String(error)});return{isAvailable:false,deviceIsSecure:false,strongBiometryIsAvailable:false}}
 }
 export async function verifyBiometric(){
   const plugin=nativeBiometric();
