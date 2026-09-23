@@ -14,14 +14,16 @@ assert.equal(manifest.icons?.[1]?.sizes,'512x512');
 assert.match(manifest.icons?.[2]?.purpose||'',/maskable/);
 assert.equal(manifest.display,'standalone');
 assert.match(installIcon,/viewBox="0 0 1024 1024"/);
-assert.match(installIcon,/data:image\/png;base64,/);
+assert.match(installIcon,/#8D7B6A/);
+assert.match(installIcon,/M430 225/);
+assert.doesNotMatch(installIcon,/data:image\/png;base64,/);
 assert.match(sw,/'\.\/icon\.svg'/);
 assert.doesNotMatch(html,/\.\.\/src\/app\.js/);
 const assets=[...sw.matchAll(/'\.\/(?:src\/[^']+|[^']+)'/g)].map(match=>match[0].slice(3,-1));
 for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
 for(const module of ['app.js','restored.js','i18n.js','store.js','ai.js','cloud.js','legal.js','billing.js','security.js','intelligence.js','accounting.js','integrations.js','pos.js','pos-layout.js','delivery-ai.js','academy-content.js','academy.js','telemetry.js','workspace-storage.js'])assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'));
 const hash=createHash('sha256');
-for(const asset of ['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','order.html','order.css','order.js','styles.css','icons.svg','manifest.json','icon.svg','assets-remaprohub-logo.png','src/app.js','src/restored.js','src/i18n.js','src/store.js','src/ai.js','src/cloud.js','src/legal.js','src/billing.js','src/security.js','src/intelligence.js','src/accounting.js','src/integrations.js','src/pos.js','src/pos-layout.js','src/delivery-ai.js','src/academy-content.js','src/academy.js','src/telemetry.js','src/workspace-storage.js']){
+for(const asset of ['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','order.html','order.css','order.js','styles.css','icons.svg','manifest.json','icon.svg','src/app.js','src/restored.js','src/i18n.js','src/store.js','src/ai.js','src/cloud.js','src/legal.js','src/billing.js','src/security.js','src/intelligence.js','src/accounting.js','src/integrations.js','src/pos.js','src/pos-layout.js','src/delivery-ai.js','src/academy-content.js','src/academy.js','src/telemetry.js','src/workspace-storage.js']){
   hash.update(asset);
   hash.update(readFileSync(`app/${asset}`));
 }
