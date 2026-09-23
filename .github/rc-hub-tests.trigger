@@ -5,3 +5,4 @@ ux-v27-12 1970-01-01T00:00:00.000Z
 rerun taxonomy catalogue
 rerun dom-free i18n gate
 rerun clean i18n assertion
+rerun compact dictionary gate
