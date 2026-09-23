@@ -9,7 +9,7 @@ const outPath=path.resolve(out.pathname);
 fs.rmSync(outPath,{recursive:true,force:true});
 fs.mkdirSync(outPath,{recursive:true});
 
-const files=['index.html','manifest.webmanifest','runtime-config.js','sw.js'];
+const files=['index.html','customer-display.html','manifest.webmanifest','runtime-config.js','sw.js'];
 for(const file of files){
   fs.copyFileSync(path.join(rootPath,file),path.join(outPath,file));
 }

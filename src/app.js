@@ -9,6 +9,7 @@ import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
+import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 
 const APP_VERSION='0.27.0';
 const state={
@@ -190,7 +191,7 @@ function terminalsView(){
     <main class="terminals-page">
       <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
       <div class="terminal-warning"><strong>Mode préparation.</strong> Aucun connecteur Worldline/TWINT réel n’est encore activé. Une vente carte/TWINT peut seulement être enregistrée manuellement après confirmation sur un terminal externe indépendant.</div>
-      <section class="provider-readiness"><h3>Préparation prestataires</h3>
+      <section class="provider-readiness"><h3>${t('hardwareExtensions')}</h3>${hardwareExtensionProfiles().map(x=>`<article class="provider-readiness-card"><div><strong>${esc(t('hardware_'+x.id))}</strong><small>${esc(x.transport)}</small></div><span class="provider-readiness-status provider-${x.status==='ready'?'ready':'waiting_contract'}">${esc(t('hardwareStatus_'+x.status))}</span></article>`).join('')}</section><section class="provider-readiness"><h3>Préparation prestataires</h3>
         ${state.providerConnections.length?state.providerConnections.map(c=>`<article class="provider-readiness-card"><div><strong>${esc(terminalProviderLabel(c.provider))}</strong><small>${esc(providerModeLabel(c.integration_mode))} · ${esc(c.environment||'test')}</small></div><span class="provider-readiness-status provider-${esc(c.status)}">${esc(providerStatusLabel(c.status))}</span>${c.merchant_reference?'<small class="provider-merchant">Réf. marchand '+esc(c.merchant_reference)+'</small>':''}</article>`).join(''):'<div class="muted">Aucun prestataire préparé dans ReMaPro Hub.</div>'}
       </section>
       <section class="terminal-grid">${state.terminals.length?state.terminals.map(t=>`<article class="terminal-card">
@@ -1820,7 +1821,7 @@ function topbar(){
     <button class="nav-tab ${state.view==='sale'?'active':''}" id="nav-sale">Caisse</button><button class="nav-tab ${state.view==='floor'?'active':''}" id="nav-floor">Salle</button><button class="nav-tab ${state.view==='directOrders'?'active':''}" id="nav-direct-orders">${t('directOrders')}${state.directOrders.filter(x=>x.status==='pending').length?' <span class="nav-badge">'+state.directOrders.filter(x=>x.status==='pending').length+'</span>':''}</button><button class="nav-tab ${state.view==='production'?'active':''}" id="nav-production">Production</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button>
     <div class="spacer"></div><label class="top-language"><span class="sr-only">${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><button class="secondary academy-help-context" id="academy-help-context" title="${academyChromeText().contextHelp}">?</button>${state.operator?'<button class="operator-chip" id="switch-operator">'+esc(state.operator.display_name)+' · '+esc(state.operator.role)+'</button>':''}<div class="session-chip">Caisse ${state.cashSession?.status==='closing'?'en clôture':'ouverte'} · ${money(state.cashSession?.openingCash)}</div>
     <button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><div class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</div>
-    <button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
+    <button class="secondary" id="customer-display-open">${t('customerDisplay')}</button><button class="secondary" id="refresh-catalog" ${!state.online?'disabled':''}>Rafraîchir</button><button class="secondary" id="close-session" ${state.cashSession?.status!=='open'?'disabled':''}>Clôturer</button></header>`;
 }
 function floorView(){
   const unassigned=state.openOrders.filter(o=>!o.table_id);
@@ -2017,6 +2018,7 @@ function mainView(){
 }
 function render(){
   document.documentElement.lang=language();
+  publishCustomerDisplay(customerDisplaySnapshot({restaurant:state.restaurant,cart:state.cart,serviceType:state.serviceType,tableLabel:state.tableLabel,covers:state.covers,currency:state.restaurant?.currency||'CHF',activeOrderId:state.activeOrderId}));
   if(state.view==='academy'){app.innerHTML=academyView();wire();translateDom(app);return}
   if(state.view==='training'){state.trainingMode=true;app.innerHTML=trainingView();wire();translateDom(app);return}
   state.trainingMode=false;
@@ -2038,7 +2040,8 @@ function wire(){
   document.querySelector('#operator-account-logout')?.addEventListener('click',()=>logoutPos());
   document.querySelector('#operator-login-form')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await operatorLogin(String(fd.get('operatorId')||''),String(fd.get('pin')||''))});
   document.querySelector('#switch-operator')?.addEventListener('click',()=>switchOperator());
-  document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
+  document.querySelector('#customer-display-open')?.addEventListener('click',()=>{const w=window.open('./customer-display.html','remapro-customer-display');if(!w)uiAlert(t('customerDisplayBlocked'))});
+document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
   document.querySelector('#sync-refresh')?.addEventListener('click',()=>updateQueueCount().then(render));
   document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue({force:true});if(state.view==='sync')render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});

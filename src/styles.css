@@ -95,3 +95,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .kds-metric-grid article{background:#f8f4ee;border-radius:10px;padding:9px}.kds-metric-grid strong,.kds-metric-grid span,.kds-metric-grid small{display:block}.kds-metric-grid span{font-size:11px;margin-top:4px;color:var(--muted)}.kds-metric-grid b{color:var(--text)}
 .kds-product-metrics{display:grid;gap:6px}.kds-product-metrics span{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}.kds-product-metrics span:last-child{border-bottom:0}
 @media(max-width:900px){.kds-metrics{grid-template-columns:1fr}}
+
+.customer-display-link{white-space:nowrap}
+@media(max-width:920px){#customer-display-open{order:20}}
