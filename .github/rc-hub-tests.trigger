@@ -1,3 +1,3 @@
-RC Hub branding validation
-Scope: selected “Les initiales” identity; full-frame Hub icon; new header lockup; PWA favicon/manifest; Android adaptive and legacy launcher without inset.
+RC Hub branding validation rerun
+Scope: full-frame initials launcher regression updated; Hub header/PWA/Android branding.
 No Android build.
