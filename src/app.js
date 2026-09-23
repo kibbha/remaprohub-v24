@@ -330,6 +330,17 @@ async function loadPosAdminData(showError=false){
       cloudFunction('remapro-direct-order-admin',{action:'list_channels',restaurantId},{attempts:1}).catch(()=>({channels:[]}))
     ]);
     posAdminState={restaurantId,loading:false,error:'',...snapshot,directChannels:Array.isArray(direct.channels)?direct.channels:[],directOrderShare:posAdminState.directOrderShare||null};
+    if(!posAdminState.floorPlans.length){
+      const seedDocument=seedFloorPlanFromTables(posAdminState.tables||[]),seedId=crypto.randomUUID(),seedPlan={id:seedId,name:'Service habituel',draft_document:seedDocument,published_document:null,draft_revision:0,published_version:0,active:false,history:[]};
+      try{
+        const saved=await savePosFloorPlan(restaurantId,{id:seedId,name:seedPlan.name,document:seedDocument});
+        posAdminState={...posAdminState,floorPlans:[{...seedPlan,...saved.plan,history:[]}]};
+        posFloorPlanDirty=false;
+      }catch(seedError){
+        posAdminState={...posAdminState,floorPlans:[seedPlan],error:'Plan de salle créé localement — enregistrement serveur à reprendre : '+(seedError?.message||String(seedError))};
+        posFloorPlanDirty=true;
+      }
+    }
     if(!posFloorPlanSelectedId||!posAdminState.floorPlans.some(x=>x.id===posFloorPlanSelectedId))posFloorPlanSelectedId=posAdminState.floorPlans.find(x=>x.active)?.id||posAdminState.floorPlans[0]?.id||'';
     render();return true;
   }catch(error){
@@ -1028,6 +1039,7 @@ bindFloorPlanEditor(document.querySelector('#floor-plan-editor-root'),{
   onDirty:()=>markFloorPlanDirty(),
   onSave:()=>saveCurrentFloorPlan(),
   onPublish:()=>publishCurrentFloorPlan(),
+  onActivate:()=>activateCurrentFloorPlan(),
   onRestore:version=>restoreCurrentFloorPlan(version),
   onNew:()=>{const name=prompt('Nom du nouveau plan','Service habituel');if(name?.trim())createLocalFloorPlan(name.trim())},
   onDuplicate:()=>{const plan=currentFloorPlan();if(!plan)return;const name=prompt('Nom de la copie',(plan.name||'Plan')+' — copie');if(name?.trim())createLocalFloorPlan(name.trim(),currentFloorPlanDocument())},
