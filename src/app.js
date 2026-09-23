@@ -830,10 +830,12 @@ async function closeSession(countedCash){
   render();flushQueue().catch(()=>{});
 }
 function linePayload(x){
+  const modifiers=Array.isArray(x.modifiers)?x.modifiers.filter(m=>m?.kind!=='remapro_availability'):[];
+  if(x.availability_key)modifiers.push({kind:'remapro_availability',availabilityKey:String(x.availability_key),mode:String(x.availability_mode||''),layoutButtonId:String(x.layout_button_id||'')});
   return {
     id:uuid(),catalog_item_id:x.quick?null:(x.catalog_item_id||x.id),recipe_id:x.recipe_id,sku:x.sku,name:x.name,
     quantity:x.qty,unit_price:x.price,tax_rate:x.tax_rate,
-    production_station:x.production_station||'kitchen',note:x.note||'',modifiers:Array.isArray(x.modifiers)?x.modifiers:[]
+    production_station:x.production_station||'kitchen',note:x.note||'',modifiers
   };
 }
 function orderLines(){return state.cart.map(linePayload)}
