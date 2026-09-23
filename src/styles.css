@@ -256,3 +256,18 @@ body{background:linear-gradient(180deg,#fffdf9,#fff8f1)}
  .main-pos,.sale-shell{grid-template-columns:1fr;gap:7px}
  .product-panel{min-height:0}.cart-panel{border-left:0;border-top:1px solid var(--pos-line)}
 }
+
+
+/* V0.27 — one-task-per-screen operational views */
+@media(max-width:720px){
+ body{overflow:hidden}
+ #app{height:100dvh;overflow:hidden}
+ .pos-app,.app-shell{height:100dvh;overflow:hidden}
+ .topbar{position:sticky;top:0;z-index:30}
+ .main-pos,.sale-shell{height:calc(100dvh - 64px);overflow:hidden}
+ .product-panel{overflow:auto;overscroll-behavior:contain}
+ .cart-panel{max-height:43dvh;overflow:auto;overscroll-behavior:contain}
+ .floor-shell,.production-shell,.tickets-shell,.report-shell,.terminals-shell,.printers-shell,.team-shell,.sync-shell{height:calc(100dvh - 64px);overflow:auto;overscroll-behavior:contain;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+ .payments{position:sticky;bottom:0;background:#fffdf9;padding:7px 0 max(7px,env(safe-area-inset-bottom));z-index:8}
+ .pos-more-panel{max-height:min(72dvh,620px);overflow:auto}
+}
