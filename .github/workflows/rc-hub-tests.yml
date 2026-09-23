@@ -23,6 +23,13 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Validate RevenueCat runtime injection
+        env:
+          REVENUECAT_ANDROID_API_KEY: ${{ secrets.REVENUECAT_ANDROID_API_KEY }}
+          REQUIRE_REVENUECAT: '1'
+        run: |
+          node scripts/inject-runtime-config.mjs
+          node -e "const fs=require('fs');const s=fs.readFileSync('app/runtime-config.js','utf8');if(!/REMAPRO_REVENUECAT_ANDROID_API_KEY=['\"][^'\"]+/.test(s))process.exit(1)"
       - name: Run full Hub test suite
         run: npm test
       - name: Verify RC runtime additions
