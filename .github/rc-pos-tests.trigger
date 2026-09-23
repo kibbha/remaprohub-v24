@@ -1,3 +1,3 @@
-RC POS branding validation
-Scope: selected “Les initiales” identity; full-frame POS icon; login/topbar lockups; PWA favicon/manifest; Android adaptive and legacy launcher.
+RC POS branding validation rerun
+Scope: branded academy cache assertion updated; POS login/topbar/PWA/Android branding.
 No Android build.
