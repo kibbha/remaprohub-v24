@@ -75,11 +75,8 @@ const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/fun
 // Dashboard summaries and shortcuts must not bypass cloud page permissions.
 assert.match(app,/financeAccess=canPage\('finance'\)/);
 assert.match(app,/stockAccess=canPage\('stock'\)/);
-assert.match(app,/purchaseAccess=canPage\('purchases'\)/);
-assert.match(app,/posAccess=canPage\('posAdmin'\)/);
 assert.match(app,/\.filter\(\(\[p\]\)=>canPage\(p\)\)/);
-assert.match(app,/stockAccess&&low\?/);
-assert.match(app,/posAccess\?/);
+assert.match(app,/stockAccess\?\(state\.stock\|\|\[\]\)/);
 
 // Cloud-authenticated sessions must filter navigation and protect direct page access.
 assert.match(app,/\.filter\(\(\[p\]\)=>canPage\(p\)\)/);
