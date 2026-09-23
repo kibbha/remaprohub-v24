@@ -1,3 +1,3 @@
-RC Hub modular navigation validation rerun 3
-Scope: proposition 3 Hub modulaire after live-language navigation assertion update.
+RC Hub modular navigation validation rerun 4
+Scope: proposition 3 Hub modulaire after modular test syntax correction.
 No Android build.
