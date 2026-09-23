@@ -268,6 +268,7 @@ async function pollTerminalIntent(intentId,orderId){
     if(ref)ref.textContent=intent.provider_reference||'—';
     await finalizeTerminalUi(intent);
   }catch(error){
+    recordDiagnostic('terminal.poll_error',{message:error.message||String(error)});
     const modal=document.querySelector('#terminal-intent-modal');
     const msg=modal?.querySelector('#terminal-live-error');
     if(msg)msg.textContent=error.message||String(error);
@@ -289,7 +290,7 @@ function showTerminalIntentModal(order,intent,terminal){
     try{
       await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId:intent.id});
       closeTerminalIntentModal();await refreshTerminals();state.error='Intent terminal annulé.';render();
-    }catch(error){state.error=error.message||String(error);render();closeTerminalIntentModal()}
+    }catch(error){recordDiagnostic('terminal.cancel_error',{message:error.message||String(error)});state.error=error.message||String(error);render();closeTerminalIntentModal()}
   });
   terminalPollTimer=setInterval(()=>pollTerminalIntent(intent.id,order.id),2000);
   pollTerminalIntent(intent.id,order.id);
@@ -309,14 +310,14 @@ async function startTerminalPayment(method,terminal){
     if(!intent?.id)throw new Error('Intent terminal invalide');
     await refreshTerminals();
     showTerminalIntentModal(order,intent,terminal);
-  }catch(error){state.error=error.message||String(error);render()}
+  }catch(error){recordDiagnostic('terminal.start_error',{method,provider:String(terminal?.provider||''),message:error.message||String(error)});state.error=error.message||String(error);render()}
 }
 async function cancelTerminalIntentFromList(intentId){
   if(!(await uiConfirm({title:t('cancelTerminalIntent'),danger:true})))return;
   try{
     await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId});
     await refreshTerminals();state.error='Intent terminal annulé.';render();
-  }catch(error){state.error=error.message||String(error);render()}
+  }catch(error){recordDiagnostic('terminal.cancel_error',{message:error.message||String(error)});state.error=error.message||String(error);render()}
 }
 async function guardedPayment(task){
   if(state.paymentBusy){uiAlert('Paiement déjà en cours.');return null}
@@ -473,7 +474,7 @@ async function testPrinterProfile(printer){
     await markPrinter(printer,'online');
     state.error='Test imprimante réussi : '+printer.label+'.';
   }catch(error){
-    await markPrinter(printer,'error');
+    await markPrinter(printer,'error');recordDiagnostic('printer.error',{role:'test',connectionType:String(printer.connection_type||''),message:error.message||String(error)});
     state.error='Échec imprimante '+printer.label+' : '+(error.message||String(error));
   }
   await refreshPrinters();render();
@@ -488,7 +489,7 @@ async function scanPrinters(){
     state.error=state.discoveredPrinters.length
       ?state.discoveredPrinters.length+' imprimante(s) détectée(s).'
       :'Aucune imprimante Bluetooth/USB détectée.';
-  }catch(error){state.error=error.message||String(error)}
+  }catch(error){recordDiagnostic('printer.discovery_error',{message:error.message||String(error)});state.error=error.message||String(error)}
   render();
 }
 function closePrinterEditor(){
@@ -551,7 +552,7 @@ async function smartPrintReceipt(receipt){
     await printEscPosText(printer,buildReceiptText(receipt,{restaurantName:state.restaurant?.name||'ReMaPro POS',currency:state.restaurant?.currency||'CHF',width:printer.chars_per_line}));
     await markPrinter(printer,'online');
   }catch(error){
-    await markPrinter(printer,'error');
+    await markPrinter(printer,'error');recordDiagnostic('printer.error',{role:'receipt',connectionType:String(printer.connection_type||''),message:error.message||String(error)});
     state.error='Impression ESC/POS impossible, bascule vers impression système : '+(error.message||String(error));
     render();printReceipt(receipt);
   }
@@ -571,7 +572,7 @@ async function autoPrintProductionItems(orderId,sentIds){
       await printEscPosText(printer,buildProductionText({...selected,items},{station:role,width:printer.chars_per_line}));
       await markPrinter(printer,'online');
     }catch(error){
-      await markPrinter(printer,'error');
+      await markPrinter(printer,'error');recordDiagnostic('printer.error',{role,connectionType:String(printer.connection_type||''),message:error.message||String(error)});
       state.error='Auto-impression '+printerRoleLabel(role)+' impossible : '+(error.message||String(error));
     }
   }
@@ -586,7 +587,7 @@ async function smartPrintProduction(order){
     try{
       await printEscPosText(printer,buildProductionText(order,{station:role,width:printer.chars_per_line}));
       await markPrinter(printer,'online');nativeDone=true;
-    }catch(error){await markPrinter(printer,'error');state.error='Impression '+printerRoleLabel(role)+' impossible : '+(error.message||String(error))}
+    }catch(error){await markPrinter(printer,'error');recordDiagnostic('printer.error',{role,connectionType:String(printer.connection_type||''),message:error.message||String(error)});state.error='Impression '+printerRoleLabel(role)+' impossible : '+(error.message||String(error))}
   }
   if(!nativeDone)printProductionOrder(order);
 }
@@ -2045,6 +2046,7 @@ function wire(){
 }
 async function init(){
   await initializePosSessionStorage();
+  recordDiagnostic('device.state',{online:navigator.onLine,native:!!globalThis.Capacitor?.isNativePlatform?.(),platform:String(globalThis.Capacitor?.getPlatform?.()||navigator?.platform||'web'),appVersion:APP_VERSION});
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));

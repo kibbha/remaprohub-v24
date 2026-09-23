@@ -31,6 +31,7 @@ assert.ok(html.includes('Content-Security-Policy'),'POS CSP required');
 assert.ok(sw.includes('./src/i18n.js')&&sw.includes('./src/ui.js')&&sw.includes('./src/telemetry.js'),'offline shell must cache new runtime modules');
 assert.ok(app.includes("from './telemetry.js'"),'diagnostics module must be wired');
 assert.ok(app.includes("sync.queue_error"),'queue failures must be instrumented');
+for(const event of ['device.state','terminal.poll_error','terminal.start_error','terminal.cancel_error','printer.error','printer.discovery_error'])assert.ok(app.includes(event),event+' diagnostic missing');
 assert.ok(sw.includes('skipWaiting')&&sw.includes('clients.claim'),'service worker update activation required');
 assert.ok(css.includes('min-height:44px'),'touch targets must have 44px minimum');
 assert.ok(css.includes('focus-visible'),'keyboard focus style required');
