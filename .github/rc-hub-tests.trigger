@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Base: 2df2270afb48e70abc76b1dfdc1eac2d37b39968
-Change: revision-based Hub -> POS managed configuration synchronization.
-Checks: revision triggers for catalog/tables/operators/printers/terminals/providers/published layout; lightweight configuration_head endpoint.
+Base: e6ace30e588c7c6b93372e904c0723b9cf485271
+Change: final Hub/POS configuration revision guards and SQL delimiter validation.
+Checks: history restore, revision tracking, security invoker trigger syntax, configuration_head compatibility.
