@@ -17,6 +17,10 @@ for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes(lang+':{'),lang+
 assert.ok(i18n.includes('translateDom'),'rendered UI translation required');
 assert.ok(ui.includes('role="dialog"'),'accessible modal role required');
 assert.ok(ui.includes("aria-modal"),'modal aria semantics required');
+assert.ok(ui.includes("aria-labelledby"),'modal title must be announced');
+assert.ok(ui.includes("e.key==='Tab'"),'modal keyboard focus trap required');
+assert.ok(ui.includes('previousFocus'),'modal must restore prior focus');
+assert.ok(ui.includes("e.key==='Escape'"),'modal Escape handling required');
 assert.ok(html.includes('Content-Security-Policy'),'POS CSP required');
 assert.ok(sw.includes('./src/i18n.js')&&sw.includes('./src/ui.js')&&sw.includes('./src/telemetry.js'),'offline shell must cache new runtime modules');
 assert.ok(app.includes("from './telemetry.js'"),'diagnostics module must be wired');
