@@ -1,3 +1,3 @@
-ReMaPro POS V0.27.0 beta APK build retry 2
+ReMaPro POS V0.27.0 beta APK build
 Requested: 2026-09-23
-Fix included: compact Capacitor MainActivity patch for NetworkPrinter.
+Fix batch: close progressive payment immediately + blank monetary inputs with placeholders.
