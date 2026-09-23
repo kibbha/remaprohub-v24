@@ -28,7 +28,7 @@ if(!activity.includes('registerPlugin(NetworkPrinterPlugin.class);')){
         super.onCreate(savedInstanceState);
     }
 `;
-    activity=activity.replace(/\n}\s*$/,method+'\n}\n');
+    activity=activity.replace(/}\s*$/,method+'\n}\n');
   }
 }
 
