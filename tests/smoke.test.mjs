@@ -22,7 +22,7 @@ for(const token of [
   "label:t('countedCash'),value:'',placeholder:'0.00'",
   "submit.textContent='Encaissement…'"
 ]) assert.ok(app.includes(token),token+' regression');
-assert.ok(ui.includes("f.placeholder!=null?'placeholder='"),'generic prompt placeholder support');
+assert.ok(ui.includes('f.placeholder!=null')&&ui.includes('esc(f.placeholder)'),'generic prompt placeholder support');
 const progressiveFlow=app.slice(app.indexOf("action:'pay_allocated_group'"),app.indexOf("async function splitCheckout"));
 assert.ok(progressiveFlow.indexOf('closeProgressiveModal();')<progressiveFlow.indexOf('await Promise.all([refreshFloorData(),refreshReceipts()])'),'payment modal closes before network refresh');
 assert.equal(/value="0\.00"/.test(progressiveFlow),false,'progressive money fields must not be prefilled with zero');
