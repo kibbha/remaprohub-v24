@@ -226,7 +226,8 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     paymentOfficialPaths:providers?.officialPaths||{},
     automaticTransactions:providers?.automaticTransactions===true,
     layoutDraft:layoutAdmin?.draft||null,
-    layoutPublished:layoutAdmin?.published||null
+    layoutPublished:layoutAdmin?.published||null,
+    layoutHistory:Array.isArray(layoutAdmin?.history)?layoutAdmin.history:[]
   };
 }
 
@@ -258,6 +259,9 @@ export async function savePosLayoutDraft(restaurantId,document){
 }
 export async function publishPosLayout(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'publish_layout',restaurantId});
+}
+export async function restorePosLayoutVersionToDraft(restaurantId,version){
+  return cloudFunction('remapro-pos-sync',{action:'restore_layout_version',restaurantId,version:Number(version)});
 }
 export async function loadPosCurrentLayout(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'layout_current',restaurantId});

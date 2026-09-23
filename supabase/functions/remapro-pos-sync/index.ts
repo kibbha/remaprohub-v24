@@ -117,7 +117,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export",
         "list_provider_connections","upsert_provider_connection",
-        "layout_current","layout_admin","save_layout_draft","publish_layout"
+        "layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -317,16 +317,20 @@ export default {
 
       if(action==="layout_admin"){
         if(!manager)return json({error:"Manager access required"},403);
-        const [draftResult,publishedResult]=await Promise.all([
+        const [draftResult,publishedResult,historyResult]=await Promise.all([
           ctx.supabaseAdmin.from("pos_layout_drafts")
             .select("schema_version,document,draft_revision,updated_at")
             .eq("restaurant_id",restaurantId).maybeSingle(),
           ctx.supabaseAdmin.from("pos_layout_versions")
             .select("version,schema_version,document,checksum,published_at")
-            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle()
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle(),
+          ctx.supabaseAdmin.from("pos_layout_versions")
+            .select("version,schema_version,checksum,published_at,published_by")
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(12)
         ]);
         if(draftResult.error)return json({error:draftResult.error.message},500);
         if(publishedResult.error)return json({error:publishedResult.error.message},500);
+        if(historyResult.error)return json({error:historyResult.error.message},500);
         return json({
           ok:true,
           draft:draftResult.data?{
@@ -341,7 +345,11 @@ export default {
             document:publishedResult.data.document||null,
             checksum:publishedResult.data.checksum||"",
             publishedAt:publishedResult.data.published_at||null
-          }:null
+          }:null,
+          history:(historyResult.data||[]).map((row:any)=>({
+            version:Number(row.version)||0,schemaVersion:Number(row.schema_version)||1,
+            checksum:row.checksum||"",publishedAt:row.published_at||null,publishedBy:row.published_by||null
+          }))
         });
       }
 
@@ -378,6 +386,31 @@ export default {
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,layout:data});
+      }
+
+      if(action==="restore_layout_version"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const version=Math.trunc(Number(body.version));
+        if(!Number.isInteger(version)||version<1)return json({error:"Valid layout version required"},400);
+        const {data:source,error:sourceError}=await ctx.supabaseAdmin.from("pos_layout_versions")
+          .select("version,schema_version,document,checksum,published_at")
+          .eq("restaurant_id",restaurantId).eq("version",version).maybeSingle();
+        if(sourceError)return json({error:sourceError.message},500);
+        if(!source)return json({error:"LAYOUT_VERSION_NOT_FOUND"},404);
+        const {data:existing,error:existingError}=await ctx.supabaseAdmin.from("pos_layout_drafts")
+          .select("draft_revision").eq("restaurant_id",restaurantId).maybeSingle();
+        if(existingError)return json({error:existingError.message},500);
+        const revision=Math.max(1,Number(existing?.draft_revision||0)+1),now=new Date().toISOString();
+        const {data,error}=await ctx.supabaseAdmin.from("pos_layout_drafts").upsert({
+          restaurant_id:restaurantId,organization_id:restaurant.organization_id,
+          schema_version:Number(source.schema_version)||1,document:source.document,
+          draft_revision:revision,updated_by:userId,updated_at:now
+        },{onConflict:"restaurant_id"}).select("schema_version,document,draft_revision,updated_at").single();
+        if(error)return json({error:error.message},500);
+        return json({ok:true,restoredFromVersion:version,draft:{
+          schemaVersion:Number(data.schema_version)||1,document:data.document,
+          draftRevision:Number(data.draft_revision)||1,updatedAt:data.updated_at
+        }});
       }
 
       if(action==="sync_catalog"){
