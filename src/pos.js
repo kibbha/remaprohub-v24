@@ -1,6 +1,6 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='21';
+export const POS_BRIDGE_VERSION='22';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
