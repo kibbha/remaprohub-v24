@@ -1,4 +1,4 @@
-const CACHE='remaprohub-v27-shell-brand-initials-20260923';
+const CACHE='remaprohub-v27-shell-modular-home-20260923';
 const ASSETS=['./','./index.html','./bootstrap.js','./runtime-config.js','./privacy-policy.html','./account-deletion.html','./order.html','./order.css','./order.js','./styles.css','./icons.svg','./manifest.json','./icon.svg','./src/app.js','./src/restored.js','./src/i18n.js','./src/store.js','./src/ai.js','./src/cloud.js','./src/legal.js','./src/billing.js','./src/security.js','./src/intelligence.js','./src/accounting.js','./src/integrations.js','./src/pos.js','./src/pos-layout.js','./src/delivery-ai.js','./src/academy-content.js','./src/academy.js','./src/telemetry.js','./src/workspace-storage.js'];
 const assetPaths=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()))});
