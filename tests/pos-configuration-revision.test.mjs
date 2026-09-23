@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const sql=fs.readFileSync(new URL('../supabase/migrations/20260923130000_pos_configuration_revisions.sql',import.meta.url),'utf8');
+const sql=fs.readFileSync(new URL('../supabase/migrations/20260923112111_pos_configuration_revisions.sql',import.meta.url),'utf8');
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 
 assert.ok(sql.includes('create table if not exists public.pos_configuration_revisions'),'revision table');
