@@ -33,8 +33,8 @@ assert.equal(water.metadata.availability.manualQuantity,10);
 assert.equal(water.metadata.availability.lowThreshold,2);
 
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
-const manualSql=fs.readFileSync(new URL('../supabase/migrations/20260923145500_pos_item_availability.sql',import.meta.url),'utf8');
-const stockSql=fs.readFileSync(new URL('../supabase/migrations/20260923151000_pos_stock_availability_guard.sql',import.meta.url),'utf8');
+const manualSql=fs.readFileSync(new URL('../supabase/migrations/20260923145835_pos_item_availability.sql',import.meta.url),'utf8');
+const stockSql=fs.readFileSync(new URL('../supabase/migrations/20260923150137_pos_stock_availability_guard.sql',import.meta.url),'utf8');
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const restored=fs.readFileSync(new URL('../src/restored.js',import.meta.url),'utf8');
 const posBridge=fs.readFileSync(new URL('../src/pos.js',import.meta.url),'utf8');
