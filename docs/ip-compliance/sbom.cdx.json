@@ -1,0 +1,192 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "remapro-pos",
+      "version": "0.27.0"
+    },
+    "properties": [
+      {
+        "name": "remapro:sbom-scope",
+        "value": "manifest-direct-dependencies"
+      },
+      {
+        "name": "remapro:branch",
+        "value": "pos/remapro-pos"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "@capacitor/android",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/android@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/cli",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/cli@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/core",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/core@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@fedejm/capacitor-esc-pos-printer",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "0.2.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/soylomass/capacitor-esc-pos-printer"
+        }
+      ],
+      "version": "0.2.3",
+      "purl": "pkg:npm/%40fedejm/capacitor-esc-pos-printer@0.2.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor-community/sqlite",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.0.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/capacitor-community/sqlite"
+        }
+      ],
+      "version": "7.0.3",
+      "purl": "pkg:npm/%40capacitor-community/sqlite@7.0.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "capacitor-secure-storage-plugin",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "0.12.0"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/martinkasa/capacitor-secure-storage-plugin"
+        }
+      ],
+      "version": "0.12.0",
+      "purl": "pkg:npm/capacitor-secure-storage-plugin@0.12.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}
