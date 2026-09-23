@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const migration=readFileSync('supabase/migrations/002_v27_permissions_and_plans.sql','utf8');
+const granularMigration=readFileSync('supabase/migrations/035_workspace_key_revisions.sql','utf8');
 const edge=readFileSync('supabase/functions/remapro-sync/index.ts','utf8');
 const config=readFileSync('supabase/config.toml','utf8');
 const cloud=readFileSync('src/cloud.js','utf8');
@@ -22,15 +23,25 @@ assert.match(edge,/\.eq\("revision",baseRevision\)/,'updates must use optimistic
 assert.match(edge,/ctx\.supabaseAdmin\.from\("restaurant_workspaces"\)/);
 assert.match(edge,/filterWorkspace/);
 assert.match(edge,/sanitizeWorkspace/);
+assert.match(granularMigration,/key_revisions jsonb not null default/);
+assert.match(granularMigration,/jsonb_object_agg/,'existing workspaces must be backfilled conservatively');
+assert.match(edge,/conflictingKeys/,'sync must detect conflicts per changed key');
+assert.match(edge,/nextKeyRevisions/,'sync must track per-key revisions');
+assert.match(edge,/changedKeys:touchedKeys/,'sync must report changed keys');
 assert.match(config,/\[functions\.remapro-sync\][\s\S]*?verify_jwt\s*=\s*true/);
 
 assert.match(cloud,/cloudWorkspaceReadKeys/);
+assert.match(cloud,/cloudWorkspaceWriteKeys/);
 assert.match(cloud,/WORKSPACE_READ_BY_PERMISSION/);
 assert.match(cloud,/error\.status=response\.status/);
 assert.match(cloud,/error\.payload=data/);
 assert.doesNotMatch(cloud,/service_role|sb_secret_|SUPABASE_SECRET/i);
 
 assert.match(app,/function scheduleCloudSync\(\)/);
+assert.match(app,/markCloudWorkspaceDirty/,'local mutations must accumulate dirty workspace keys');
+assert.match(app,/cloudDirtyKeys/,'workspace dirty keys must persist across restarts');
+assert.match(app,/sendKeys=knownDirty\.length\?knownDirty:writeKeys/,'legacy dirty workspaces must fall back to a full writable seed');
+assert.match(app,/workspace\}\);/,'push must send a granular workspace patch');
 assert.match(app,/function pullCloudWorkspace\(/);
 assert.match(app,/function pushCloudWorkspace\(/);
 assert.match(app,/baseRevision:Math\.max/);

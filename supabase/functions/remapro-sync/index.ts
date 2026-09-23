@@ -84,10 +84,10 @@ function sanitizeWorkspace(data:any,keys:string[]){
   }
   return out;
 }
-async function conflict(ctx:any,restaurantId:string,readKeys:string[]){
+async function conflict(ctx:any,restaurantId:string,readKeys:string[],conflictKeys:string[]=[]){
   const {data}=await ctx.supabaseAdmin.from("restaurant_workspaces")
     .select("revision,data").eq("restaurant_id",restaurantId).maybeSingle();
-  return json({error:"SYNC_CONFLICT",revision:Number(data?.revision||0),data:filterWorkspace(data?.data||{},readKeys)},409);
+  return json({error:"SYNC_CONFLICT",revision:Number(data?.revision||0),data:filterWorkspace(data?.data||{},readKeys),conflictKeys},409);
 }
 
 const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
@@ -122,7 +122,7 @@ const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
     if(!readKeys.length)return json({error:"No workspace permission"},403);
 
     const {data:current,error:currentError}=await ctx.supabaseAdmin.from("restaurant_workspaces")
-      .select("restaurant_id,organization_id,data,revision,updated_at")
+      .select("restaurant_id,organization_id,data,revision,key_revisions,updated_at")
       .eq("restaurant_id",restaurantId).maybeSingle();
     if(currentError)return json({error:"Unable to read workspace"},500);
 
@@ -145,24 +145,33 @@ const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
     if(!patch)return json({error:"Invalid workspace data"},400);
 
     if(current){
-      if(Number(current.revision)!==baseRevision)return conflict(ctx,restaurantId,readKeys);
-      const merged={...(current.data||{}),...patch};
-      const nextRevision=baseRevision+1;
+      const currentRevision=Number(current.revision)||0,touchedKeys=Object.keys(patch);
+      if(!touchedKeys.length)return json({ok:true,revision:currentRevision,updatedAt:current.updated_at,data:filterWorkspace(current.data||{},readKeys)});
+      const keyRevisions=current.key_revisions&&typeof current.key_revisions==="object"?current.key_revisions:{};
+      if(currentRevision!==baseRevision){
+        const conflictingKeys=touchedKeys.filter(key=>{
+          const recorded=Object.prototype.hasOwnProperty.call(keyRevisions,key)?Number(keyRevisions[key])||0:Object.prototype.hasOwnProperty.call(current.data||{},key)?currentRevision:0;
+          return recorded>baseRevision;
+        });
+        if(conflictingKeys.length)return conflict(ctx,restaurantId,readKeys,conflictingKeys);
+      }
+      const merged={...(current.data||{}),...patch},nextRevision=currentRevision+1,nextKeyRevisions={...keyRevisions};
+      for(const key of touchedKeys)nextKeyRevisions[key]=nextRevision;
       const {data:updated,error:updateError}=await ctx.supabaseAdmin.from("restaurant_workspaces")
-        .update({data:merged,revision:nextRevision,updated_by:userId,updated_at:new Date().toISOString()})
+        .update({data:merged,revision:nextRevision,key_revisions:nextKeyRevisions,updated_by:userId,updated_at:new Date().toISOString()})
         .eq("restaurant_id",restaurantId)
-        .eq("revision",baseRevision)
-        .select("revision,data,updated_at")
+        .eq("revision",currentRevision)
+        .select("revision,data,key_revisions,updated_at")
         .maybeSingle();
       if(updateError)return json({error:"Unable to update workspace"},500);
-      if(!updated)return conflict(ctx,restaurantId,readKeys);
-      return json({ok:true,revision:Number(updated.revision),updatedAt:updated.updated_at,data:filterWorkspace(updated.data||{},readKeys)});
+      if(!updated)return conflict(ctx,restaurantId,readKeys,touchedKeys);
+      return json({ok:true,revision:Number(updated.revision),updatedAt:updated.updated_at,data:filterWorkspace(updated.data||{},readKeys),changedKeys:touchedKeys});
     }
 
     if(baseRevision!==0)return conflict(ctx,restaurantId,readKeys);
     const {data:inserted,error:insertError}=await ctx.supabaseAdmin.from("restaurant_workspaces")
-      .insert({restaurant_id:restaurantId,organization_id:restaurant.organization_id,data:patch,revision:1,updated_by:userId})
-      .select("revision,data,updated_at")
+      .insert({restaurant_id:restaurantId,organization_id:restaurant.organization_id,data:patch,revision:1,key_revisions:Object.fromEntries(Object.keys(patch).map(key=>[key,1])),updated_by:userId})
+      .select("revision,data,key_revisions,updated_at")
       .maybeSingle();
     if(insertError||!inserted){
       const {data:latest}=await ctx.supabaseAdmin.from("restaurant_workspaces")
