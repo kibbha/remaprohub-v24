@@ -1,3 +1,3 @@
-RC Hub branding final validation
-Scope: selected initials identity on app header, security screens, PWA and Android full-frame launcher assets.
+RC Hub modular navigation validation
+Scope: proposition 3 Hub modulaire; bottom nav Accueil/Opérations/POS/Finance/Plus; grouped home blocks; direct POS section shortcuts; existing features preserved under Plus.
 No Android build.
