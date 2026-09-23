@@ -115,7 +115,7 @@ export default {
         "list_tables","sync_tables","sync_catalog",
         "list_terminals","upsert_terminal",
         "list_printers","upsert_printer",
-        "inventory_movements","ack_inventory_movements","food_cost_report",
+        "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export",
         "list_provider_connections","upsert_provider_connection",
         "layout_current","layout_admin","save_layout_draft","publish_layout"
       ]);
@@ -200,6 +200,10 @@ export default {
             advancedKds:true,
             kitchen:true,
             serviceReports:true,
+            accountingExports:true,
+            swissAccountingAdapters:true,
+            customerDisplay:true,
+            hardwareAdapterRegistry:true,
             paymentTerminalProfiles:true,
             providerConnectionRegistry:true,
             terminalIntents:true,
@@ -956,6 +960,60 @@ export default {
         });
         if(error)return json({error:error.message},409);
         return json({ok:true,report:data});
+      }
+
+      if(action==="accounting_export"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const from=clean(body.from,10),to=clean(body.to,10);
+        if(!validDate(from)||!validDate(to)||from>to)return json({error:"Valid from/to business dates required"},400);
+        const {data:orders,error:orderError}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,business_date,receipt_number,status,service_type,table_label,covers,subtotal,tax_total,total,tip_total,currency,closed_at")
+          .eq("restaurant_id",restaurantId).gte("business_date",from).lte("business_date",to)
+          .in("status",["paid","refunded"]).order("business_date").order("receipt_number");
+        if(orderError)return json({error:orderError.message},500);
+        const ids=(orders||[]).map((x:any)=>x.id);
+        let items:any[]=[],payments:any[]=[],refunds:any[]=[];
+        if(ids.length){
+          const [itemResult,paymentResult,refundResult]=await Promise.all([
+            ctx.supabaseAdmin.from("pos_order_items")
+              .select("id,order_id,name_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total")
+              .in("order_id",ids).order("order_id"),
+            ctx.supabaseAdmin.from("pos_payments")
+              .select("id,order_id,method,amount,tip_amount,status,provider,provider_reference,receipt_number,created_at")
+              .in("order_id",ids).order("created_at"),
+            ctx.supabaseAdmin.from("pos_refunds")
+              .select("id,order_id,method,amount,tip_amount,status,reason,provider_reference,requested_at,completed_at")
+              .in("order_id",ids).order("requested_at")
+          ]);
+          if(itemResult.error)return json({error:itemResult.error.message},500);
+          if(paymentResult.error)return json({error:paymentResult.error.message},500);
+          if(refundResult.error)return json({error:refundResult.error.message},500);
+          items=itemResult.data||[];payments=paymentResult.data||[];refunds=refundResult.data||[];
+        }
+        const taxMap=new Map<string,{taxRate:number,net:number,tax:number,gross:number}>();
+        for(const item of items){
+          const rate=Math.round((Number(item.tax_rate)||0)*1000)/1000,gross=Number(item.line_total)||0,tax=Number(item.tax_amount)||0,net=gross-tax,key=String(rate),row=taxMap.get(key)||{taxRate:rate,net:0,tax:0,gross:0};
+          row.net+=net;row.tax+=tax;row.gross+=gross;taxMap.set(key,row);
+        }
+        const round2=(value:number)=>Math.round(value*100)/100;
+        const taxSummary=[...taxMap.values()].map(x=>({taxRate:x.taxRate,net:round2(x.net),tax:round2(x.tax),gross:round2(x.gross)})).sort((a,b)=>a.taxRate-b.taxRate);
+        const paymentMap=new Map<string,number>();
+        for(const payment of payments){
+          if(!["captured","completed","paid"].includes(String(payment.status||"").toLowerCase()))continue;
+          const method=String(payment.method||"other"),amount=(Number(payment.amount)||0)+(Number(payment.tip_amount)||0);
+          paymentMap.set(method,(paymentMap.get(method)||0)+amount);
+        }
+        for(const refund of refunds){
+          if(String(refund.status||"").toLowerCase()!=="completed")continue;
+          const method=String(refund.method||"other"),amount=(Number(refund.amount)||0)+(Number(refund.tip_amount)||0);
+          paymentMap.set(method,(paymentMap.get(method)||0)-amount);
+        }
+        const paymentSummary=[...paymentMap.entries()].map(([method,amount])=>({method,amount:round2(amount)})).sort((a,b)=>a.method.localeCompare(b.method));
+        return json({
+          ok:true,restaurant:{id:restaurant.id,name:restaurant.name,currency:restaurant.currency,timezone:restaurant.timezone},
+          range:{from,to},orders:orders||[],items,payments,refunds,taxSummary,paymentSummary,
+          accountingNotes:{refundTaxAllocation:"Refunds are exported separately; review VAT allocation for partial refunds before posting."}
+        });
       }
 
       if(action==="list_printers"){

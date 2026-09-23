@@ -239,6 +239,9 @@ export async function ackPosInventoryMovements(restaurantId,movementIds){
 export async function loadPosFoodCostReport(restaurantId,businessDate){
   return cloudFunction('remapro-pos-sync',{action:'food_cost_report',restaurantId,businessDate});
 }
+export async function loadPosAccountingExport(restaurantId,{from,to}={}){
+  return cloudFunction('remapro-pos-sync',{action:'accounting_export',restaurantId,from,to});
+}
 
 export async function loadPosProviderConnections(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'list_provider_connections',restaurantId});
