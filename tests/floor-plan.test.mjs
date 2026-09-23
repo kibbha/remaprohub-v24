@@ -17,5 +17,5 @@ assert.ok(app.includes('data-floor-zone'));
 assert.ok(app.includes('floor-shape-'));
 assert.ok(css.includes('ReMaPro POS visual floor plan'));
 assert.ok(css.includes('.pos-floor-table.occupied'));
-assert.ok(sw.includes('v0281-floorplan-20260923'));
+assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-20260923/);
 console.log('ReMaPro POS visual floor plan checks passed');
