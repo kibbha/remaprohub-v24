@@ -19,9 +19,9 @@ assert.match(app,/form\('stockForm',f=>[\s\S]{0,420}min:f\.get\('min'\)/,'stock 
 // Manual finance entry must not erase transactional order/purchase amounts.
 const mixed={orders:[],purchases:[],financeHistory:[],revenue:0,covers:0,expenses:0};recordOrder(mixed,{reference:'M1',amount:75,status:'paid',date:'2026-09-18'});recordPurchase(mixed,{supplier:'S',amount:20,date:'2026-09-18',note:''});recordFinance(mixed,{date:'2026-09-18',revenue:100,covers:8,expenses:30});assert.equal(mixed.financeHistory[0].revenue,175);assert.equal(mixed.financeHistory[0].expenses,50);recordFinance(mixed,{date:'2026-09-18',revenue:120,covers:9,expenses:35});assert.equal(mixed.financeHistory[0].revenue,195);assert.equal(mixed.financeHistory[0].expenses,55);
 
-// Dashboard is intentionally concise; every other operational screen stays reachable through More or fixed navigation.
-for(const m of ['orders','stock','haccp','purchases','planning','reservations','ai','help'])
-  assert.match(app,new RegExp(`const modules=\\[[^;]*['"]${m}['"]`),`dashboard quick access missing ${m}`);
+// Modular home exposes the four primary domains while every operational screen remains reachable through More.
+for(const token of ['modularPilotage','modularExploitation','modularPos','modularAdministration'])
+  assert.match(app,new RegExp(`t\\('${token}'\\)`),`modular home block missing ${token}`);
 const secondary=['products','categories','stock','haccp','recipes','customers','loyalty','incidents','waste','suppliers','invoices','team','recalls','allergens','deliveries','cleaning','audits','equipment','leave','training','goals','alerts','checklists','briefing','maintenance','handover','organization','ai','help','settings'];
 for(const m of secondary)
   assert.match(app,new RegExp(`function more\\(\\)\\{[\\s\\S]*?['"]${m}['"]`),`More navigation missing ${m}`);
@@ -72,18 +72,20 @@ assert.match(app,/\[data-remove\][\s\S]{0,320}confirm\(t\(b\.dataset\.remove==='
 // Secondary navigation must retain every dashboard shortcut except those owned by fixed primary navigation.
 const dashMatch=app.match(/const modules=\[([^\]]+)\]/),moreMatch=app.match(/function more\(\)\{[\s\S]*?\$\{\[([^\]]+)\](?:\.filter\(canPage\))?\.map/);assert.ok(dashMatch&&moreMatch,'navigation lists must be discoverable');const list=x=>[...x.matchAll(/'([^']+)'/g)].map(m=>m[1]),dashModules=list(dashMatch[1]),moreModules=list(moreMatch[1]),fixedPrimary=new Set(['operations','finance','documents']);for(const m of dashModules)if(!fixedPrimary.has(m))assert.ok(moreModules.includes(m),`More navigation missing ${m}`);for(const m of ['categories','settings','stock','haccp'])assert.ok(moreModules.includes(m),`More navigation missing utility ${m}`);
 
-// Dashboard summaries must not bypass cloud page permissions.
+// Modular dashboard summaries and shortcuts must not bypass cloud page permissions.
 assert.match(app,/financeAccess=canPage\('finance'\)/);
-assert.match(app,/taskAccess=canPage\('operations'\)\|\|canPage\('checklists'\)/);
 assert.match(app,/stockAccess=canPage\('stock'\)/);
-assert.match(app,/invoiceAccess=canPage\('invoices'\)/);
-assert.match(app,/orderAccess=canPage\('orders'\)/);
-assert.match(app,/financeBlock=financeAccess\?/);
-assert.match(app,/summaryCards=\[stockAccess\?/);
+assert.match(app,/productsAccess=canPage\('products'\)/);
+assert.match(app,/purchaseAccess=canPage\('purchases'\)/);
+assert.match(app,/customerAccess=canPage\('customers'\)/);
+assert.match(app,/posAccess=canPage\('posAdmin'\)/);
+assert.match(app,/const tile=.*canPage\(pageKey\)/);
+assert.match(app,/pilotage=financeAccess\?/);
+assert.match(app,/posBlock=posAccess\?/);
 
 // Cloud-authenticated sessions must filter navigation and protect direct page access.
-assert.match(app,/modules\.filter\(canPage\)/);
-assert.match(app,/\.filter\(canPage\)\.map/);
+assert.match(app,/\.filter\(\(\[p\]\)=>canPage\(p\)\)/);
+assert.match(app,/if\(!canPage\(next\)\)/);
 assert.match(app,/if\(!canPage\(page\)\)page='dashboard'/);
 assert.match(app,/id="cloudLoginForm"/);
 assert.match(app,/signInCloud\(/);
