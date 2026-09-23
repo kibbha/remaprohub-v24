@@ -1,0 +1,34 @@
+name: IP compliance
+
+on:
+  push:
+    branches:
+      - rebuild/remaprohub-clean
+    paths:
+      - package.json
+      - LICENSE
+      - docs/ip-compliance/**
+      - scripts/generate-ip-sbom.mjs
+      - .github/workflows/ip-compliance.yml
+  pull_request:
+    branches:
+      - rebuild/remaprohub-clean
+    paths:
+      - package.json
+      - LICENSE
+      - docs/ip-compliance/**
+      - scripts/generate-ip-sbom.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  ip-compliance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate IP register and committed SBOM
+        run: node scripts/generate-ip-sbom.mjs --check
