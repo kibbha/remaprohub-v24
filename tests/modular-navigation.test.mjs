@@ -20,7 +20,7 @@ for(const token of [
   "scrollIntoView?.({behavior:'smooth',block:'start'})"
 ]) assert.ok(app.includes(token),token+' missing');
 
-const modularNav="[['dashboard','dashboard','home'],['operations','operations','operations'],['posAdmin','posAdmin','modularPos'],['finance','finance','finance'],['more','more','more']]";
+const modularNav="[['dashboard','dashboard','home'],['operations','operations','operations'],['posAdmin','posAdmin','modularPos'],['finance','finance','financeNav'],['more','more','more']]";
 assert.ok(app.includes(modularNav));
 assert.equal(app.includes("['documents','documents']"),false);
 
