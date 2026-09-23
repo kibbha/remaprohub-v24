@@ -19,6 +19,13 @@ function runtimeCloudConfig(){
     key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()
   };
 }
+const NETWORK_TIMEOUT_MS=20000;
+async function fetchWithTimeout(url,options={},timeoutMs=NETWORK_TIMEOUT_MS){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(1000,Number(timeoutMs)||NETWORK_TIMEOUT_MS));
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  catch(error){if(error?.name==='AbortError')throw new Error('NETWORK_TIMEOUT');throw error}
+  finally{clearTimeout(timer)}
+}
 const customBackendAllowed=()=>globalThis.REMAPRO_ALLOW_CUSTOM_BACKEND===true;
 export function cloudConfig(){
   const runtime=runtimeCloudConfig();
@@ -58,7 +65,7 @@ async function authRequest(path,{body,token}={}){
   if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
   const headers={'Content-Type':'application/json','apikey':key};
   if(token)headers.Authorization='Bearer '+token;
-  const response=await fetch(url+path,{method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetchWithTimeout(url+path,{method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body)});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data?.msg||data?.message||data?.error_description||data?.error||'AUTH_REQUEST_FAILED');
   return data;
@@ -100,7 +107,7 @@ export async function ensureFreshCloudSession(){
 export async function signOutCloud(){
   const session=cloudSession(),{url,key}=cloudConfig();
   try{
-    if(session?.access_token&&url&&key)await fetch(url+'/auth/v1/logout',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+session.access_token}});
+    if(session?.access_token&&url&&key)await fetchWithTimeout(url+'/auth/v1/logout',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+session.access_token}},10000);
   }finally{await removeStoredSession()}
 }
 async function dataRequest(path,{method='GET',body,retry=true}={}){
@@ -110,7 +117,7 @@ async function dataRequest(path,{method='GET',body,retry=true}={}){
   if(!session?.access_token)throw new Error('AUTH_REQUIRED');
   const headers={'apikey':key,'Authorization':'Bearer '+session.access_token,'Accept':'application/json'};
   if(body!==undefined)headers['Content-Type']='application/json';
-  const response=await fetch(url+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetchWithTimeout(url+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
   if(response.status===401&&retry){
     session=await refreshCloudSession();
     return dataRequest(path,{method,body,retry:false});
@@ -232,7 +239,7 @@ export async function cloudFunction(path,payload,{attempts=3}={}){
     if(!session?.access_token)throw new Error('AUTH_REQUIRED');
     let response;
     try{
-      response=await fetch(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+      response=await fetchWithTimeout(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
     }catch(error){lastError=error;recordDiagnostic('edge.function_network_error',{path,attempt:attempt+1,message:error?.message||String(error)});if(attempt+1<tries){recordDiagnostic('edge.function_retry',{path,attempt:attempt+1,reason:'network'});await sleep(250*(2**attempt));continue}throw error}
     const data=await response.json().catch(()=>({}));
     if(response.ok)return data;
@@ -254,11 +261,11 @@ export async function uploadStorageObject(bucket,path,blob,{attempts=3,upsert=tr
   for(let attempt=0;attempt<tries;attempt++){
     const session=await ensureFreshCloudSession();if(!session?.access_token)throw new Error('AUTH_REQUIRED');
     try{
-      const response=await fetch(url+'/storage/v1/object/'+safeBucket+'/'+safePath,{
+      const response=await fetchWithTimeout(url+'/storage/v1/object/'+safeBucket+'/'+safePath,{
         method:'POST',
         headers:{apikey:key,Authorization:'Bearer '+session.access_token,'Content-Type':blob.type||'application/octet-stream','x-upsert':upsert?'true':'false'},
         body:blob
-      });
+      },30000);
       const data=await response.json().catch(()=>({}));
       if(response.ok)return data;
       const error=new Error(data?.message||data?.error||'STORAGE_UPLOAD_FAILED');error.status=response.status;last=error;recordDiagnostic('storage.upload_error',{bucket:safeBucket,status:response.status,attempt:attempt+1,message:error.message});
