@@ -1,4 +1,3 @@
-ReMaPro Hub repaired Android APK
-Blank-screen root cause fixed: dynamic runtime module packaging now includes floor-plan.js and verifies the complete import graph.
-Boot fallback added. RC suite: green.
-2026-09-23
+ReMaPro Hub focused navigation and module sections
+RC Hub test suite green on current branch HEAD.
+2026-09-24
