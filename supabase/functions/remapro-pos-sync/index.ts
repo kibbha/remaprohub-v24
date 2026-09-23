@@ -109,7 +109,7 @@ export default {
         settle_open_order_allocated:"sale",pay_allocated_group:"sale",create_terminal_intent:"sale",
         refund_order:"refund",create_terminal_refund_intent:"refund",confirm_external_refund:"refund",
         cancel_open_order:"cancel",reject_direct_order:"cancel",transfer_open_order:"transfer",
-        send_to_production:"production",update_production_item:"production",
+        send_to_production:"production",update_production_item:"production",set_production_priority:"production",recall_production_order:"production",
         sync_catalog:"settings",sync_tables:"settings",upsert_terminal:"settings",set_terminal_connection:"settings",
         upsert_printer:"settings",set_printer_status:"settings"
       };
@@ -181,6 +181,7 @@ export default {
             tableTransfers:true,
             refunds:true,
             productionRouting:true,
+            advancedKds:true,
             kitchen:true,
             serviceReports:true,
             paymentTerminalProfiles:true,
@@ -768,14 +769,14 @@ export default {
       if(action==="production_queue"){
         const station=clean(body.station,20).toLowerCase();
         const {data:orders,error}=await ctx.supabaseAdmin.from("pos_orders")
-          .select("id,business_date,table_id,table_label,service_type,status,covers,opened_at,updated_at")
+          .select("id,business_date,table_id,table_label,service_type,status,covers,production_priority,opened_at,updated_at")
           .eq("restaurant_id",restaurantId).in("status",["sent","preparing"]).order("updated_at");
         if(error)return json({error:error.message},500);
         const ids=(orders||[]).map((x:any)=>x.id);
         let items:any[]=[];
         if(ids.length){
           const itemQuery=ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,modifiers,created_at")
+            .select("id,order_id,name_snapshot,quantity,course,station_snapshot,kitchen_status,note,modifiers,production_sent_at,production_started_at,production_ready_at,production_served_at,created_at")
             .in("order_id",ids).in("kitchen_status",["sent","preparing","ready"]).order("created_at");
           const itemResult=await itemQuery;
           if(itemResult.error)return json({error:itemResult.error.message},500);
@@ -806,7 +807,30 @@ export default {
           if(!byOrder.has(item.order_id))byOrder.set(item.order_id,[]);
           byOrder.get(item.order_id)!.push(item);
         }
-        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]})).filter((o:any)=>o.items.length)});
+        const {data:metrics}=await ctx.supabaseAdmin.rpc("pos_production_metrics",{
+          p_restaurant_id:restaurantId,p_actor_user_id:userId
+        });
+        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]})).filter((o:any)=>o.items.length),metrics:metrics||{stations:[],products:[]}});
+      }
+
+      if(action==="set_production_priority"){
+        const orderId=clean(body.orderId,64),priority=Math.max(0,Math.min(2,Math.trunc(Number(body.priority)||0)));
+        if(!validUuid(orderId))return json({error:"Valid orderId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_set_production_priority",{
+          p_order_id:orderId,p_priority:priority,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
+      }
+
+      if(action==="recall_production_order"){
+        const orderId=clean(body.orderId,64);
+        if(!validUuid(orderId))return json({error:"Valid orderId required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_recall_production_order",{
+          p_order_id:orderId,p_actor_user_id:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,order:data});
       }
 
       if(action==="update_production_item"){
