@@ -9,5 +9,5 @@ for(const event of ['sync.pull_error','sync.push_error','runtime.error','runtime
 for(const event of ['edge.function_network_error','edge.function_error','edge.function_retry','storage.upload_error'])assert.ok(cloud.includes(event),event+' cloud diagnostic missing');
 for(const secret of ['password','pin','authorization','accessToken','refreshToken'])assert.ok(telemetry.includes(secret),secret+' redaction guard missing');
 assert.ok(telemetry.includes('[email]'),'email redaction missing');
-assert.ok(sw.includes('./src/telemetry.js'),'telemetry must be cached offline');
+assert.match(sw,/["'](?:\.\/)?src\/telemetry\.js["']/,'telemetry must be cached offline');
 console.log('Hub privacy-safe diagnostics wiring OK');
