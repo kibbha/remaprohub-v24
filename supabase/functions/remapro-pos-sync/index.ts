@@ -78,9 +78,12 @@ async function synchronizeTablesFromFloorPlan(db:any,restaurant:any,document:any
   const rows=normalizedElements.filter((e:any)=>e.type==="table"&&e.active!==false).map((e:any,i:number)=>({id:e.tableId,organization_id:restaurant.organization_id,restaurant_id:restaurant.id,label:e.label,area:zoneNames.get(e.zoneId)||"Salle",seats:e.seats,sort_order:i,x:e.x,y:e.y,active:true,updated_at:new Date().toISOString()}));
   const keep=new Set(rows.map((x:any)=>String(x.id))),deactivateIds=(existing||[]).filter((x:any)=>!keep.has(String(x.id))).map((x:any)=>x.id);
   if(deactivateIds.length){
-    const {data:inUse,error:inUseError}=await db.from("pos_orders").select("id,table_id,status").eq("restaurant_id",restaurant.id).in("table_id",deactivateIds).in("status",["open","sent","preparing","served","payment_pending"]).limit(1);
-    if(inUseError)throw new Error(inUseError.message);
-    if(inUse?.length)throw new Error("FLOOR_PLAN_TABLE_IN_USE");
+    const [{data:inUse,error:inUseError},{data:linkedInUse,error:linkInUseError}]=await Promise.all([
+      db.from("pos_orders").select("id,table_id,status").eq("restaurant_id",restaurant.id).in("table_id",deactivateIds).in("status",["open","sent","preparing","served","payment_pending"]).limit(1),
+      db.from("pos_order_table_links").select("order_id,table_id").eq("restaurant_id",restaurant.id).in("table_id",deactivateIds).limit(1)
+    ]);
+    if(inUseError||linkInUseError)throw new Error(inUseError?.message||linkInUseError?.message||"Unable to check table usage");
+    if(inUse?.length||linkedInUse?.length)throw new Error("FLOOR_PLAN_TABLE_IN_USE");
   }
   if(rows.length){const {error}=await db.from("pos_tables").upsert(rows,{onConflict:"id"});if(error)throw new Error(error.message)}
   if(deactivateIds.length){
@@ -278,7 +281,7 @@ export default {
         commit_order:"sale",save_open_order:"sale",append_order_items:"sale",settle_open_order:"sale",settle_open_order_split:"sale",list_direct_orders:"sale",claim_direct_order:"sale",link_direct_order:"sale",
         settle_open_order_allocated:"sale",pay_allocated_group:"sale",create_terminal_intent:"sale",
         refund_order:"refund",create_terminal_refund_intent:"refund",confirm_external_refund:"refund",
-        cancel_open_order:"cancel",reject_direct_order:"cancel",transfer_open_order:"transfer",
+        cancel_open_order:"cancel",reject_direct_order:"cancel",transfer_open_order:"transfer",merge_order_table:"transfer",unmerge_order_table:"transfer",
         send_to_production:"production",update_production_item:"production",set_production_priority:"production",recall_production_order:"production",
         sync_catalog:"settings",sync_tables:"settings",upsert_terminal:"settings",set_terminal_connection:"settings",
         upsert_printer:"settings",set_printer_status:"settings"
@@ -1003,6 +1006,42 @@ export default {
         return json({ok:true,order:data});
       }
 
+      if(action==="merge_order_table"){
+        const orderId=clean(body.orderId,64),tableId=clean(body.tableId,64);
+        if(!validUuid(orderId)||!validUuid(tableId))return json({error:"Valid orderId and tableId required"},400);
+        const {data:order,error:orderError}=await ctx.supabaseAdmin.from("pos_orders")
+          .select("id,table_id,status").eq("id",orderId).eq("restaurant_id",restaurantId).maybeSingle();
+        if(orderError||!order||!["open","sent","preparing","served","payment_pending"].includes(String(order.status)))return json({error:"Open order required"},409);
+        if(String(order.table_id||"")===tableId)return json({ok:true,replayed:true,tableId});
+        const {data:table,error:tableError}=await ctx.supabaseAdmin.from("pos_tables").select("id,label,active").eq("id",tableId).eq("restaurant_id",restaurantId).eq("active",true).maybeSingle();
+        if(tableError||!table)return json({error:"Active table required"},409);
+        const [{data:primaryConflict,error:primaryError},{data:linkConflict,error:linkError}]=await Promise.all([
+          ctx.supabaseAdmin.from("pos_orders").select("id").eq("restaurant_id",restaurantId).eq("table_id",tableId).in("status",["open","sent","preparing","served","payment_pending"]).neq("id",orderId).limit(1),
+          ctx.supabaseAdmin.from("pos_order_table_links").select("order_id").eq("restaurant_id",restaurantId).eq("table_id",tableId).limit(1)
+        ]);
+        if(primaryError||linkError)return json({error:primaryError?.message||linkError?.message||"Unable to check table"},500);
+        if(primaryConflict?.length)return json({error:"TABLE_ALREADY_OCCUPIED"},409);
+        if(linkConflict?.length){
+          if(String(linkConflict[0].order_id)===orderId)return json({ok:true,replayed:true,tableId});
+          return json({error:"TABLE_ALREADY_LINKED"},409);
+        }
+        const {error}=await ctx.supabaseAdmin.from("pos_order_table_links").insert({
+          organization_id:restaurant.organization_id,restaurant_id:restaurantId,order_id:orderId,table_id:tableId,created_by:userId
+        });
+        if(error)return json({error:error.message},409);
+        return json({ok:true,tableId,label:table.label});
+      }
+
+      if(action==="unmerge_order_table"){
+        const orderId=clean(body.orderId,64),tableId=clean(body.tableId,64);
+        if(!validUuid(orderId)||!validUuid(tableId))return json({error:"Valid orderId and tableId required"},400);
+        const {data:order}=await ctx.supabaseAdmin.from("pos_orders").select("id,table_id,status").eq("id",orderId).eq("restaurant_id",restaurantId).maybeSingle();
+        if(!order||String(order.table_id||"")===tableId)return json({error:"PRIMARY_TABLE_CANNOT_BE_UNMERGED"},409);
+        const {error}=await ctx.supabaseAdmin.from("pos_order_table_links").delete().eq("restaurant_id",restaurantId).eq("order_id",orderId).eq("table_id",tableId);
+        if(error)return json({error:error.message},500);
+        return json({ok:true,tableId});
+      }
+
       if(action==="cancel_open_order"){
         const orderId=clean(body.orderId,64),reason=clean(body.reason,500);
         if(!validUuid(orderId)||!reason)return json({error:"Order and cancellation reason required"},400);
@@ -1060,20 +1099,27 @@ export default {
           .eq("restaurant_id",restaurantId).in("status",["open","sent","preparing","served","payment_pending"]).order("updated_at",{ascending:false}).limit(200);
         if(error)return json({error:error.message},500);
         const ids=(orders||[]).map((x:any)=>x.id);
-        let items:any[]=[];
+        let items:any[]=[],links:any[]=[];
         if(ids.length){
-          const itemResult=await ctx.supabaseAdmin.from("pos_order_items")
-            .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,station_snapshot,kitchen_status,note,modifiers")
-            .in("order_id",ids).order("created_at");
-          if(itemResult.error)return json({error:itemResult.error.message},500);
-          items=itemResult.data||[];
+          const [itemResult,linkResult]=await Promise.all([
+            ctx.supabaseAdmin.from("pos_order_items")
+              .select("id,order_id,catalog_item_id,recipe_id,name_snapshot,sku_snapshot,quantity,unit_price,tax_rate,tax_amount,line_total,course,station_snapshot,kitchen_status,note,modifiers")
+              .in("order_id",ids).order("created_at"),
+            ctx.supabaseAdmin.from("pos_order_table_links").select("order_id,table_id").in("order_id",ids)
+          ]);
+          if(itemResult.error||linkResult.error)return json({error:itemResult.error?.message||linkResult.error?.message||"Unable to load open order links"},500);
+          items=itemResult.data||[];links=linkResult.data||[];
         }
-        const byOrder=new Map<string,any[]>();
+        const byOrder=new Map<string,any[]>(),linksByOrder=new Map<string,string[]>();
         for(const item of items){
           if(!byOrder.has(item.order_id))byOrder.set(item.order_id,[]);
           byOrder.get(item.order_id)!.push(item);
         }
-        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[]}))});
+        for(const link of links){
+          if(!linksByOrder.has(link.order_id))linksByOrder.set(link.order_id,[]);
+          linksByOrder.get(link.order_id)!.push(String(link.table_id));
+        }
+        return json({ok:true,rows:(orders||[]).map((o:any)=>({...o,items:byOrder.get(o.id)||[],linked_table_ids:linksByOrder.get(o.id)||[]}))});
       }
 
       if(action==="append_order_items"){
