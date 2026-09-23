@@ -8,3 +8,4 @@ rerun clean i18n assertion
 rerun compact dictionary gate
 rerun without redundant taxonomy assertion
 rerun missing indicators key
+rerun category architecture guard
