@@ -58,6 +58,9 @@ assert.equal(normalized.modifierGroups[0].required,true);
 assert.equal(normalized.menus[0].choices[0].required,true);
 
 const source=fs.readFileSync(new URL('../src/pos-layout.js',import.meta.url),'utf8');
+const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
 
+assert.ok(edge.includes('Standalone layout item requires name, price and valid tax rate'));
+assert.ok(edge.includes('standaloneLayoutItems:true'));
 console.log('Hub POS layout editor issue #6 checks passed');
