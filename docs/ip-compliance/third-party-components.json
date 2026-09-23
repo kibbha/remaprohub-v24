@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "product": "ReMaPro POS",
+  "branch": "pos/remapro-pos",
+  "scope": "Direct dependencies declared in package.json. Release due diligence must also inventory resolved transitive dependencies.",
+  "components": [
+    {
+      "name": "@capacitor/android",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor Android runtime."
+    },
+    {
+      "name": "@capacitor/cli",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor CLI."
+    },
+    {
+      "name": "@capacitor/core",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor core."
+    },
+    {
+      "name": "@fedejm/capacitor-esc-pos-printer",
+      "declaredVersion": "0.2.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/soylomass/capacitor-esc-pos-printer",
+      "status": "approved",
+      "notes": "ESC/POS printer bridge."
+    },
+    {
+      "name": "@capacitor-community/sqlite",
+      "declaredVersion": "7.0.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/capacitor-community/sqlite",
+      "status": "approved",
+      "notes": "SQLite plugin."
+    },
+    {
+      "name": "capacitor-secure-storage-plugin",
+      "declaredVersion": "0.12.0",
+      "licenseId": "MIT",
+      "source": "https://github.com/martinkasa/capacitor-secure-storage-plugin",
+      "status": "approved",
+      "notes": "Secure storage plugin."
+    }
+  ]
+}
