@@ -50,6 +50,41 @@ async function tipsByOperatorForDate(db:any,restaurantId:string,businessDate:str
   return[...map.values()].map(x=>({...x,amount:Math.round(x.amount*100)/100})).sort((a,b)=>b.amount-a.amount);
 }
 
+const floorPlanTypes=new Set(["table","bar","wall","door","kitchen","toilet","banquette","label"]);
+const floorPlanShapes=new Set(["round","square","rect","high","oval"]);
+const floorClamp=(value:any,min:number,max:number)=>Math.max(min,Math.min(max,Number(value)||0));
+function normalizeFloorPlanDocument(input:any){
+  const src=input&&typeof input==="object"?input:{},canvasSrc=src.canvas&&typeof src.canvas==="object"?src.canvas:{};
+  const canvas={width:floorClamp(canvasSrc.width||1000,600,2400),height:floorClamp(canvasSrc.height||700,400,1800),gridSize:floorClamp(canvasSrc.gridSize||20,5,100),background:clean(canvasSrc.background||"#f7f3ed",32)||"#f7f3ed"};
+  const rawZones=Array.isArray(src.zones)?src.zones:[];if(rawZones.length>30)throw new Error("FLOOR_PLAN_ZONE_LIMIT");
+  const zones=rawZones.map((z:any,i:number)=>({id:clean(z?.id,120)||"zone_"+i,name:clean(z?.name,80)||"Zone "+(i+1),x:floorClamp(z?.x,0,canvas.width-80),y:floorClamp(z?.y,0,canvas.height-80),w:floorClamp(z?.w||400,80,canvas.width),h:floorClamp(z?.h||300,80,canvas.height),color:clean(z?.color,32)||"#f3eadf"}));
+  if(!zones.length)zones.push({id:"zone_main",name:"Salle principale",x:20,y:20,w:canvas.width-40,h:canvas.height-40,color:"#f3eadf"});
+  const zoneIds=new Set(zones.map((z:any)=>z.id)),rawElements=Array.isArray(src.elements)?src.elements:[];if(rawElements.length>400)throw new Error("FLOOR_PLAN_ELEMENT_LIMIT");
+  const elements=rawElements.map((e:any,i:number)=>{
+    const type=floorPlanTypes.has(String(e?.type))?String(e.type):"label",table=type==="table";
+    const shape=floorPlanShapes.has(String(e?.shape))?String(e.shape):(table?"round":"rect");
+    const tableId=table?(validUuid(e?.tableId)?String(e.tableId):crypto.randomUUID()):"";
+    return{id:clean(e?.id,120)||"element_"+i,type,tableId,label:clean(e?.label,80)||(table?"Table "+(i+1):type),seats:table?Math.max(0,Math.min(99,Math.trunc(Number(e?.seats)||2))):0,zoneId:zoneIds.has(String(e?.zoneId))?String(e.zoneId):zones[0].id,x:floorClamp(e?.x,0,canvas.width-30),y:floorClamp(e?.y,0,canvas.height-30),w:floorClamp(e?.w||(table?110:160),30,canvas.width),h:floorClamp(e?.h||(table?82:70),30,canvas.height),rotation:floorClamp(e?.rotation,-180,180),shape,color:clean(e?.color,32)||(table?"#fffaf5":"#dfd2c5"),active:e?.active!==false};
+  });
+  const ids=elements.map((x:any)=>x.id);if(new Set(ids).size!==ids.length)throw new Error("FLOOR_PLAN_ELEMENT_ID_DUPLICATE");
+  const labels=elements.filter((x:any)=>x.type==="table"&&x.active!==false).map((x:any)=>x.label.toLocaleLowerCase());if(new Set(labels).size!==labels.length)throw new Error("FLOOR_PLAN_TABLE_LABEL_DUPLICATE");
+  return{schemaVersion:1,name:clean(src.name,120)||"Plan de salle",canvas,zones,elements};
+}
+async function synchronizeTablesFromFloorPlan(db:any,restaurant:any,document:any){
+  const doc=normalizeFloorPlanDocument(document),{data:existing,error:existingError}=await db.from("pos_tables").select("id,label").eq("restaurant_id",restaurant.id);
+  if(existingError)throw new Error(existingError.message);
+  const byLabel=new Map((existing||[]).map((x:any)=>[String(x.label||"").trim().toLocaleLowerCase(),String(x.id)])),zoneNames=new Map(doc.zones.map((z:any)=>[z.id,z.name]));
+  const normalizedElements=doc.elements.map((e:any)=>{if(e.type!=="table")return e;const old=byLabel.get(String(e.label||"").trim().toLocaleLowerCase());return{...e,tableId:old||e.tableId||crypto.randomUUID()}});
+  const rows=normalizedElements.filter((e:any)=>e.type==="table"&&e.active!==false).map((e:any,i:number)=>({id:e.tableId,organization_id:restaurant.organization_id,restaurant_id:restaurant.id,label:e.label,area:zoneNames.get(e.zoneId)||"Salle",seats:e.seats,sort_order:i,x:e.x,y:e.y,active:true,updated_at:new Date().toISOString()}));
+  if(rows.length){const {error}=await db.from("pos_tables").upsert(rows,{onConflict:"id"});if(error)throw new Error(error.message)}
+  const keep=new Set(rows.map((x:any)=>String(x.id))),deactivateIds=(existing||[]).filter((x:any)=>!keep.has(String(x.id))).map((x:any)=>x.id);
+  if(deactivateIds.length){
+    const {error:deactivateError}=await db.from("pos_tables").update({active:false,updated_at:new Date().toISOString()}).in("id",deactivateIds);
+    if(deactivateError)throw new Error(deactivateError.message);
+  }
+  return{...doc,elements:normalizedElements};
+}
+
 const normalizeMatchName=(value:any)=>String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const availabilityConfig=(value:any)=>{
   const src=value&&typeof value==="object"?value:{},mode=["unlimited","manual","stock"].includes(String(src.mode))?String(src.mode):"unlimited";
@@ -231,7 +266,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
+        "configuration_head","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -263,6 +298,80 @@ export default {
             p_metadata:{clientEventId:validUuid(body.clientEventId)?body.clientEventId:null}
           }).then(()=>{}).catch(()=>{});
         }
+      }
+
+      if(action==="floor_plan_current"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_floor_plans")
+          .select("id,name,published_document,published_version,active,published_at")
+          .eq("restaurant_id",restaurantId).eq("active",true).not("published_document","is",null).maybeSingle();
+        if(error)return json({error:error.message},500);
+        return json({ok:true,plan:data?{id:data.id,name:data.name,document:data.published_document,version:Number(data.published_version)||0,active:true,publishedAt:data.published_at}:null});
+      }
+
+      if(action==="floor_plan_admin"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const {data:plans,error}=await ctx.supabaseAdmin.from("pos_floor_plans")
+          .select("id,name,draft_document,published_document,draft_revision,published_version,active,updated_at,published_at")
+          .eq("restaurant_id",restaurantId).order("active",{ascending:false}).order("updated_at",{ascending:false});
+        if(error)return json({error:error.message},500);
+        const ids=(plans||[]).map((x:any)=>x.id);let versions:any[]=[];
+        if(ids.length){
+          const {data,error:versionError}=await ctx.supabaseAdmin.from("pos_floor_plan_versions")
+            .select("plan_id,version,checksum,published_at").in("plan_id",ids).order("version",{ascending:false});
+          if(versionError)return json({error:versionError.message},500);versions=data||[];
+        }
+        const rows=(plans||[]).map((p:any)=>({...p,history:versions.filter((v:any)=>v.plan_id===p.id)}));
+        return json({ok:true,plans:rows});
+      }
+
+      if(action==="save_floor_plan"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const plan=body.plan||{},planId=clean(plan.id,64),name=clean(plan.name,120)||"Plan de salle";
+        let document:any;try{document=normalizeFloorPlanDocument(plan.document)}catch(error){return json({error:(error as Error).message},400)}
+        const payload:any={organization_id:restaurant.organization_id,restaurant_id:restaurantId,name,draft_document:document,updated_by:userId,updated_at:new Date().toISOString()};
+        if(validUuid(planId))payload.id=planId;
+        let query=ctx.supabaseAdmin.from("pos_floor_plans").upsert(payload,{onConflict:"id"}).select("id,name,draft_document,published_document,draft_revision,published_version,active,updated_at,published_at").single();
+        const {data,error}=await query;if(error)return json({error:error.message},409);
+        await ctx.supabaseAdmin.from("pos_floor_plans").update({draft_revision:Number(data.draft_revision||0)+1}).eq("id",data.id);
+        return json({ok:true,plan:{...data,draft_revision:Number(data.draft_revision||0)+1}});
+      }
+
+      if(action==="publish_floor_plan"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const planId=clean(body.planId,64);if(!validUuid(planId))return json({error:"Valid floor plan required"},400);
+        const {data:plan,error:planError}=await ctx.supabaseAdmin.from("pos_floor_plans").select("*").eq("id",planId).eq("restaurant_id",restaurantId).single();
+        if(planError||!plan)return json({error:"Floor plan not found"},404);
+        let document:any;try{document=await synchronizeTablesFromFloorPlan(ctx.supabaseAdmin,restaurant,plan.draft_document)}catch(error){return json({error:(error as Error).message},409)}
+        const nextVersion=Math.max(1,Number(plan.published_version||0)+1),checksum=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(document))).then((b:any)=>Array.from(new Uint8Array(b)).map((x:any)=>x.toString(16).padStart(2,"0")).join(""));
+        if(body.activate!==false)await ctx.supabaseAdmin.from("pos_floor_plans").update({active:false}).eq("restaurant_id",restaurantId).neq("id",planId);
+        const publishedAt=new Date().toISOString();
+        const {error:updateError}=await ctx.supabaseAdmin.from("pos_floor_plans").update({published_document:document,published_version:nextVersion,active:body.activate!==false,published_by:userId,published_at:publishedAt,updated_at:publishedAt}).eq("id",planId);
+        if(updateError)return json({error:updateError.message},500);
+        const {error:versionError}=await ctx.supabaseAdmin.from("pos_floor_plan_versions").insert({organization_id:restaurant.organization_id,restaurant_id:restaurantId,plan_id:planId,version:nextVersion,document,checksum,published_by:userId,published_at:publishedAt});
+        if(versionError)return json({error:versionError.message},500);
+        return json({ok:true,plan:{id:planId,name:plan.name,document,version:nextVersion,active:body.activate!==false,publishedAt}});
+      }
+
+      if(action==="activate_floor_plan"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const planId=clean(body.planId,64);if(!validUuid(planId))return json({error:"Valid floor plan required"},400);
+        const {data:plan,error}=await ctx.supabaseAdmin.from("pos_floor_plans").select("id,name,published_document,published_version").eq("id",planId).eq("restaurant_id",restaurantId).single();
+        if(error||!plan?.published_document)return json({error:"Published floor plan required"},409);
+        let document:any;try{document=await synchronizeTablesFromFloorPlan(ctx.supabaseAdmin,restaurant,plan.published_document)}catch(syncError){return json({error:(syncError as Error).message},409)}
+        await ctx.supabaseAdmin.from("pos_floor_plans").update({active:false}).eq("restaurant_id",restaurantId);
+        const {error:activeError}=await ctx.supabaseAdmin.from("pos_floor_plans").update({active:true,published_document:document,updated_at:new Date().toISOString()}).eq("id",planId);
+        if(activeError)return json({error:activeError.message},500);
+        return json({ok:true,plan:{id:plan.id,name:plan.name,document,version:Number(plan.published_version)||0,active:true}});
+      }
+
+      if(action==="restore_floor_plan_version"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const planId=clean(body.planId,64),version=Math.trunc(Number(body.version)||0);if(!validUuid(planId)||version<1)return json({error:"Valid plan/version required"},400);
+        const {data:row,error}=await ctx.supabaseAdmin.from("pos_floor_plan_versions").select("document").eq("plan_id",planId).eq("restaurant_id",restaurantId).eq("version",version).single();
+        if(error||!row)return json({error:"Floor plan version not found"},404);
+        const {data:plan,error:updateError}=await ctx.supabaseAdmin.from("pos_floor_plans").update({draft_document:row.document,draft_revision:Date.now(),updated_by:userId,updated_at:new Date().toISOString()}).eq("id",planId).eq("restaurant_id",restaurantId).select("id,name,draft_document,published_document,draft_revision,published_version,active,updated_at,published_at").single();
+        if(updateError)return json({error:updateError.message},500);
+        return json({ok:true,plan});
       }
 
       if(action==="availability_snapshot"){

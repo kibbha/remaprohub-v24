@@ -226,7 +226,7 @@ export async function savePosOperator(restaurantId,operator){
 }
 export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
   const date=businessDate||new Date().toISOString().slice(0,10);
-  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers,layoutAdmin]=await Promise.all([
+  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers,layoutAdmin,floorPlanAdmin]=await Promise.all([
     loadPosBootstrap(restaurantId),
     loadPosTables(restaurantId),
     loadPosOperators(restaurantId),
@@ -235,7 +235,8 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     loadPosInventoryMovements(restaurantId,{unacknowledged:true,limit:500}),
     loadPosFoodCostReport(restaurantId,date),
     loadPosProviderConnections(restaurantId),
-    loadPosLayoutAdmin(restaurantId)
+    loadPosLayoutAdmin(restaurantId),
+    loadPosFloorPlanAdmin(restaurantId)
   ]);
   return {
     bootstrap,
@@ -252,7 +253,8 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     automaticTransactions:providers?.automaticTransactions===true,
     layoutDraft:layoutAdmin?.draft||null,
     layoutPublished:layoutAdmin?.published||null,
-    layoutHistory:Array.isArray(layoutAdmin?.history)?layoutAdmin.history:[]
+    layoutHistory:Array.isArray(layoutAdmin?.history)?layoutAdmin.history:[],
+    floorPlans:Array.isArray(floorPlanAdmin?.plans)?floorPlanAdmin.plans:[]
   };
 }
 
@@ -279,6 +281,22 @@ export async function savePosProviderConnection(restaurantId,connection){
 export async function loadPosLayoutAdmin(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'layout_admin',restaurantId});
 }
+export async function loadPosFloorPlanAdmin(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'floor_plan_admin',restaurantId});
+}
+export async function savePosFloorPlan(restaurantId,plan){
+  return cloudFunction('remapro-pos-sync',{action:'save_floor_plan',restaurantId,plan});
+}
+export async function publishPosFloorPlan(restaurantId,planId,{activate=true}={}){
+  return cloudFunction('remapro-pos-sync',{action:'publish_floor_plan',restaurantId,planId,activate});
+}
+export async function activatePosFloorPlan(restaurantId,planId){
+  return cloudFunction('remapro-pos-sync',{action:'activate_floor_plan',restaurantId,planId});
+}
+export async function restorePosFloorPlanVersion(restaurantId,planId,version){
+  return cloudFunction('remapro-pos-sync',{action:'restore_floor_plan_version',restaurantId,planId,version:Number(version)});
+}
+
 export async function savePosLayoutDraft(restaurantId,document){
   return cloudFunction('remapro-pos-sync',{action:'save_layout_draft',restaurantId,document});
 }

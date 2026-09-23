@@ -1,8 +1,9 @@
 import{cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,buildAiContext,callRemaproAi,fileToDataUrl}from'./ai.js';import{cloudSession,initializeCloudSessionStorage,loadCachedCloudIdentity,signInCloud,signUpCloud,signOutCloud,requestPasswordReset,loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,cloudWorkspaceReadKeys,cloudWorkspaceWriteKeys,cloudFunction}from'./cloud.js';import{LANGS,language,setLanguage,t}from'./i18n.js';import{securitySettings,updateSecuritySettings,rememberedSecurityEmail,rememberSecurityEmail,loadDeveloperAccess,saveDeveloperAccess,clearDeveloperAccess,developerAliasMatches,validDeveloperAlias,biometricAvailability,verifyBiometric,shouldRelock}from'./security.js';import{billingAvailable,configureBilling,purchasePlan,restorePurchases,customerInfo,entitlementPlan}from'./billing.js';import{LEGAL_COUNTRIES,legalPack,legalFieldsFor,isLegalHrDocument}from'./legal.js';import{load,save,restoreStateMirror,storageScope,setStorageScope,exportWorkspace,applyWorkspaceData,restrictWorkspace,resetWorkspaceKeys,recordFinance,financeTotals,financeDayTotals,revenueSeries,localDate,recordRegistry,recordValidated,setStockPreferredSupplier,stockAvailable,recordStockMovement,createPurchaseOrder,transitionPurchaseOrder,receivePurchaseOrder,createInventoryCount,countInventoryItem,finalizeInventoryCount,recordProductionBatch,applyDeliveryAiReceiving,recordWaste,updateWaste,recordDelivery,ensureDailyTasks,setDailyTaskCompletion,dailyRoutineStatus,updateRecord,removeRecord,updatePreferences,exportData,importData,resetState,saveDocument,updateDocument,recordOrder,updateOrder,removeOrder,recordInvoice,markInvoicePaid,integrateInvoiceReceipt,recordPurchase,updatePurchase,removePurchase,recordShift,copyPreviousWeekSchedule,clockIn,toggleBreak,clockOut,recordAvailability,recordForecastSignal,requestShiftSwap,resolveShiftSwap,recordLeave,recordTraining,leaveBusinessDays,calculateSwissPayroll,swissPayrollVerification,ccntMinimum,PLAN_CONFIG,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan,STAFF_PERMISSIONS,multiFeaturesEnabled,activeRestaurant,mergeCloudRestaurants,switchRestaurant,recordRestaurant,removeRestaurant,recordManager,removeManager,recordStaffAccess,removeStaffAccess,recordAdvancedReservation,reservationTableConflicts,updateReservationStatus,markReservationReminder,updateReservationSettings,updateCustomerConsent,createGiftCard,redeemGiftCard,loyaltyTransaction,updateLoyaltySettings}from'./store.js';
-import{publishPosCatalog,loadPosAdminSnapshot,loadPosAccountingExport,loadPosDailySummary,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout,restorePosLayoutVersionToDraft}from'./pos.js';
+import{publishPosCatalog,loadPosAdminSnapshot,loadPosAccountingExport,loadPosDailySummary,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout,restorePosLayoutVersionToDraft,savePosFloorPlan,publishPosFloorPlan,activatePosFloorPlan,restorePosFloorPlanVersion}from'./pos.js';
 import{accountingIntegrationProfiles,accountingCsv}from'./accounting.js';
 import{integrationAdapterRegistry,integrationAdapterSummary}from'./integrations.js';
 import{emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,renderPosLayoutEditor,bindPosLayoutEditor}from'./pos-layout.js';
+import{emptyFloorPlan,normalizeFloorPlan,seedFloorPlanFromTables,renderFloorPlanEditor,bindFloorPlanEditor}from'./floor-plan.js';
 import{renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles}from'./academy.js';
 import{ACADEMY_CONTENT_VERSION}from'./academy-content.js';
 import{photosFromFiles,takeDeliveryPhoto,pickDeliveryPhotos,analyzeDeliveryPhotos,finalizeDeliveryAnalysis,cancelDeliveryAnalysis,disposeDeliveryPhotos,confidenceBand,confidenceLabel,DELIVERY_AI_MAX_PHOTOS}from'./delivery-ai.js';
@@ -10,7 +11,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],directChannels:[],directOrderShare:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
 const state=load(),markCloudWorkspaceDirty=()=>{if(!cloudSession())return;const current=activeRestaurant(state);if(!current?.cloudId)return;const next=exportWorkspace(state),previous=current.workspace&&typeof current.workspace==='object'&&!Array.isArray(current.workspace)?current.workspace:{},writeKeys=cloudIdentity?cloudWorkspaceWriteKeys(cloudIdentity,current.cloudId):Object.keys(next),dirty=new Set(Array.isArray(current.cloudDirtyKeys)?current.cloudDirtyKeys:[]);for(const key of writeKeys)if(JSON.stringify(previous[key])!==JSON.stringify(next[key]))dirty.add(key);current.cloudDirtyKeys=[...dirty];current.cloudDirty=current.cloudDirtyKeys.length>0||current.cloudDirty},persist=()=>{markCloudWorkspaceDirty();save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -318,7 +319,7 @@ function ai(){const connected=cloudConfigured()&&!!cloudSession(),snapshot=manag
 async function loadPosAdminData(showError=false){
   const restaurantId=cloudRestaurantId();
   if(!restaurantId||!cloudSession()||!cloudManager()){
-    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],directChannels:[],directOrderShare:null};
+    posAdminState={restaurantId:'',loading:false,error:'Connexion manager Hub requise.',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
     if(showError)render();return false;
   }
   posAdminState={...posAdminState,restaurantId,loading:true,error:''};
@@ -329,6 +330,7 @@ async function loadPosAdminData(showError=false){
       cloudFunction('remapro-direct-order-admin',{action:'list_channels',restaurantId},{attempts:1}).catch(()=>({channels:[]}))
     ]);
     posAdminState={restaurantId,loading:false,error:'',...snapshot,directChannels:Array.isArray(direct.channels)?direct.channels:[],directOrderShare:posAdminState.directOrderShare||null};
+    if(!posFloorPlanSelectedId||!posAdminState.floorPlans.some(x=>x.id===posFloorPlanSelectedId))posFloorPlanSelectedId=posAdminState.floorPlans.find(x=>x.active)?.id||posAdminState.floorPlans[0]?.id||'';
     render();return true;
   }catch(error){
     posAdminState={...posAdminState,restaurantId,loading:false,error:error?.message||String(error)};
@@ -472,6 +474,63 @@ function seedCurrentPosLayout(){
 }
 
 
+function floorPlanRows(){return Array.isArray(posAdminState.floorPlans)?posAdminState.floorPlans:[]}
+function currentFloorPlan(){
+  const rows=floorPlanRows();
+  let plan=rows.find(x=>String(x.id)===String(posFloorPlanSelectedId))||rows.find(x=>x.active)||rows[0]||null;
+  if(plan&&!posFloorPlanSelectedId)posFloorPlanSelectedId=plan.id;
+  return plan;
+}
+function currentFloorPlanDocument(){
+  const plan=currentFloorPlan();
+  return normalizeFloorPlan(plan?.draft_document||plan?.published_document||emptyFloorPlan());
+}
+function setFloorPlans(rows){posAdminState={...posAdminState,floorPlans:Array.isArray(rows)?rows:[]}}
+function markFloorPlanDirty(){posFloorPlanDirty=true}
+function createLocalFloorPlan(name='Service habituel',source=null){
+  const id=crypto.randomUUID(),document=normalizeFloorPlan(source||seedFloorPlanFromTables(posAdminState.tables||[]));
+  document.name=name;
+  const plan={id,name,draft_document:document,published_document:null,draft_revision:0,published_version:0,active:false,history:[]};
+  setFloorPlans([plan,...floorPlanRows()]);posFloorPlanSelectedId=id;posFloorPlanSelectedElementId='';posFloorPlanDirty=true;render();
+}
+async function saveCurrentFloorPlan(){
+  const plan=currentFloorPlan(),rid=cloudRestaurantId();if(!plan||!rid)return;
+  try{
+    const r=await savePosFloorPlan(rid,{id:plan.id,name:plan.name,document:normalizeFloorPlan(plan.draft_document||plan.published_document)});
+    setFloorPlans(floorPlanRows().map(x=>x.id===plan.id?{...x,...r.plan,history:x.history||[]}:x));
+    posFloorPlanDirty=false;posAdminState.error='';render();
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+async function publishCurrentFloorPlan(){
+  const plan=currentFloorPlan(),rid=cloudRestaurantId();if(!plan||!rid)return;
+  if(posFloorPlanDirty){
+    try{
+      const saved=await savePosFloorPlan(rid,{id:plan.id,name:plan.name,document:normalizeFloorPlan(plan.draft_document||plan.published_document)});
+      setFloorPlans(floorPlanRows().map(x=>x.id===plan.id?{...x,...saved.plan,history:x.history||[]}:x));posFloorPlanDirty=false;
+    }catch(error){posAdminState.error=error?.message||String(error);render();return}
+  }
+  if(!confirm('Publier ce plan et l’activer immédiatement sur ReMaPro POS ?'))return;
+  try{
+    await publishPosFloorPlan(rid,plan.id,{activate:true});
+    await loadPosAdminData(false);posFloorPlanSelectedId=plan.id;posFloorPlanSelectedElementId='';posFloorPlanDirty=false;
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+async function restoreCurrentFloorPlan(version){
+  const plan=currentFloorPlan(),rid=cloudRestaurantId();if(!plan||!rid)return;
+  if(posFloorPlanDirty&&!confirm('Remplacer les modifications non enregistrées par cette version ?'))return;
+  try{
+    const r=await restorePosFloorPlanVersion(rid,plan.id,version);
+    setFloorPlans(floorPlanRows().map(x=>x.id===plan.id?{...x,...r.plan,history:x.history||[]}:x));
+    posFloorPlanDirty=false;posFloorPlanSelectedElementId='';render();
+  }catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+async function activateCurrentFloorPlan(){
+  const plan=currentFloorPlan();if(!plan?.published_document)return;
+  try{await activatePosFloorPlan(cloudRestaurantId(),plan.id);await loadPosAdminData(false);posFloorPlanSelectedId=plan.id}
+  catch(error){posAdminState.error=error?.message||String(error);render()}
+}
+
+
 function closePosStockComponents(){document.querySelector('#pos-stock-components-modal')?.remove();document.body.classList.remove('modal-open')}
 function openPosStockComponents(collection,index){
   const item=state?.[collection]?.[index];if(!item)return;
@@ -528,7 +587,7 @@ async function applyPosInventoryMovements(){
 function posAdmin(){
   const restaurantId=cloudRestaurantId(),manager=cloudManager();
   if(restaurantId&&manager&&posAdminState.restaurantId!==restaurantId&&!posAdminState.loading){
-    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],directChannels:[],directOrderShare:null};
+    posAdminState={restaurantId,loading:true,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
     setTimeout(()=>loadPosAdminData(false),0);
   }
   const venue=activeRestaurant(state)?.name||state.preferences?.restaurant||'Restaurant';
@@ -546,15 +605,10 @@ function posAdmin(){
     <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
     ${posAdminState.foodCost?`<div class="pos-foodcost-strip"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
-    ${card(t('integrationAdapterRegistry'),`<div class="row"><span><strong>${adapterSummary.total} ${t('integrationAdapters')}</strong><br><small class="muted">${adapterSummary.ready} ${t('integrationStatus_ready')} · ${adapterSummary.prepared} ${t('integrationStatus_prepared')}</small></span><span class="pill good">${t('integrationSecretsServerOnly')}</span></div>${adapterRows}`)}${directOrderAdminCard()}<div id="pos-layout-editor-root" data-pos-section="layout">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,history:posAdminState.layoutHistory||[],selectedButtonId:posLayoutSelectedButtonId,selectedPageId:posLayoutSelectedPageId})}</div>
+    ${card(t('integrationAdapterRegistry'),`<div class="row"><span><strong>${adapterSummary.total} ${t('integrationAdapters')}</strong><br><small class="muted">${adapterSummary.ready} ${t('integrationStatus_ready')} · ${adapterSummary.prepared} ${t('integrationStatus_prepared')}</small></span><span class="pill good">${t('integrationSecretsServerOnly')}</span></div>${adapterRows}`)}${directOrderAdminCard()}<div id="pos-layout-editor-root" data-pos-section="layout">${renderPosLayoutEditor({layout:posLayoutDocument(),catalog:posAdminState.catalog||[],published:posAdminState.layoutPublished,history:posAdminState.layoutHistory||[],selectedButtonId:posLayoutSelectedButtonId,selectedPageId:posLayoutSelectedPageId})}</div><div id="floor-plan-editor-root" data-pos-section="floor">${renderFloorPlanEditor({plans:floorPlanRows(),selectedPlanId:posFloorPlanSelectedId,selectedElementId:posFloorPlanSelectedElementId})}</div>
     <div class="pos-admin-grid">
       <section class="card pos-admin-card pos-admin-catalog" data-pos-section="catalog"><h2>Catalogue & routage</h2><p class="muted">Choisissez où chaque article doit partir avant publication.</p>
         <div class="pos-admin-list">${localCatalog.length?localCatalog.map(x=>`<div class="pos-admin-row"><span><strong>${esc(x.name)}</strong><small>${money(x.price)} · coût ${money(x.cost)} · ${x.components} composant(s) stock</small></span><span class="actions"><select data-pos-station="${x.collection}:${x.index}"><option value="kitchen" ${x.station==='kitchen'?'selected':''}>Cuisine</option><option value="bar" ${x.station==='bar'?'selected':''}>Bar</option><option value="none" ${x.station==='none'?'selected':''}>Sans production</option></select><button class="btn compact" data-pos-components="${x.collection}:${x.index}">Stock</button></span></div>`).join(''):'<p class="muted">Ajoutez des produits ou recettes dans le Hub.</p>'}</div>
-      </section>
-
-      <section class="card pos-admin-card"><h2>Plan de salle</h2>
-        <form id="posTableAddForm" class="form pos-inline-form"><input name="label" required maxlength="80" placeholder="Table 1"><input name="area" maxlength="80" value="Salle" placeholder="Zone"><input name="seats" type="number" min="0" max="99" value="2"><button class="btn primary">Ajouter</button></form>
-        <div class="pos-admin-list">${posAdminState.tables.length?posAdminState.tables.map(t=>`<div class="pos-admin-row"><span><strong>${esc(t.label)}</strong><small>${esc(t.area||'Salle')} · ${Number(t.seats)||0} places</small></span><span class="actions"><button class="btn compact" data-pos-table-edit="${t.id}">Places/zone</button><button class="btn danger compact" data-pos-table-remove="${t.id}">Retirer</button></span></div>`).join(''):'<p class="muted">Aucune table configurée.</p>'}</div>
       </section>
 
       <section class="card pos-admin-card"><h2>Opérateurs & PIN</h2>
@@ -962,6 +1016,21 @@ bindPosLayoutEditor(document.querySelector('#pos-layout-editor-root'),{
   onPublish:()=>publishCurrentPosLayout(),
   onRestore:version=>restoreCurrentPosLayout(version),
   onSeed:()=>seedCurrentPosLayout(),
+  onRender:()=>render()
+});
+bindFloorPlanEditor(document.querySelector('#floor-plan-editor-root'),{
+  getPlans:()=>floorPlanRows(),
+  setPlans:rows=>setFloorPlans(rows),
+  getPlanId:()=>posFloorPlanSelectedId,
+  setPlanId:id=>{posFloorPlanSelectedId=id},
+  getElementId:()=>posFloorPlanSelectedElementId,
+  setElementId:id=>{posFloorPlanSelectedElementId=id},
+  onDirty:()=>markFloorPlanDirty(),
+  onSave:()=>saveCurrentFloorPlan(),
+  onPublish:()=>publishCurrentFloorPlan(),
+  onRestore:version=>restoreCurrentFloorPlan(version),
+  onNew:()=>{const name=prompt('Nom du nouveau plan','Service habituel');if(name?.trim())createLocalFloorPlan(name.trim())},
+  onDuplicate:()=>{const plan=currentFloorPlan();if(!plan)return;const name=prompt('Nom de la copie',(plan.name||'Plan')+' — copie');if(name?.trim())createLocalFloorPlan(name.trim(),currentFloorPlanDocument())},
   onRender:()=>render()
 });
 document.getElementById('posAdminRefresh')?.addEventListener('click',()=>posAdminReload());
