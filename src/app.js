@@ -23,7 +23,8 @@ const state={
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
-let terminalPollTimer=null,directOrderPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false;
+let terminalPollTimer=null,directOrderPollTimer=null,hubConfigPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false,hubConfigSyncInFlight=false;
+const HUB_CONFIG_POLL_MS=15000;
 const money=v=>new Intl.NumberFormat(({fr:'fr-CH',en:'en-CH',de:'de-CH',it:'it-CH'})[language()]||'fr-CH',{style:'currency',currency:state.restaurant?.currency||'CHF'}).format(Number(v)||0);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -1633,6 +1634,35 @@ async function refreshCatalog(){
   }catch(error){state.error=error.message||String(error)}
   render();
 }
+
+async function syncPublishedHubConfiguration({force=false}={}){
+  if(hubConfigSyncInFlight||!state.online||!state.restaurant||!currentSession())return false;
+  hubConfigSyncInFlight=true;
+  try{
+    const result=await posFunction({action:'layout_current',restaurantId:state.restaurant.id});
+    const next=result?.layout||null,current=publishedLayout(state.bootstrap);
+    const changed=force
+      ? (Number(next?.version||0)!==Number(current?.version||0)||String(next?.checksum||'')!==String(current?.checksum||''))
+      : (!!next&&(Number(next.version||0)>Number(current?.version||0)||String(next.checksum||'')!==String(current?.checksum||'')));
+    if(!changed)return false;
+    state.bootstrap={...(state.bootstrap||{}),layout:next};
+    await kvSet(catalogKey(state.restaurant.id),state.bootstrap);
+    ensureLayoutSelection(publishedLayout(state.bootstrap));
+    state.syncLastRun=new Date().toISOString();
+    recordDiagnostic('hub_config.layout_updated',{version:Number(next?.version)||0,checksum:String(next?.checksum||'')});
+    return true;
+  }catch(error){
+    recordDiagnostic('hub_config.sync_error',{message:error?.message||String(error)});
+    return false;
+  }finally{hubConfigSyncInFlight=false}
+}
+function startHubConfigurationPolling(){
+  if(hubConfigPollTimer)clearInterval(hubConfigPollTimer);
+  hubConfigPollTimer=setInterval(async()=>{
+    if(document.visibilityState==='hidden')return;
+    if(await syncPublishedHubConfiguration())render();
+  },HUB_CONFIG_POLL_MS);
+}
 function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
@@ -2122,8 +2152,10 @@ async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
-  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{})});
+  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncPublishedHubConfiguration({force:true}).then(changed=>{if(changed)render()}).catch(()=>{})});
   window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncPublishedHubConfiguration({force:true}).then(changed=>{if(changed)render()}).catch(()=>{})});
+  startHubConfigurationPolling();
   setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
 }
