@@ -2,7 +2,7 @@ const clone=v=>JSON.parse(JSON.stringify(v));
 const normalizeMatchName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const normalizeAvailability=input=>{
   const src=input&&typeof input==='object'?input:{},mode=['unlimited','manual','stock'].includes(String(src.mode))?String(src.mode):'unlimited';
-  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3))};
+  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3)),resetAt:String(src.resetAt||'')};
 };
 function normalizeStandaloneItem(item){
   if(!item||typeof item!=='object')return null;
