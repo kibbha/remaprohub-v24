@@ -7,7 +7,8 @@ const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
 
 for(const token of [
   'modular-dashboard',
-  'remapro-dashboard-v2',
+  'hub-classic-home',
+  'hub-category-grid',
   "t('modularPilotageHint')",
   "t('allTools')",
   'id="pos-layout-editor-root"',
