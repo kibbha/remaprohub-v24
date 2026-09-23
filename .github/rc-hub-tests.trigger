@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run progressed through architecture and found a stale developer boot assertion.
-Retry base: c3df20bb8a598cab86850d94ab29a7078b54ad47
-Fix: developer security gate now asserts session init + developer access + state mirror recovery, matching the hardened boot path.
+Previous run reached PWA packaging and exposed cache drift after new runtime modules were added.
+Retry base: 727ea4cb3470bf223757a824a5088d3985cb1d65
+Fix: accounting/integrations are now offline-cached and cache hashing/tests include the complete packaged runtime, including workspace storage.
