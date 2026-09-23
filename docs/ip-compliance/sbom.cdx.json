@@ -1,0 +1,303 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "name": "remapro-hub",
+      "version": "27.11.0"
+    },
+    "properties": [
+      {
+        "name": "remapro:sbom-scope",
+        "value": "manifest-direct-dependencies"
+      },
+      {
+        "name": "remapro:branch",
+        "value": "rebuild/remaprohub-clean"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "@capacitor/android",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/android@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/cli",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/cli@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/core",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.4.3"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor"
+        }
+      ],
+      "version": "7.4.3",
+      "purl": "pkg:npm/%40capacitor/core@7.4.3",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/filesystem",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.0.0"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor-filesystem"
+        }
+      ],
+      "version": "7.0.0",
+      "purl": "pkg:npm/%40capacitor/filesystem@7.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/share",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.0.0"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor-plugins"
+        }
+      ],
+      "version": "7.0.0",
+      "purl": "pkg:npm/%40capacitor/share@7.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/local-notifications",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.0.0"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor-plugins"
+        }
+      ],
+      "version": "7.0.0",
+      "purl": "pkg:npm/%40capacitor/local-notifications@7.0.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@revenuecat/purchases-capacitor",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "11.3.2"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/RevenueCat/purchases-capacitor"
+        }
+      ],
+      "version": "11.3.2",
+      "purl": "pkg:npm/%40revenuecat/purchases-capacitor@11.3.2",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "capacitor-secure-storage-plugin",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "0.12.0"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/martinkasa/capacitor-secure-storage-plugin"
+        }
+      ],
+      "version": "0.12.0",
+      "purl": "pkg:npm/capacitor-secure-storage-plugin@0.12.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capgo/capacitor-native-biometric",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "^7.1.13"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "review-required"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/Cap-go/capacitor-native-biometric"
+        }
+      ],
+      "purl": "pkg:npm/%40capgo/capacitor-native-biometric",
+      "licenses": [
+        {
+          "license": {
+            "name": "Version-dependent: MIT (<7.5.3) / MPL-2.0 (>=7.5.3)"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "@capacitor/camera",
+      "scope": "required",
+      "properties": [
+        {
+          "name": "remapro:declared-version",
+          "value": "7.0.5"
+        },
+        {
+          "name": "remapro:review-status",
+          "value": "approved"
+        },
+        {
+          "name": "remapro:source",
+          "value": "https://github.com/ionic-team/capacitor-camera"
+        }
+      ],
+      "version": "7.0.5",
+      "purl": "pkg:npm/%40capacitor/camera@7.0.5",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    }
+  ]
+}
