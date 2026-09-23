@@ -7,7 +7,7 @@ const db=fs.readFileSync(new URL('../src/db.js',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 
 assert.ok(app.includes('queueFlushPromise=null'),'queue single-flight state required');
-assert.ok(app.includes('async function flushQueueInternal()'),'queue flush implementation must be isolated');
+assert.ok(app.includes('async function flushQueueInternal('),'queue flush implementation must be isolated');
 assert.ok(app.includes('if(queueFlushPromise)return queueFlushPromise'),'concurrent queue flushes must collapse');
 assert.ok(app.includes('terminalPollInFlight=false'),'terminal poll single-flight state required');
 assert.ok(app.includes('if(terminalPollInFlight)return'),'overlapping terminal polls must be blocked');

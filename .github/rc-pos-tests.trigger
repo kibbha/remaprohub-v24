@@ -1,4 +1,4 @@
 RC POS validation trigger
-Previous run reached Academy responsive contracts; the test still expected the pre-refactor 720px dialog.
-Retry base: c9ef02d8ca4b6669bde13964a61856f9cfed2580
-Fix: assert the current responsive Academy dialog contract (760px max + mobile override).
+Previous run reached resilience checks; implementation is isolated but accepts an options argument.
+Retry base: 5d4f1e815de9da40e553443c4f91dc9b500ada88
+Fix: assertion validates flushQueueInternal function independent of its parameter signature.
