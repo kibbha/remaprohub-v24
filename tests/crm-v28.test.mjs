@@ -10,5 +10,6 @@ const gift=createGiftCard(state,{amount:100,customer:'Ana'});assert.ok(gift);ass
 assert.ok(loyaltyTransaction(state,{customer:'Ana',points:20,reason:'Visit'}));assert.equal(state.loyalty[0].points,20);assert.ok(updateLoyaltySettings(state,{earnPerCurrency:2,redeemValuePerPoint:.02}));assert.ok(earnLoyaltyForSpend(state,{customer:'Ana',amount:20,reference:'R1'}));assert.equal(state.loyalty[0].points,60);assert.equal(loyaltyTier(state,60),'silver');
 assert.equal(reservationLoad(state,new Date('2026-09-24T08:00:00'),1)[0].covers,2);
 assert.ok(updateReservationSettings(state,{reminderHours:12,noShowDepositEnabled:true,defaultDepositAmount:25}));assert.equal(state.reservationSettings.reminderHours,12);
+assert.ok(app.includes('posAdminState.restaurantId!==rid'),'reservation page must preload POS floor tables');
 for(const token of ['advancedReservationForm','reservationSettingsForm','data-reservation-reminder','reservationTables','customerInsights','loyaltySettingsForm','loyaltyTransactionForm','giftCardForm','loyaltyTier_'])assert.ok(app.includes(token),token+' UI missing');
 console.log('Advanced reservations, CRM, loyalty and gift-card checks passed');

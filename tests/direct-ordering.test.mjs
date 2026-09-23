@@ -12,6 +12,7 @@ assert.ok(js.includes("location.hash"),'QR secret must be read from fragment');
 assert.ok(js.includes("crypto.randomUUID()"),'client idempotency key required');
 assert.ok(js.includes('paymentMethod'),'QR UI must carry payment preference');
 assert.ok(js.includes('requestedFor'),'Click & Collect pickup time must be carried');
+assert.ok(js.includes("toISOString()"),'pickup time must be normalized with the customer device timezone');
 assert.ok(js.includes('payment_status'),'QR confirmation must show POS-confirmed payment state');
 assert.ok(!js.includes('payment_status:"paid"'),'client must never mark payment as paid');
 assert.ok(pub.includes('paymentMethod==="counter"?"unpaid":"pending"'),'public server may request payment but never self-confirm it');
