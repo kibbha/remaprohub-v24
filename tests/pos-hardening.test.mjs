@@ -24,7 +24,7 @@ for(const key of ['managerRequired','tableTransferNeedsNetwork','noFreeTable','t
 assert.ok(ui.includes('role="dialog"'),'accessible modal role required');
 assert.ok(ui.includes("aria-modal"),'modal aria semantics required');
 assert.ok(ui.includes("aria-labelledby"),'modal title must be announced');
-assert.ok(ui.includes("e.key==='Tab'"),'modal keyboard focus trap required');
+assert.ok(ui.includes("e.key!=='Tab'"),'modal keyboard focus trap required');
 assert.ok(ui.includes('previousFocus'),'modal must restore prior focus');
 assert.ok(ui.includes("e.key==='Escape'"),'modal Escape handling required');
 assert.ok(html.includes('Content-Security-Policy'),'POS CSP required');
