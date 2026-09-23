@@ -16,7 +16,7 @@ const state={
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
-  productionQueue:[],productionStation:'all',productionSort:'oldest',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
+  productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],directOrders:[],
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
@@ -32,6 +32,7 @@ const receiptsKey=id=>'receipts:'+id;
 const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
 const productionKey=id=>'production:'+id;
+const kdsMetricsKey=id=>'kdsMetrics:'+id;
 const terminalsKey=id=>'terminals:'+id;
 const printersKey=id=>'printers:'+id;
 const operatorsKey=id=>'operators:'+id;
@@ -596,12 +597,14 @@ async function refreshProductionQueue(){
   if(!state.restaurant)return;
   if(!state.online){
     state.productionQueue=await kvGet(productionKey(state.restaurant.id))||state.productionQueue||[];
+    state.kdsMetrics=await kvGet(kdsMetricsKey(state.restaurant.id))||state.kdsMetrics||{stations:[],products:[]};
     return;
   }
   try{
     const r=await posFunction({action:'production_queue',restaurantId:state.restaurant.id});
     state.productionQueue=r.rows||[];
-    await kvSet(productionKey(state.restaurant.id),state.productionQueue);
+    state.kdsMetrics=r.metrics&&typeof r.metrics==='object'?r.metrics:{stations:[],products:[]};
+    await Promise.all([kvSet(productionKey(state.restaurant.id),state.productionQueue),kvSet(kdsMetricsKey(state.restaurant.id),state.kdsMetrics)]);
   }catch(error){state.error=error.message||String(error)}
 }
 async function refreshFloorData(){
@@ -668,6 +671,12 @@ async function executeQueued(item){
   if(item.action==='update_production_item'){
     return posFunction({action:'update_production_item',restaurantId:item.restaurantId,...queuedPayload(item)});
   }
+  if(item.action==='set_production_priority'){
+    return posFunction({action:'set_production_priority',restaurantId:item.restaurantId,...queuedPayload(item)});
+  }
+  if(item.action==='recall_production_order'){
+    return posFunction({action:'recall_production_order',restaurantId:item.restaurantId,...queuedPayload(item)});
+  }
   if(item.action==='settle_open_order'){
     const r=await posFunction({action:'settle_open_order',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(r.receipt)await saveReceipt(r.receipt);
@@ -702,8 +711,8 @@ async function flushQueueInternal({force=false}={}){
     if(!force&&!queueRetryDue(item))break;
     try{
       await executeQueued(item);
-      if(['save_open_order','append_order_items','send_to_production','update_production_item','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
-      if(['append_order_items','send_to_production','update_production_item'].includes(item.action))productionChanged=true;
+      if(['save_open_order','append_order_items','send_to_production','update_production_item','set_production_priority','recall_production_order','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
+      if(['append_order_items','send_to_production','update_production_item','set_production_priority','recall_production_order'].includes(item.action))productionChanged=true;
       await queueDelete(item.client_event_id);
     }catch(error){
       const message=error?.message==='OFFLINE_OPERATOR_REAUTH'
@@ -1399,7 +1408,7 @@ function applyLocalProductionSend(order,newLines=[]){
   const sentIds=[];
   for(const item of all){
     if((item.station_snapshot||'kitchen')!=='none'&&item.kitchen_status==='new'){
-      item.kitchen_status='sent';sentIds.push(String(item.id));
+      item.kitchen_status='sent';item.production_sent_at=item.production_sent_at||new Date().toISOString();sentIds.push(String(item.id));
     }
   }
   const nextStatus=sentIds.length&&['open','served'].includes(order.status)?'sent':order.status;
@@ -1456,7 +1465,7 @@ async function sendCurrentOrderProduction(){
 }
 async function updateProductionItem(itemId,status,{renderAfter=true,refreshAfter=true}={}){
   if(!state.online){
-    const patchItems=order=>({...order,items:(order.items||[]).map(i=>String(i.id)===String(itemId)?{...i,kitchen_status:status}:i),updated_at:new Date().toISOString()});
+    const changedAt=new Date().toISOString(),timestampKey=({sent:'production_sent_at',preparing:'production_started_at',ready:'production_ready_at',served:'production_served_at'})[status],patchItems=order=>({...order,items:(order.items||[]).map(i=>String(i.id)===String(itemId)?{...i,kitchen_status:status,...(timestampKey?{[timestampKey]:i[timestampKey]||changedAt}:{})}:i),updated_at:changedAt});
     state.productionQueue=state.productionQueue.map(patchItems);
     state.openOrders=state.openOrders.map(patchItems);
     await queueCommand('update_production_item',{itemId,status});
@@ -1810,8 +1819,9 @@ function floorView(){
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
     </main></div>`;
 }
+function advancedKdsEnabled(){return state.bootstrap?.capabilities?.advancedKds===true}
 function productionAgeMinutes(item,order,now=Date.now()){
-  const raw=item?.created_at||order?.opened_at||order?.updated_at||'';
+  const raw=item?.production_sent_at||item?.created_at||order?.opened_at||order?.updated_at||'';
   const at=Date.parse(raw);return Number.isFinite(at)?Math.max(0,Math.floor((now-at)/60000)):0;
 }
 function productionUrgency(age){
@@ -1823,13 +1833,43 @@ function productionAgeLabel(age){return age<1?'<1 min':age+' min'}
 function productionOrderAge(order,now=Date.now()){
   const ages=(order.items||[]).map(item=>productionAgeMinutes(item,order,now));return ages.length?Math.max(...ages):0;
 }
+function productionPriority(order){return Math.max(0,Math.min(2,Math.trunc(Number(order?.production_priority)||0)))}
+function nextProductionPriority(order){const current=productionPriority(order);return current===0?1:current===1?2:0}
+function priorityLabel(priority){return priority===2?t('kdsRush'):priority===1?t('kdsPriority'):t('kdsNormal')}
 async function updateKdsThresholds(warn,critical){
   const w=Math.max(1,Math.min(120,Math.trunc(Number(warn)||12))),c=Math.max(w+1,Math.min(180,Math.trunc(Number(critical)||20)));
   state.kdsWarnMinutes=w;state.kdsCriticalMinutes=c;
   localStorage.setItem('remapro-kds-warn',String(w));localStorage.setItem('remapro-kds-critical',String(c));render();
 }
+async function setProductionPriority(order,priority){
+  if(!order||!advancedKdsEnabled())return;
+  const value=Math.max(0,Math.min(2,Math.trunc(Number(priority)||0)));
+  state.productionQueue=state.productionQueue.map(x=>String(x.id)===String(order.id)?{...x,production_priority:value}:x);
+  if(!state.online){
+    await queueCommand('set_production_priority',{orderId:order.id,priority:value});
+    await persistLocalProduction();state.error=t('kdsSavedOffline');render();return;
+  }
+  try{
+    await posFunction({action:'set_production_priority',restaurantId:state.restaurant.id,orderId:order.id,priority:value});
+    await refreshProductionQueue();render();
+  }catch(error){state.error=error.message||String(error);recordDiagnostic('production.priority_error',{message:state.error});render()}
+}
+async function recallProductionOrder(orderId){
+  if(!orderId||!advancedKdsEnabled())return;
+  if(!state.online){
+    const patch=order=>String(order.id)===String(orderId)?{...order,status:'preparing',items:(order.items||[]).map(i=>i.kitchen_status==='served'?{...i,kitchen_status:'ready',production_served_at:null}:i),updated_at:new Date().toISOString()}:order;
+    state.productionQueue=state.productionQueue.map(patch);state.openOrders=state.openOrders.map(patch);
+    await queueCommand('recall_production_order',{orderId});await persistLocalProduction();
+    state.kdsLastBumped='';localStorage.removeItem('remapro-kds-last-bumped');state.error=t('kdsSavedOffline');render();return;
+  }
+  try{
+    await posFunction({action:'recall_production_order',restaurantId:state.restaurant.id,orderId});
+    state.kdsLastBumped='';localStorage.removeItem('remapro-kds-last-bumped');
+    await Promise.all([refreshProductionQueue(),refreshFloorData()]);render();
+  }catch(error){state.error=error.message||String(error);recordDiagnostic('production.recall_error',{message:state.error});render()}
+}
 async function advanceProductionOrder(order,target){
-  if(!order||!state.online){uiAlert(t('connectionRequired'));return}
+  if(!order)return;
   const eligible=(order.items||[]).filter(i=>{
     if(target==='ready')return['sent','preparing'].includes(i.kitchen_status);
     if(target==='served')return i.kitchen_status==='ready';
@@ -1837,18 +1877,28 @@ async function advanceProductionOrder(order,target){
   });
   if(!eligible.length)return;
   for(const item of eligible)await updateProductionItem(item.id,target,{renderAfter:false,refreshAfter:false});
-  await refreshProductionQueue();render();
+  if(target==='served'&&advancedKdsEnabled()){
+    state.kdsLastBumped=String(order.id);localStorage.setItem('remapro-kds-last-bumped',state.kdsLastBumped);
+  }
+  if(state.online)await refreshProductionQueue();else await persistLocalProduction();
+  render();
 }
 function productionView(){
-  const station=state.productionStation,now=Date.now();
-  const source=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||station==='expo'||i.station_snapshot===station||modifierRoutesToStation(i.modifiers,station))})).filter(o=>o.items.length);
+  const station=state.productionStation,now=Date.now(),advanced=advancedKdsEnabled();
+  const stationSource=(state.productionQueue||[]).map(o=>({...o,items:(o.items||[]).filter(i=>station==='all'||station==='expo'||i.station_snapshot===station||modifierRoutesToStation(i.modifiers,station))})).filter(o=>o.items.length);
+  const courses=[...new Set(stationSource.flatMap(o=>(o.items||[]).map(i=>String(i.course||'').trim()).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,language()));
+  if(state.kdsCourse!=='all'&&!courses.includes(state.kdsCourse))state.kdsCourse='all';
+  const source=state.kdsCourse==='all'?stationSource:stationSource.map(o=>({...o,items:(o.items||[]).filter(i=>String(i.course||'').trim()===state.kdsCourse)})).filter(o=>o.items.length);
   const filtered=[...source].sort((a,b)=>{
+    if(advanced&&productionPriority(a)!==productionPriority(b))return productionPriority(b)-productionPriority(a);
     const aa=productionOrderAge(a,now),bb=productionOrderAge(b,now);
     return state.productionSort==='newest'?aa-bb:bb-aa;
   });
   const label=s=>s==='bar'?t('bar'):t('kitchen');
   const action=i=>i.kitchen_status==='sent'?['preparing',t('prepare')]:i.kitchen_status==='preparing'?['ready',t('ready')]:i.kitchen_status==='ready'?['served',t('served')]:null;
-  const ages=filtered.map(o=>productionOrderAge(o,now)),late=ages.filter(x=>x>=state.kdsWarnMinutes).length,critical=ages.filter(x=>x>=state.kdsCriticalMinutes).length,avg=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):0;
+  const ages=filtered.map(o=>productionOrderAge(o,now)),late=ages.filter(x=>x>=state.kdsWarnMinutes).length,critical=ages.filter(x=>x>=state.kdsCriticalMinutes).length,avg=ages.length?Math.round(ages.reduce((a,b)=>a+b,0)/ages.length):0,rush=filtered.filter(x=>productionPriority(x)===2).length;
+  const stationMetrics=Array.isArray(state.kdsMetrics?.stations)?state.kdsMetrics.stations:[],productMetrics=Array.isArray(state.kdsMetrics?.products)?state.kdsMetrics.products:[];
+  const metrics=advanced&&(stationMetrics.length||productMetrics.length)?`<section class="kds-metrics"><div><h3>${t('kdsStationMetrics')}</h3><div class="kds-metric-grid">${stationMetrics.map(m=>`<article><strong>${esc(label(m.station))}</strong><span>${t('kdsReadyAvg')} <b>${m.avg_ready_minutes??'—'} min</b></span><span>${t('kdsServedAvg')} <b>${m.avg_served_minutes??'—'} min</b></span><small>${Number(m.samples)||0} ${t('kdsSamples')}</small></article>`).join('')}</div></div>${productMetrics.length?`<div><h3>${t('kdsSlowProducts')}</h3><div class="kds-product-metrics">${productMetrics.slice(0,4).map(m=>`<span><strong>${esc(m.product)}</strong><b>${m.avg_ready_minutes??'—'} min</b></span>`).join('')}</div></div>`:''}</section>`:'';  
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="production-page kds-page">
       <div class="kds-summary">
@@ -1856,21 +1906,25 @@ function productionView(){
         <article><span>${t('kdsAverage')}</span><strong>${avg} min</strong></article>
         <article class="${late?'kds-warning':''}"><span>${t('kdsLate')}</span><strong>${late}</strong></article>
         <article class="${critical?'kds-critical':''}"><span>${t('kdsCritical')}</span><strong>${critical}</strong></article>
+        ${advanced?`<article class="${rush?'kds-rush-summary':''}"><span>${t('kdsRush')}</span><strong>${rush}</strong></article>`:''}
       </div>
       <div class="floor-head kds-head"><div><h2>${t('kdsTitle')}</h2><p>${filtered.length} ${t('ordersInProgress')}</p></div>
         <div class="kds-controls">
           <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">${t('all')}</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">${t('kitchen')}</button><button data-station="bar" class="${station==='bar'?'active':''}">${t('bar')}</button><button data-station="expo" class="${station==='expo'?'active':''}">Expo</button></div>
+          ${courses.length?`<label>${t('kdsCourse')}<select id="kds-course"><option value="all">${t('kdsAllCourses')}</option>${courses.map(c=>`<option value="${esc(c)}" ${state.kdsCourse===c?'selected':''}>${esc(c)}</option>`).join('')}</select></label>`:''}
           <label>${t('kdsSort')}<select id="kds-sort"><option value="oldest" ${state.productionSort==='oldest'?'selected':''}>${t('kdsOldest')}</option><option value="newest" ${state.productionSort==='newest'?'selected':''}>${t('kdsNewest')}</option></select></label>
           <label>${t('kdsWarn')}<input id="kds-warn" type="number" min="1" max="120" value="${state.kdsWarnMinutes}"></label>
           <label>${t('kdsCriticalAt')}<input id="kds-critical" type="number" min="2" max="180" value="${state.kdsCriticalMinutes}"></label>
+          ${advanced&&state.kdsLastBumped?`<button class="secondary kds-recall" id="kds-recall">↶ ${t('kdsRecall')}</button>`:''}
           <button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>${t('refresh')}</button>
         </div>
       </div>
+      ${metrics}
       <div class="production-grid kds-grid">${filtered.length?filtered.map(o=>{
-        const age=productionOrderAge(o,now),urgency=productionUrgency(age),readyCount=(o.items||[]).filter(i=>i.kitchen_status==='ready').length,activeCount=(o.items||[]).filter(i=>['sent','preparing'].includes(i.kitchen_status)).length;
-        return `<article class="production-ticket kds-ticket ${urgency}">
-          <header><div><strong>${esc(o.table_label||o.service_type||t('order'))}</strong><small>${Number(o.covers)||0} ${t('covers')}</small></div><div class="production-head-actions"><span class="kds-age">${productionAgeLabel(age)}</span><button data-print-production="${o.id}">${t('print')}</button></div></header>
-          <div class="kds-order-actions">${activeCount?'<button class="secondary" data-kds-order-ready="'+o.id+'">✓ '+t('kdsMarkReady')+'</button>':''}${readyCount?'<button class="primary compact" data-kds-order-served="'+o.id+'">✓ '+t('kdsServeReady')+'</button>':''}</div>
+        const age=productionOrderAge(o,now),urgency=productionUrgency(age),priority=productionPriority(o),priorityClass=priority===2?'rush':priority===1?'priority':'',readyCount=(o.items||[]).filter(i=>i.kitchen_status==='ready').length,activeCount=(o.items||[]).filter(i=>['sent','preparing'].includes(i.kitchen_status)).length;
+        return `<article class="production-ticket kds-ticket ${urgency} ${priorityClass}">
+          <header><div><strong>${esc(o.table_label||o.service_type||t('order'))}</strong><small>${Number(o.covers)||0} ${t('covers')}</small></div><div class="production-head-actions">${priority?'<span class="kds-priority-badge '+priorityClass+'">'+esc(priorityLabel(priority))+'</span>':''}<span class="kds-age">${productionAgeLabel(age)}</span><button data-print-production="${o.id}">${t('print')}</button></div></header>
+          <div class="kds-order-actions">${advanced?'<button class="secondary kds-priority-action" data-kds-priority="'+o.id+'" title="'+esc(t('kdsPriority'))+'">⚑ '+esc(priorityLabel(nextProductionPriority(o)))+'</button>':''}${activeCount?'<button class="secondary" data-kds-order-ready="'+o.id+'">✓ '+t('kdsMarkReady')+'</button>':''}${readyCount?'<button class="primary compact" data-kds-order-served="'+o.id+'">✓ '+t('kdsServeReady')+'</button>':''}</div>
           <div class="production-items">${o.items.map(i=>{const a=action(i),itemAge=productionAgeMinutes(i,o,now),itemUrgency=productionUrgency(itemAge),course=i.course?'<span class="kds-course">'+esc(i.course)+'</span>':'';return `<div class="production-item status-${i.kitchen_status} ${itemUrgency}"><div><strong>${Number(i.quantity)||1}× ${esc(i.name_snapshot)} ${course}</strong><small>${label(i.station_snapshot)} · ${esc(i.kitchen_status)} · ${productionAgeLabel(itemAge)}${productionModifierSummary(i.modifiers,station==='all'||station==='expo'?'':station)?' · '+esc(productionModifierSummary(i.modifiers,station==='all'||station==='expo'?'':station)):i.note?' · '+esc(i.note):''}</small></div>${a?`<button data-production-item="${i.id}" data-production-status="${a[0]}">${a[1]}</button>`:''}</div>`}).join('')}</div>
         </article>`;
       }).join(''):'<div class="empty">'+t('noProduction')+'</div>'}</div>
@@ -2016,6 +2070,9 @@ function wire(){
   document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
   document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
   document.querySelector('#kds-sort')?.addEventListener('change',e=>{state.productionSort=e.target.value==='newest'?'newest':'oldest';render()});
+  document.querySelector('#kds-course')?.addEventListener('change',e=>{state.kdsCourse=e.target.value||'all';render()});
+  document.querySelectorAll('[data-kds-priority]').forEach(b=>b.addEventListener('click',()=>{const o=state.productionQueue.find(x=>String(x.id)===String(b.dataset.kdsPriority));if(o)setProductionPriority(o,nextProductionPriority(o))}));
+  document.querySelector('#kds-recall')?.addEventListener('click',()=>recallProductionOrder(state.kdsLastBumped));
   document.querySelector('#kds-warn')?.addEventListener('change',e=>updateKdsThresholds(e.target.value,state.kdsCriticalMinutes));
   document.querySelector('#kds-critical')?.addEventListener('change',e=>updateKdsThresholds(state.kdsWarnMinutes,e.target.value));
   document.querySelectorAll('[data-kds-order-ready]').forEach(b=>b.addEventListener('click',()=>advanceProductionOrder(state.productionQueue.find(x=>x.id===b.dataset.kdsOrderReady),'ready')));

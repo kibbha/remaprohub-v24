@@ -80,3 +80,18 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .nav-badge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:var(--danger);color:white;font-size:11px;margin-left:4px}
 .direct-orders-page{padding:18px;max-width:1280px;margin:0 auto}.direct-orders-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}.direct-order-card{background:var(--paper);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 4px 14px #0000000f}.direct-order-card.pending{border-left:5px solid #d9a85d}.direct-order-card.accepted{border-left:5px solid #7c94c7}.direct-order-card header,.direct-order-card footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px}.direct-order-card header{background:#fffaf2;border-bottom:1px solid var(--line)}.direct-order-card header small{display:block;color:var(--muted);margin-top:2px}.direct-order-card>p{padding:0 14px}.direct-order-lines{padding:0 14px;display:grid;gap:5px}.direct-order-lines>div{display:flex;justify-content:space-between;gap:8px}.direct-order-note{background:#f6f0e8;border-radius:9px;margin:10px 14px;padding:9px!important}.direct-order-card footer{border-top:1px solid var(--line);margin-top:12px}.direct-order-card footer button{flex:1}
 @media(max-width:620px){.direct-orders-page{padding:10px}.direct-orders-grid{grid-template-columns:1fr}.direct-order-card footer{position:sticky;bottom:0;background:var(--paper)}}
+
+
+.kds-summary{grid-template-columns:repeat(auto-fit,minmax(110px,1fr))}
+.kds-summary .kds-rush-summary{border-color:#9f3f35;background:#fbe9e6}
+.kds-ticket.priority{border:2px solid #be7d2d}.kds-ticket.priority>header{background:#fff0d9}
+.kds-ticket.rush{border:3px solid #9f3f35;box-shadow:0 8px 24px #7b2f2828}.kds-ticket.rush>header{background:#f9ddd9}
+.kds-priority-badge{display:inline-flex;align-items:center;border-radius:999px;padding:3px 7px;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;background:#f1dcc0;color:#714819}
+.kds-priority-badge.rush{background:#9f3f35;color:#fff}.kds-priority-badge.priority{background:#d99a45;color:#38210b}
+.kds-order-actions .kds-priority-action{flex:.72}.kds-recall{white-space:nowrap}
+.kds-metrics{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(240px,.8fr);gap:12px;margin:0 0 16px}
+.kds-metrics>div{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.kds-metrics h3{margin:0 0 9px;font-size:14px}.kds-metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.kds-metric-grid article{background:#f8f4ee;border-radius:10px;padding:9px}.kds-metric-grid strong,.kds-metric-grid span,.kds-metric-grid small{display:block}.kds-metric-grid span{font-size:11px;margin-top:4px;color:var(--muted)}.kds-metric-grid b{color:var(--text)}
+.kds-product-metrics{display:grid;gap:6px}.kds-product-metrics span{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}.kds-product-metrics span:last-child{border-bottom:0}
+@media(max-width:900px){.kds-metrics{grid-template-columns:1fr}}
