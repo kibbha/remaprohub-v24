@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const root=resolve(fileURLToPath(new URL('..',import.meta.url)));
-const javaDir=resolve(root,'android/app/src/main/java/com/remapro/pos');
+const javaDir=resolve(root,'android/app/src/main/java/com/remaprohub/pos');
 await mkdir(javaDir,{recursive:true});
 await copyFile(resolve(root,'android-native/NetworkPrinterPlugin.java'),resolve(javaDir,'NetworkPrinterPlugin.java'));
 
