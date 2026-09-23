@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run reached the late test suite and exposed a duplicated DOCUMENT_FIELDS declaration.
-Retry base: 24b8b7ea45fd8f388bae7693384445b6f3d74609
-Fix: remove duplicate const token; no behavior change.
+Previous run reached screen rendering and the Academy style injector assumed a full browser DOM.
+Retry base: 89484824acd4141794e0ef8f92fff11173ac1876
+Fix: make style injection a safe no-op in headless/static test environments.
