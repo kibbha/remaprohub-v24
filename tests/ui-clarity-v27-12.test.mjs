@@ -10,4 +10,6 @@ assert.ok(css.includes('V27.12 — ReMaPro clarity redesign'));
 assert.ok(css.includes('.hub-sidebar'));
 assert.ok(css.includes('.hub-dashboard-layout'));
 assert.ok(css.includes('@media(min-width:1180px)'));
+for(const token of ['module-section-nav','data-module-pane','data-module-section','hub-category-grid','Classic mobile-first Hub navigation']) assert.ok(app.includes(token)||css.includes(token),token+' missing');
+console.log('Hub category and focused module navigation checks passed');
 console.log('ReMaPro Hub clarity redesign checks passed');
