@@ -1,4 +1,4 @@
-name: Android ReMaPro POS V0.26.0 Beta Validation
+name: Android ReMaPro POS V0.27.0 Beta Validation
 
 on:
   workflow_dispatch:
@@ -51,6 +51,11 @@ jobs:
       - name: Generate Capacitor Android project
         run: npx cap add android
 
+      - name: Stamp Android version
+        run: |
+          node scripts/stamp-android-version.mjs
+          grep -q 'versionName "0.27.0"' android/app/build.gradle
+
       - name: Synchronize native plugins
         run: npx cap sync android
 
@@ -79,5 +84,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-POS-V0.26.0-beta-apk
+          name: ReMaPro-POS-V0.27.0-beta-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
