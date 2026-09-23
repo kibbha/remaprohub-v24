@@ -1,7 +1,7 @@
 # ReMaPro POS
 
 Version actuelle: **0.27.0**  
-Android package: **com.remapro.pos**
+Android package: **com.remaprohub.pos**
 
 ## v0.27.0 — Académie ReMaPro (issue #7)
 - centre d’aide commun Hub + POS, recherche, parcours par rôle et progression partagée ;
