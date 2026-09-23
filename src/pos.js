@@ -5,8 +5,20 @@ export const POS_BRIDGE_VERSION='21';
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
 const stockById=(state,id)=>(state?.stock||[]).find(x=>String(x?.id||'')===String(id||''));
+const stockAvailableLocal=(state,item)=>{
+  if(!item)return 0;
+  const received=(state?.deliveries||[]).reduce((sum,row)=>sum+(item.id&&row.status==='accepted'&&row.stockId===item.id?(+row.qty||0):0),0);
+  const lost=(state?.waste||[]).reduce((sum,row)=>sum+(item.id&&row.stockId===item.id?(+row.qty||0):0),0);
+  const movements=(state?.stockMoves||[]).reduce((sum,row)=>sum+(row?.affectsStock===true&&row.stockId===item.id&&Number.isFinite(+row.delta)?+row.delta:0),0);
+  return Math.max(0,(+item.qty||0)+received-lost+movements);
+};
 const stockComponentsOf=(item,state)=>{
-  const rows=Array.isArray(item?.posStockComponents)?item.posStockComponents:[];
+  const explicit=Array.isArray(item?.posStockComponents)?item.posStockComponents:[];
+  const portions=Math.max(1,n(item?.portions)||1);
+  const recipeRows=!explicit.length&&Array.isArray(item?.ingredients)
+    ?item.ingredients.map(row=>({stockId:row?.stockId,quantity:Math.max(0,n(row?.quantity))/portions}))
+    :[];
+  const rows=explicit.length?explicit:recipeRows;
   return rows.map(row=>{
     const stock=stockById(state,row?.stockId);
     const quantity=Math.max(0,n(row?.quantity));
@@ -20,6 +32,18 @@ const stockComponentsOf=(item,state)=>{
       unitCost:Math.max(0,n(stock.price))
     };
   }).filter(Boolean);
+};
+const availabilityOf=(item,state,components)=>{
+  const configured=['unlimited','manual','stock'].includes(String(item?.posAvailabilityMode))?String(item.posAvailabilityMode):'';
+  const mode=configured||(components.length?'stock':'unlimited');
+  const manualQuantity=Math.max(0,Math.floor(n(item?.posManualAvailability)));
+  const lowThreshold=Math.max(0,Math.floor(n(item?.posLowStockThreshold)||3));
+  let availablePortions=null;
+  if(mode==='manual')availablePortions=manualQuantity;
+  if(mode==='stock'&&components.length){
+    availablePortions=Math.max(0,Math.floor(Math.min(...components.map(row=>stockAvailableLocal(state,stockById(state,row.stockId))/row.quantity))));
+  }
+  return{mode,manualQuantity,lowThreshold,availablePortions};
 };
 const itemUnitCost=(item,state)=>{
   const direct=Math.max(0,n(item?.cost));
@@ -35,6 +59,7 @@ export function buildPosCatalogFromHubState(state){
   products.forEach((item,index)=>{
     const name=String(item?.name||'').trim();
     if(!name)return;
+    const components=stockComponentsOf(item,state),availability=availabilityOf(item,state,components);
     out.push({
       sourceKey:sourceKey('product',item,index),
       sku:String(item?.sku||item?.code||'').trim(),
@@ -46,13 +71,13 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:index,
-      metadata:{hubSource:'products',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
+      metadata:{hubSource:'products',unitCost:itemUnitCost(item,state),stockComponents:components,availability}
     });
   });
   recipes.forEach((item,index)=>{
     const name=String(item?.name||'').trim();
     if(!name)return;
-    const id=String(item?.id||'');
+    const id=String(item?.id||''),components=stockComponentsOf(item,state),availability=availabilityOf(item,state,components);
     out.push({
       sourceKey:sourceKey('recipe',item,index),
       recipeId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)?id:undefined,
@@ -65,7 +90,7 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:10000+index,
-      metadata:{hubSource:'recipes',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
+      metadata:{hubSource:'recipes',unitCost:itemUnitCost(item,state),stockComponents:components,availability}
     });
   });
   return out;
