@@ -873,10 +873,14 @@ function linePayload(x){
 function orderLines(){return state.cart.map(linePayload)}
 function deltaLines(){return state.cart.filter(x=>x.delta).map(linePayload)}
 function hasPendingDelta(){return state.cart.some(x=>x.delta)}
+function orderUsesTable(order,tableId,label=''){
+  return String(order?.table_id||'')===String(tableId)||Array.isArray(order?.linked_table_ids)&&order.linked_table_ids.some(id=>String(id)===String(tableId))||(!order?.table_id&&String(order?.table_label||'')===String(label||''));
+}
 function openTable(table){
-  const existing=state.openOrders.find(o=>o.table_id===table.id||(!o.table_id&&o.table_label===table.label));
-  state.activeTableId=table.id;state.tableLabel=table.label;state.serviceType='dine_in';
+  const existing=state.openOrders.find(o=>orderUsesTable(o,table.id,table.label));
+  state.serviceType='dine_in';
   if(existing){
+    state.activeTableId=existing.table_id||table.id;state.tableLabel=existing.table_label||table.label;
     state.activeOrderId=existing.id;state.covers=Number(existing.covers)||table.seats||1;
     const locked=existing.status!=='open';
     state.cart=(existing.items||[]).map(item=>({
@@ -886,6 +890,7 @@ function openTable(table){
       qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''
     }));
   }else{
+    state.activeTableId=table.id;state.tableLabel=table.label;
     state.activeOrderId=uuid();state.covers=table.seats||1;state.cart=[];
   }
   state.view='sale';render();
@@ -1100,7 +1105,8 @@ async function transferCurrentOrder(){
   const order=currentServerOrder();
   if(!order){uiAlert('Enregistrez d’abord la note avant de la transférer.');return}
   if(!state.online){uiAlert(t('tableTransferNeedsNetwork'));return}
-  const free=state.tables.filter(t=>t.id!==state.activeTableId&&!state.openOrders.some(o=>o.id!==order.id&&o.table_id===t.id));
+  const ownLinks=new Set((order.linked_table_ids||[]).map(String));
+  const free=state.tables.filter(t=>t.id!==state.activeTableId&&!ownLinks.has(String(t.id))&&!state.openOrders.some(o=>o.id!==order.id&&orderUsesTable(o,t.id,t.label)));
   if(!free.length){uiAlert(t('noFreeTable'));return}
   const transfer=await uiFields({title:t('transferTitle'),fields:[{name:'tableId',label:t('transferTo'),type:'select',value:free[0].id,options:free.map(x=>({value:x.id,label:x.label}))}]});if(!transfer)return;
   const target=free.find(t=>String(t.id)===String(transfer.tableId));
@@ -1108,6 +1114,43 @@ async function transferCurrentOrder(){
   try{
     await posFunction({action:'transfer_open_order',restaurantId:state.restaurant.id,orderId:order.id,targetTableId:target.id});
     state.activeTableId=target.id;state.tableLabel=target.label;await refreshFloorData();state.error='';render();
+  }catch(error){state.error=error.message||String(error);render()}
+}
+async function mergeCurrentOrderTable(){
+  const order=currentServerOrder();
+  if(!order){uiAlert('Enregistrez d’abord la note avant de fusionner des tables.');return}
+  if(!state.online){uiAlert('La fusion de tables nécessite une connexion.');return}
+  const used=new Set();
+  for(const row of state.openOrders){
+    if(row.id===order.id)continue;
+    if(row.table_id)used.add(String(row.table_id));
+    for(const id of row.linked_table_ids||[])used.add(String(id));
+  }
+  const own=new Set([String(order.table_id||''),...(order.linked_table_ids||[]).map(String)]);
+  const free=state.tables.filter(t=>t.active!==false&&!own.has(String(t.id))&&!used.has(String(t.id)));
+  if(!free.length){uiAlert('Aucune autre table libre à associer.');return}
+  const value=await uiFields({title:'Fusionner des tables',message:'La table choisie partagera la même note. Elle pourra être séparée à tout moment.',fields:[{name:'tableId',label:'Table à associer',type:'select',value:free[0].id,options:free.map(x=>({value:x.id,label:x.label+' · '+(Number(x.seats)||0)+' pl.'}))}],confirmLabel:'Associer'});
+  if(!value)return;
+  const target=free.find(t=>String(t.id)===String(value.tableId));if(!target)return;
+  try{
+    await posFunction({action:'merge_order_table',restaurantId:state.restaurant.id,orderId:order.id,tableId:target.id});
+    await refreshFloorData();state.error='Tables fusionnées : '+String(order.table_label||'Table')+' + '+target.label;render();
+  }catch(error){
+    const message=error.message||String(error);
+    state.error=message.includes('TABLE_ALREADY')?'Cette table est déjà occupée ou rattachée à une autre note.':message;render()
+  }
+}
+async function unmergeCurrentOrderTable(){
+  const order=currentServerOrder(),ids=Array.isArray(order?.linked_table_ids)?order.linked_table_ids:[];
+  if(!order||!ids.length){uiAlert('Aucune table secondaire à séparer.');return}
+  if(!state.online){uiAlert('La séparation de tables nécessite une connexion.');return}
+  const linked=ids.map(id=>state.tables.find(t=>String(t.id)===String(id))).filter(Boolean);
+  if(!linked.length)return;
+  const value=await uiFields({title:'Séparer une table',message:'La note reste sur la table principale.',fields:[{name:'tableId',label:'Table à libérer',type:'select',value:linked[0].id,options:linked.map(x=>({value:x.id,label:x.label}))}],confirmLabel:'Séparer'});
+  if(!value)return;
+  try{
+    await posFunction({action:'unmerge_order_table',restaurantId:state.restaurant.id,orderId:order.id,tableId:value.tableId});
+    await refreshFloorData();state.error='Table séparée.';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function cancelCurrentOrder(){
@@ -1991,7 +2034,7 @@ function floorView(){
       if(e.type==='table'){
         const table=tableMap.get(String(e.tableId||''))||byLabel.get(String(e.label||'').trim().toLocaleLowerCase())||null;
         if(!table)return'';
-        const order=state.openOrders.find(o=>String(o.table_id||'')===String(table.id)||(!o.table_id&&o.table_label===table.label));
+        const order=state.openOrders.find(o=>orderUsesTable(o,table.id,table.label));
         const now=Date.now(),reservation=(state.floorReservations||[]).filter(r=>{
           const same=(r.tableId&&String(r.tableId)===String(table.id))||(!r.tableId&&String(r.tableLabel||'').trim().toLocaleLowerCase()===String(table.label||'').trim().toLocaleLowerCase());
           if(!same)return false;const start=Date.parse(r.time),duration=Math.max(15,Number(r.durationMinutes)||120)*60000;if(!Number.isFinite(start))return false;
@@ -2004,7 +2047,7 @@ function floorView(){
       }
       return '<div class="pos-floor-static pos-floor-'+esc(e.type||'label')+'" style="'+style+'"><span>'+esc(e.type==='toilet'?'WC':e.label||e.type)+'</span></div>';
     }).join('')+'</div>':'';
-  const fallback='<div class="table-grid">'+state.tables.map(t=>{const o=state.openOrders.find(x=>x.table_id===t.id||(!x.table_id&&x.table_label===t.label));return '<button class="table-card '+(o?'occupied':'free')+'" data-table="'+t.id+'"><span class="table-label">'+esc(t.label)+'</span><span>'+ (t.seats||0)+' pl.</span><strong>'+(o?money(o.total):'Libre')+'</strong>'+(o?'<small>'+esc(o.status)+'</small>':'')+'</button>'}).join('')+'</div>';
+  const fallback='<div class="table-grid">'+state.tables.map(t=>{const o=state.openOrders.find(x=>orderUsesTable(x,t.id,t.label));return '<button class="table-card '+(o?'occupied':'free')+'" data-table="'+t.id+'"><span class="table-label">'+esc(t.label)+'</span><span>'+ (t.seats||0)+' pl.</span><strong>'+(o?money(o.total):'Libre')+'</strong>'+(o?'<small>'+esc(o.status)+'</small>':'')+'</button>'}).join('')+'</div>';
   return `<div class="shell">${topbar()}${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
     <main class="floor-page visual-floor-page"><div class="floor-head"><div><h2>Plan de salle</h2><p>${plan?esc(plan.name)+' · v'+Number(plan.version||0):'Configuration classique'} · ${state.openOrders.length} note${state.openOrders.length>1?'s':''} ouverte${state.openOrders.length>1?'s':''}</p></div>
       ${isManager()&&!plan?'<button class="primary compact" id="add-table">+ Table</button>':''}</div>
@@ -2215,7 +2258,7 @@ function mainView(){
     <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line ${x.delta?'delta-line':x.locked?'locked-line':''}"><div class="line-main"><strong>${esc(x.name)}</strong>${x.delta?'<span class="delta-badge">Ajout</span>':x.locked?'<span class="sent-badge">Envoyé</span>':''}<small>${money(x.price)} · ${x.qty} article${x.qty>1?'s':''}</small>${x.note?'<small class="line-modifiers">'+esc(x.note)+'</small>':''}</div><div class="qty"><button data-minus="${x.id}" ${x.locked?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${x.locked?'disabled':''}>+</button></div></div>`).join(''):'<div class="cart-empty"><span>＋</span><strong>Ajoutez des articles</strong><small>Touchez un produit pour commencer la commande.</small></div>'}</div>
     <div class="cart-foot">
       <div class="cart-tools">
-        ${currentServerOrder()?'<button class="secondary" id="transfer-order">⇄ Transférer</button><button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>↗ '+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order" '+(progressivePaymentActive()?'disabled':'')+'>Annuler</button>':''}
+        ${currentServerOrder()?'<button class="secondary" id="transfer-order">⇄ Transférer</button><button class="secondary" id="merge-table">⊕ Fusionner</button>'+((currentServerOrder()?.linked_table_ids||[]).length?'<button class="secondary" id="unmerge-table">⊖ Séparer</button>':'')+'<button class="secondary" id="send-production" '+(orderLocked()&&!hasPendingDelta()?'disabled':'')+'>↗ '+(orderLocked()?'Envoyer les ajouts':'Envoyer cuisine/bar')+'</button><button class="secondary danger-btn" id="cancel-order" '+(progressivePaymentActive()?'disabled':'')+'>Annuler</button>':''}
         ${(state.activeTableId||state.serviceType==='dine_in')?'<button class="secondary save-note" id="save-open-order" '+(!state.cart.length||orderLocked()?'disabled':'')+'>Enregistrer</button>':''}
         <button class="secondary split-pay" id="split-pay" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>÷ Par montants</button>
         <button class="secondary split-pay split-items-pay" id="split-items" ${!state.cart.length||!state.online||progressivePaymentActive()?'disabled':''}>▦ Par articles</button>
@@ -2294,6 +2337,8 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#split-items')?.addEventListener('click',()=>openAllocatedSplit());
   document.querySelector('#progressive-pay')?.addEventListener('click',()=>openProgressivePayment());
   document.querySelector('#transfer-order')?.addEventListener('click',()=>transferCurrentOrder());
+  document.querySelector('#merge-table')?.addEventListener('click',()=>mergeCurrentOrderTable());
+  document.querySelector('#unmerge-table')?.addEventListener('click',()=>unmergeCurrentOrderTable());
   document.querySelector('#cancel-order')?.addEventListener('click',()=>cancelCurrentOrder());
   document.querySelector('#send-production')?.addEventListener('click',()=>sendCurrentOrderProduction());
   document.querySelector('#refresh-production')?.addEventListener('click',()=>refreshProductionQueue().then(render));
