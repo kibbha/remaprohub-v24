@@ -1,3 +1,4 @@
-ReMaPro Hub V27.11.0 test APK build
+ReMaPro Hub V27.11.0 audited test APK build
 Requested: 2026-09-23
-Fix batch: launcher icon now explicitly labeled HUB.
+RC suite: green
+Security: CSP/network/fullscreen/Supabase audit applied; vulnerable biometric unlock disabled.
