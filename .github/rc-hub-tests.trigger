@@ -1,3 +1,3 @@
-RC Hub blank-screen repair validation rerun 8
-Dynamic module packaging with prefixed offline asset paths fully aligned.
+RC Hub blank-screen repair validation rerun 9
+Accounting/integration packaging checks aligned with dynamic module discovery.
 2026-09-23
