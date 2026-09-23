@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run found advanced CRM screens had lost shared reservation/loyalty edit lifecycle.
-Retry base: a409d1d59440d475a810d26c659c87444574d7df
-Fix: restore inline edit/delete and protect reservation table conflicts.
+Previous run passed architecture CRUD checks and found accountingExportForm lacked a submit path.
+Retry base: afe9efaa8e2dcd12f0c5bd158d7fd4db9b78b41d
+Fix: Enter/submit now performs the default sales CSV export while existing per-export buttons remain intact.
