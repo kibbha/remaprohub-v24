@@ -48,20 +48,20 @@ function dashboard(){
   const low=stockAccess?(state.stock||[]).filter(x=>stockAvailable(state,x)<=+(x.min||0)&&+(x.min||0)>0).length:0;
   const venue=state.preferences?.restaurant||activeRestaurant(state)?.name||'ReMaPro Hub';
   const categories=[
-    ['sales','orders','Ventes','CA, tickets, réservations'],
-    ['products','products','Produits','Carte, recettes, allergènes'],
-    ['customers','customers','Clients','Fidélité et réservations'],
-    ['stock','stock','Stock','Achats, inventaire, fournisseurs'],
-    ['team','team','Équipe','Planning, RH, formation'],
-    ['finance','finance','Finances','CA, dépenses, rentabilité'],
-    ['haccp','haccp','HACCP','Contrôles et conformité'],
-    ['documents','documents','Documents','Contrats, fiches, exports'],
-    ['settings','settings','Réglages','POS, intégrations, restaurant']
+    ['sales','orders',t('sales'),t('hubCatSalesSub')],
+    ['products','products',t('products'),t('hubCatProductsSub')],
+    ['customers','customers',t('customers'),t('hubCatCustomersSub')],
+    ['stock','stock',t('stock'),t('hubCatStockSub')],
+    ['team','team',t('team'),t('hubCatTeamSub')],
+    ['finance','finance',t('finance'),t('hubCatFinanceSub')],
+    ['haccp','haccp',t('haccp'),t('hubCatHaccpSub')],
+    ['documents','documents',t('documents'),t('hubCatDocumentsSub')],
+    ['settings','settings',t('settings'),t('hubCatSettingsSub')]
   ].filter(([key])=>key==='sales'||key==='products'||key==='customers'||key==='documents'||key==='settings'||canPage(key));
   return `<section class="artisan-page dashboard-artisan hub-classic-home">
     <div class="hub-home-intro"><div><span class="artisan-eyebrow">${esc(venue)}</span><h1>ReMaPro Hub</h1></div><button class="dashboard-modules-link" data-page="more">${icon('more')}<span>${t('allTools')}</span></button></div>
-    ${financeAccess?`<button class="hub-ca-banner" data-page="finance"><span>Chiffre d’affaires du jour</span><strong>${money(totals.revenue)}</strong><div class="hub-ca-stats"><span><b>${paidOrders}</b><small>Tickets</small></span><span><b>${money(avg)}</b><small>${t('avg')}</small></span><span><b>${totals.covers}</b><small>${t('covers')}</small></span></div></button>`:''}
-    <div class="hub-home-section"><div><h2>Accès rapides</h2><small>Une catégorie, puis l’outil dont vous avez besoin.</small></div>${low?`<button class="hub-low-stock" data-page="stock">!${low}</button>`:''}</div>
+    ${financeAccess?`<button class="hub-ca-banner" data-page="finance"><span>${t('todayRevenue')}</span><strong>${money(totals.revenue)}</strong><div class="hub-ca-stats"><span><b>${paidOrders}</b><small>${t('tickets')}</small></span><span><b>${money(avg)}</b><small>${t('avg')}</small></span><span><b>${totals.covers}</b><small>${t('covers')}</small></span></div></button>`:''}
+    <div class="hub-home-section"><div><h2>${t('quickActions')}</h2><small>${t('hubCategoryHint')}</small></div>${low?`<button class="hub-low-stock" data-page="stock">!${low}</button>`:''}</div>
     <div class="hub-category-grid">${categories.map(([key,ic,label,sub],index)=>`<button class="hub-category-card hub-category-${index%6}" data-hub-category="${key}">${icon(ic)}<span><strong>${label}</strong><small>${sub}</small></span><b>›</b></button>`).join('')}</div>
   </section>`;
 }
