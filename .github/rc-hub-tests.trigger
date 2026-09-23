@@ -10,3 +10,4 @@ rerun without redundant taxonomy assertion
 rerun missing indicators key
 rerun category architecture guard
 rerun actual dashboard structure
+rerun compact dashboard permission guards
