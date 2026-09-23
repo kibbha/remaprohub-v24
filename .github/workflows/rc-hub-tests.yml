@@ -1,0 +1,36 @@
+name: RC Hub test suite
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [rebuild/remaprohub-clean]
+    paths:
+      - '.github/rc-hub-tests.trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rebuild/remaprohub-clean
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run full Hub test suite
+        run: npm test
+      - name: Verify RC runtime additions
+        run: |
+          test -s app/src/accounting.js
+          test -s app/src/integrations.js
+          grep -q "kioskMode=qs.get('kiosk')==='1'" app/order.js
+          grep -q "scheduleKioskReset" app/order.js
+          grep -q "integrationAdapterRegistry" src/app.js
+          grep -q "profitLeakCockpit" src/app.js
+          grep -q "accountingExportForm" src/app.js
