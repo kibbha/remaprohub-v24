@@ -102,3 +102,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .availability-badge{display:inline-flex;align-self:flex-start;margin-top:5px;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:850;line-height:1;background:#eef4ed;color:#315d37}
 .availability-badge.low{background:#fff0d8;color:#87530a}.availability-badge.soldout{background:#f5dfdc;color:#8d2f28}.availability-badge.ok{background:#e8f4ea;color:#2d6637}
 .layout-product:disabled .availability-badge{opacity:1}
+
+/* ReMaPro brand identity — selected concept: Les initiales */
+.brand-lockup{display:flex;align-items:center;gap:8px;min-width:max-content}.brand-lockup img{width:40px;height:40px;object-fit:cover;border-radius:10px;box-shadow:0 4px 12px #0002;flex:0 0 auto}.brand-wordmark{display:grid;line-height:.88}.brand-wordmark strong{font-size:18px;font-weight:900;letter-spacing:-.55px;color:#fff}.brand-wordmark b{font-size:12px;font-weight:900;letter-spacing:3.2px;color:#E07A55;margin-top:5px}.brand-lockup>small{font-size:10px;opacity:.55;margin-left:1px}
+.brand-lockup.auth{justify-content:center;margin:0 0 20px}.brand-lockup.auth img{width:72px;height:72px;border-radius:18px;box-shadow:0 9px 26px #7c38252b}.brand-lockup.auth .brand-wordmark strong{font-size:28px;color:var(--ink);letter-spacing:-.9px}.brand-lockup.auth .brand-wordmark b{font-size:17px;letter-spacing:5px;color:#C75232}.brand-lockup.auth+ h1{margin-top:4px}
+@media(max-width:760px){.topbar .brand-lockup img{width:36px;height:36px;border-radius:9px}.topbar .brand-wordmark strong{font-size:16px}.topbar .brand-wordmark b{font-size:10px;letter-spacing:2.5px}.topbar .brand-lockup>small{display:none}}
