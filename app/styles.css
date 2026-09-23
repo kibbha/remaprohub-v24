@@ -537,3 +537,19 @@ html[data-theme="dark"] .hub-category-hero,html[data-theme="dark"] .hub-subcateg
 .module-section-nav button.active{background:linear-gradient(135deg,#f26a2e,#ff8848);border-color:transparent;color:#fff;box-shadow:0 5px 14px #e45f272b}
 [data-module-pane][hidden]{display:none!important}
 @media(max-width:699px){.module-section-nav{margin-left:-2px;margin-right:-2px}.module-section-nav button{min-height:38px}}
+
+
+/* V27.12 — universal short-screen module treatment */
+@media(max-width:699px){
+ .finance-artisan .artisan-finance-hero{min-height:150px;padding:15px;border-radius:19px}
+ .finance-artisan .artisan-finance-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px}
+ .finance-artisan .artisan-finance-grid .card{padding:10px;margin:0}.finance-artisan .artisan-finance-grid .kpi{font-size:18px}
+ .stock-artisan .intelligence-grid,.planning-artisan .intelligence-grid{display:grid;grid-template-columns:1fr!important}
+ .documents-artisan .document-group{border-radius:17px;padding:12px}
+ .documents-artisan .doc-tile{min-height:58px}
+ .settings-artisan details,.more-artisan details{border-radius:15px}
+ .pos-admin-page [data-pos-section]{scroll-margin-top:118px}
+ .module-screen{min-height:calc(100dvh - 70px)}
+ .module-screen [data-module-pane]{animation:hubPaneIn .16s ease-out}
+}
+@keyframes hubPaneIn{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}
