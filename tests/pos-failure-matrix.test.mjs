@@ -14,7 +14,7 @@ const scenarios=[
   ['long reconnection/manual recovery',app.includes("flushQueue({force:true})")&&app.includes("window.addEventListener('online'")],
   ['partial refund protection',app.includes("refunds.filter(r=>['completed','pending_external'].includes(r.status))")&&app.includes('amount>remaining+0.001')],
   ['cash difference close path',app.includes("queueCommand('close_cash_session'")&&app.includes('countedCash:Number(countedCash)||0')],
-  ['repeated queued events remain idempotent',app.includes('clientEventId:item.payload?.clientEventId||item.client_event_id')&&db.includes('PRIMARY KEY NOT NULL')],
+  ['repeated queued events remain idempotent',app.includes('queuedPayload(item)')&&db.includes('PRIMARY KEY NOT NULL')],
   ['service worker mutation safety',sw.includes("request.method!=='GET'")&&sw.includes("url.origin!==self.location.origin")],
   ['content security policy present',html.includes('Content-Security-Policy')]
 ];
