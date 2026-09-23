@@ -1,0 +1,4 @@
+asset_id,product,path_or_family,category,provenance,rights_or_license,evidence_location,status,notes
+POS-BRAND-001,ReMaPro POS,app product branding,logo/brand,Created or commissioned for ReMaPro under project direction,Proprietary project asset subject to any underlying element,External evidence vault: original exports/briefs/approval history,needs-evidence,Retain original design/generation source and dated approval
+POS-UI-001,ReMaPro POS,app/ and src/,interface,ReMaPro product design and implementation,Proprietary project material,Git history + product specifications,approved,Third-party components remain under their own licences
+POS-MKT-001,ReMaPro POS,marketing/store screenshots,marketing,Derived from ReMaPro POS UI,ReMaPro-specific composition subject to underlying elements,External evidence vault: source screenshots and release version,planned,Populate when store assets are final
