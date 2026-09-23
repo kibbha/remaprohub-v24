@@ -36,3 +36,6 @@ for(const key of [
 ]) assert.ok(i18n.includes(key+':'),key+' translation key missing');
 
 console.log('Hub modular home and direct POS navigation checks passed');
+
+assert.ok(css.includes('.shell{width:100vw;max-width:100vw;margin:0;padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}'),'edge-to-edge shell missing');
+assert.ok(css.includes('.nav{left:env(safe-area-inset-left);right:env(safe-area-inset-right);bottom:0'),'edge-to-edge bottom navigation missing');

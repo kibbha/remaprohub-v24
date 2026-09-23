@@ -229,7 +229,7 @@ export default {
         "list_tables","sync_tables","sync_catalog",
         "list_terminals","upsert_terminal",
         "list_printers","upsert_printer",
-        "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export",
+        "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
         "configuration_head","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
       ]);
@@ -1388,6 +1388,7 @@ export default {
       }
 
       if(action==="daily_summary"){
+        if(!manager)return json({error:"Manager access required"},403);
         let query=ctx.supabaseAdmin.from("pos_daily_sales_summary")
           .select("*").eq("restaurant_id",restaurantId).order("business_date",{ascending:false});
         const from=clean(body.from,10),to=clean(body.to,10);
