@@ -10,6 +10,7 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
+import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
 const APP_VERSION='0.27.0';
 const state={
@@ -19,7 +20,7 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],directOrders:[],availabilityRows:[],
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
@@ -90,8 +91,16 @@ async function saveFloorCache(){
   await kvSet(openOrdersKey(state.restaurant.id),state.openOrders);
 }
 
+async function refreshTapToPayCapability(){
+  try{state.tapToPayCapability=await tapToPayCapabilities()}catch(error){
+    state.tapToPayCapability={available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:error?.message||'CAPABILITY_CHECK_FAILED'};
+    recordDiagnostic('tap_to_pay.capability_error',{message:error?.message||String(error)});
+  }
+  return state.tapToPayCapability;
+}
 async function refreshTerminals(){
   if(!state.restaurant)return;
+  await refreshTapToPayCapability();
   if(!state.online){
     state.terminals=await kvGet(terminalsKey(state.restaurant.id))||state.terminals||[];
     state.providerConnections=await kvGet(providersKey(state.restaurant.id))||state.providerConnections||[];
@@ -129,7 +138,7 @@ function openTerminalEditor(existing=null){
     +'<div class="terminal-form-grid">'
     +'<label>Nom<input name="label" required maxlength="120" value="'+esc(t.label||'Terminal principal')+'"></label>'
     +'<label>Prestataire<select name="provider"><option value="worldline" '+(t.provider==='worldline'?'selected':'')+'>Worldline</option><option value="twint" '+(t.provider==='twint'?'selected':'')+'>TWINT</option><option value="generic" '+(!t.provider||t.provider==='generic'?'selected':'')+'>Générique</option></select></label>'
-    +'<label>Mode<select name="integrationMode"><option value="cloud" '+(!t.integration_mode||t.integration_mode==='cloud'?'selected':'')+'>Cloud/API</option><option value="external_app" '+(t.integration_mode==='external_app'?'selected':'')+'>Application externe</option><option value="local_network" '+(t.integration_mode==='local_network'?'selected':'')+'>Réseau local</option></select></label>'
+    +'<label>Mode<select name="integrationMode"><option value="cloud" '+(!t.integration_mode||t.integration_mode==='cloud'?'selected':'')+'>Cloud/API</option><option value="tap_to_pay" '+(t.integration_mode==='tap_to_pay'?'selected':'')+'>Tap to Pay / NFC</option><option value="external_app" '+(t.integration_mode==='external_app'?'selected':'')+'>Application externe</option><option value="local_network" '+(t.integration_mode==='local_network'?'selected':'')+'>Réseau local</option></select></label>'
     +'<label>ID terminal prestataire<input name="externalTerminalId" maxlength="180" value="'+esc(t.external_terminal_id||'')+'" placeholder="Optionnel"></label>'
     +'<label>Devise<input name="currency" maxlength="3" value="'+esc(t.currency||state.restaurant?.currency||'CHF')+'"></label>'
     +'<label class="terminal-check"><input type="checkbox" name="supportsCard" '+checked(t.supports_card,true)+'> Carte</label>'
@@ -182,6 +191,7 @@ function providerModeLabel(mode){
   return ({
     terminal_api_cloud:'Terminal API Cloud',
     tim:'TIM',
+    tap_to_pay:'Tap to Pay / Tap on Mobile',
     direct:'Direct',
     terminal_psp:'Terminal / PSP'
   })[mode]||mode||'—';
@@ -192,7 +202,8 @@ function terminalsView(){
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="terminals-page">
       <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
-      <div class="terminal-warning"><strong>Intégration suisse préparée.</strong> Worldline TIM est le connecteur cible pour carte + TWINT. Les intents ReMaPro, profils terminaux et reprises sont prêts ; la capture automatique reste désactivée jusqu’à installation et validation du connecteur prestataire. Le mode manuel exige toujours une confirmation sur le terminal externe.</div>
+      <div class="terminal-warning"><strong>Intégration suisse préparée.</strong> Worldline TIM et Tap to Pay / Tap on Mobile sont les connecteurs cibles pour carte + TWINT. Les intents ReMaPro, profils terminaux et reprises sont prêts ; la capture automatique reste désactivée jusqu’à installation et validation du connecteur prestataire. Le mode manuel exige toujours une confirmation sur le terminal externe.</div>
+      <section class="provider-readiness"><h3>Tap to Pay sur cet appareil</h3><article class="provider-readiness-card"><div><strong>Worldline Tap on Mobile</strong><small>${state.tapToPayCapability?.native?'Android natif':'Navigateur/PWA'} · NFC ${state.tapToPayCapability?.nfcSupported?(state.tapToPayCapability?.nfcEnabled?'actif':'désactivé'):'indisponible'}</small></div><span class="provider-readiness-status provider-${state.tapToPayCapability?.available?'ready':'waiting_contract'}">${state.tapToPayCapability?.available?'Prêt':'Préparé — activation Worldline requise'}</span></article></section>
       <section class="provider-readiness"><h3>${t('hardwareExtensions')}</h3>${hardwareExtensionProfiles().map(x=>`<article class="provider-readiness-card"><div><strong>${esc(t('hardware_'+x.id))}</strong><small>${esc(x.transport)}</small></div><span class="provider-readiness-status provider-${x.status==='ready'?'ready':'waiting_contract'}">${esc(t('hardwareStatus_'+x.status))}</span></article>`).join('')}</section><section class="provider-readiness"><h3>Préparation prestataires</h3>
         ${state.providerConnections.length?state.providerConnections.map(c=>`<article class="provider-readiness-card"><div><strong>${esc(terminalProviderLabel(c.provider))}</strong><small>${esc(providerModeLabel(c.integration_mode))} · ${esc(c.environment||'test')}</small></div><span class="provider-readiness-status provider-${esc(c.status)}">${esc(providerStatusLabel(c.status))}</span>${c.merchant_reference?'<small class="provider-merchant">Réf. marchand '+esc(c.merchant_reference)+'</small>':''}</article>`).join(''):'<div class="muted">Aucun prestataire préparé dans ReMaPro Hub.</div>'}
       </section>
@@ -312,6 +323,16 @@ async function startTerminalPayment(method,terminal){
     });
     const intent=normalizeIntentResult(r);
     if(!intent?.id)throw new Error('Intent terminal invalide');
+    if(String(terminal.integration_mode||'')==='tap_to_pay'){
+      try{
+        await startTapToPayPayment({intentId:intent.id,provider:'worldline',method,amountMinor:Math.round((Number(intent.amount||0)+Number(intent.tip_amount||0))*100),currency:String(intent.currency||state.restaurant?.currency||'CHF').toUpperCase()});
+        recordDiagnostic('tap_to_pay.started',{intentId:intent.id,provider:'worldline'});
+      }catch(nativeError){
+        await posFunction({action:'cancel_terminal_intent',restaurantId:state.restaurant.id,intentId:intent.id}).catch(()=>{});
+        recordDiagnostic('tap_to_pay.start_error',{message:nativeError?.message||String(nativeError)});
+        state.error=tapToPayErrorMessage(nativeError);render();return;
+      }
+    }
     await refreshTerminals();
     showTerminalIntentModal(order,intent,terminal);
   }catch(error){recordDiagnostic('terminal.start_error',{method,provider:String(terminal?.provider||''),message:error.message||String(error)});state.error=error.message||String(error);render()}

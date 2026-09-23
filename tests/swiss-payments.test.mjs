@@ -6,5 +6,7 @@ assert.ok(app.includes("data-pay=\"twint\""));
 assert.ok(app.includes("action:'create_terminal_intent'"));
 assert.ok(app.includes("connectedTerminal(method)"));
 assert.ok(app.includes("Worldline TIM"));
+assert.ok(app.includes("Tap to Pay / Tap on Mobile"));
+assert.ok(app.includes("integration_mode||'')==='tap_to_pay'"));
 assert.ok(app.includes("capture automatique reste désactivée"));
 console.log('Swiss card/TWINT POS intent readiness checks passed');

@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(NetworkPrinterPlugin.class);
+        registerPlugin(TapToPayPlugin.class);
         super.onCreate(savedInstanceState);
         hideSystemBars();
     }
