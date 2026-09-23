@@ -50,6 +50,88 @@ async function tipsByOperatorForDate(db:any,restaurantId:string,businessDate:str
   return[...map.values()].map(x=>({...x,amount:Math.round(x.amount*100)/100})).sort((a,b)=>b.amount-a.amount);
 }
 
+const normalizeMatchName=(value:any)=>String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+const availabilityConfig=(value:any)=>{
+  const src=value&&typeof value==="object"?value:{},mode=["unlimited","manual","stock"].includes(String(src.mode))?String(src.mode):"unlimited";
+  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3))};
+};
+const exactCatalogMatch=(button:any,catalog:any[])=>{
+  if(validUuid(button?.productId))return catalog.find((x:any)=>String(x.id)===String(button.productId))||null;
+  const name=normalizeMatchName(button?.item?.name||button?.label);if(!name)return null;
+  let candidates=(catalog||[]).filter((x:any)=>x?.active!==false&&normalizeMatchName(x?.name)===name);
+  if(candidates.length>1&&Number.isFinite(Number(button?.item?.price))){
+    const price=Number(button.item.price),priced=candidates.filter((x:any)=>Math.abs((Number(x?.price)||0)-price)<=0.01);
+    if(priced.length===1)candidates=priced;
+  }
+  return candidates.length===1?candidates[0]:null;
+};
+const workspaceStockAvailable=(workspace:any,stockId:string)=>{
+  const data=workspace&&typeof workspace==="object"?workspace:{},stocks=Array.isArray(data.stock)?data.stock:[],deliveries=Array.isArray(data.deliveries)?data.deliveries:[],waste=Array.isArray(data.waste)?data.waste:[],moves=Array.isArray(data.stockMoves)?data.stockMoves:[];
+  const item=stocks.find((x:any)=>String(x?.id||"")===String(stockId||""));if(!item)return 0;
+  const received=deliveries.reduce((sum:number,row:any)=>sum+(row?.status==="accepted"&&String(row?.stockId||"")===String(stockId)?Number(row?.qty)||0:0),0);
+  const lost=waste.reduce((sum:number,row:any)=>sum+(String(row?.stockId||"")===String(stockId)?Number(row?.qty)||0:0),0);
+  const moved=moves.reduce((sum:number,row:any)=>sum+(row?.affectsStock===true&&String(row?.stockId||"")===String(stockId)&&Number.isFinite(Number(row?.delta))?Number(row.delta):0),0);
+  return Math.max(0,(Number(item?.qty)||0)+received-lost+moved);
+};
+async function posAvailabilitySnapshot(db:any,restaurantId:string,organizationId:string){
+  const [catalogResult,layoutResult,workspaceResult,manualResult]=await Promise.all([
+    db.from("pos_catalog_items").select("id,name,price,active,metadata").eq("restaurant_id",restaurantId).eq("active",true),
+    db.from("pos_layout_versions").select("version,document,published_at").eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle(),
+    db.from("restaurant_workspaces").select("revision,data,updated_at").eq("restaurant_id",restaurantId).maybeSingle(),
+    db.from("pos_item_availability").select("availability_key,configured_quantity,remaining_quantity,low_threshold,version,updated_at").eq("restaurant_id",restaurantId)
+  ]);
+  if(catalogResult.error)return{error:catalogResult.error.message,rows:[]};
+  if(layoutResult.error)return{error:layoutResult.error.message,rows:[]};
+  if(workspaceResult.error)return{error:workspaceResult.error.message,rows:[]};
+  if(manualResult.error)return{error:manualResult.error.message,rows:[]};
+
+  const catalog=catalogResult.data||[],layout=layoutResult.data?.document||{},buttons=Array.isArray(layout?.buttons)?layout.buttons:[],workspace=workspaceResult.data?.data||{},manualMap=new Map((manualResult.data||[]).map((x:any)=>[String(x.availability_key),x]));
+  const rows:any[]=[],represented=new Set<string>(),desiredManual:any[]=[];
+  const add=(button:any,item:any|null)=>{
+    const explicitCatalogId=validUuid(button?.productId)?String(button.productId):"",catalogItem=item||null;
+    const key=explicitCatalogId?"catalog:"+explicitCatalogId:"layout:"+String(button?.id||"");
+    represented.add(key);
+    const buttonCfg=availabilityConfig(button?.availability),catalogCfg=availabilityConfig(catalogItem?.metadata?.availability);
+    const cfg=buttonCfg.mode!=="unlimited"?buttonCfg:(catalogCfg.mode!=="unlimited"?catalogCfg:buttonCfg);
+    let remaining:number|null=null,source="unlimited";
+    if(cfg.mode==="manual"){
+      const existing=manualMap.get(key);
+      const changed=!existing||Number(existing.configured_quantity)!==Number(cfg.manualQuantity)||Number(existing.low_threshold)!==Number(cfg.lowThreshold);
+      if(changed){
+        desiredManual.push({restaurant_id:restaurantId,organization_id:organizationId,availability_key:key,mode:"manual",configured_quantity:cfg.manualQuantity,remaining_quantity:cfg.manualQuantity,low_threshold:cfg.lowThreshold,version:Number(existing?.version||0)+1,updated_at:new Date().toISOString()});
+        remaining=cfg.manualQuantity;
+      }else remaining=Math.max(0,Number(existing.remaining_quantity)||0);
+      source="manual";
+    }else if(cfg.mode==="stock"&&catalogItem){
+      const components=Array.isArray(catalogItem?.metadata?.stockComponents)?catalogItem.metadata.stockComponents:[];
+      if(components.length){
+        remaining=Math.max(0,Math.floor(Math.min(...components.map((row:any)=>{
+          const per=Math.max(0,Number(row?.quantity)||0);return per>0?workspaceStockAvailable(workspace,String(row?.stockId||""))/per:0;
+        }))));
+        source="stock";
+      }
+    }
+    rows.push({
+      key,buttonId:String(button?.id||""),catalogItemId:catalogItem?.id||null,autoMatched:!explicitCatalogId&&!!catalogItem,
+      mode:cfg.mode,remaining,lowThreshold:cfg.lowThreshold,soldOut:remaining!==null&&remaining<=0,source
+    });
+  };
+  for(const button of buttons)add(button,exactCatalogMatch(button,catalog));
+  for(const item of catalog){
+    const key="catalog:"+String(item.id);if(represented.has(key))continue;
+    const cfg=availabilityConfig(item?.metadata?.availability);if(cfg.mode==="unlimited")continue;
+    add({id:"catalog-"+String(item.id),productId:String(item.id),availability:null},item);
+  }
+  if(desiredManual.length){
+    const {error}=await db.from("pos_item_availability").upsert(desiredManual,{onConflict:"restaurant_id,availability_key"});
+    if(error)return{error:error.message,rows:[]};
+  }
+  return{
+    rows,layoutVersion:Number(layoutResult.data?.version)||0,workspaceRevision:Number(workspaceResult.data?.revision)||0,
+    updatedAt:workspaceResult.data?.updated_at||layoutResult.data?.published_at||null
+  };
+}
+
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
@@ -146,7 +228,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
+        "configuration_head","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -178,6 +260,12 @@ export default {
             p_metadata:{clientEventId:validUuid(body.clientEventId)?body.clientEventId:null}
           }).then(()=>{}).catch(()=>{});
         }
+      }
+
+      if(action==="availability_snapshot"){
+        const snapshot=await posAvailabilitySnapshot(ctx.supabaseAdmin,restaurantId,restaurant.organization_id);
+        if(snapshot.error)return json({error:snapshot.error},500);
+        return json({ok:true,...snapshot});
       }
 
       if(action==="configuration_head"){
@@ -256,6 +344,8 @@ export default {
             layoutModifiers:true,
             layoutMenus:true,
             standaloneLayoutItems:true,
+            itemAvailability:true,
+            automaticCatalogMatching:true,
             paymentProviders:false
           }
         });
