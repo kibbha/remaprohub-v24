@@ -1,4 +1,4 @@
-ReMaPro POS V0.27.0 beta APK build
+ReMaPro POS V0.27.0 audited beta APK build
 Requested: 2026-09-23
-Fix batch: total immersive fullscreen + launcher icon explicitly labeled POS + KDS migration verified.
-Retry: public onResume BridgeActivity signature.
+RC suite: green
+Security: Android API 36, cleartext disabled, network timeout and printer hardening applied.
