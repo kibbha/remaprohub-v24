@@ -359,7 +359,7 @@ export function profitLeakCockpit(state,now=new Date()){
 
 function benchmarkWorkspaceState(root,restaurant){
   const workspace=restaurant?.id===root?.activeRestaurantId?root:(restaurant?.workspace&&typeof restaurant.workspace==='object'?restaurant.workspace:{});
-  return{...workspace,payrollSettings:workspace.payrollSettings||root?.payrollSettings||{},recipeTarget:workspace.recipeTarget??root?.recipeTarget,recipeWarning:workspace.recipeWarning??root?.recipeWarning};
+  const arrays=['financeHistory','waste','stock','team','shifts','recipes','sales','orders','priceHistory','inventoryCounts','reservations','forecastSignals'];const normalized={...workspace};for(const key of arrays)if(!Array.isArray(normalized[key]))normalized[key]=[];return{...normalized,payrollSettings:normalized.payrollSettings||root?.payrollSettings||{},recipeTarget:normalized.recipeTarget??root?.recipeTarget,recipeWarning:normalized.recipeWarning??root?.recipeWarning};
 }
 export function multiRestaurantBenchmark(state,now=new Date()){
   const restaurants=Array.isArray(state?.restaurants)?state.restaurants:[],rows=[];

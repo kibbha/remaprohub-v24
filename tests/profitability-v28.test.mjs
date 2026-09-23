@@ -27,6 +27,7 @@ assert.ok(cockpit.totalExposure>=35);
 const benchmark=multiRestaurantBenchmark(base,new Date('2026-09-23T23:00:00Z'));
 assert.equal(benchmark.rows.length,2);
 assert.equal(benchmark.network.restaurants,2);
+const sparse={activeRestaurantId:'a',restaurants:[{id:'a',name:'Sparse',workspace:{}}],financeHistory:[],waste:[],stock:[],team:[],shifts:[],recipes:[],sales:[],orders:[],priceHistory:[],inventoryCounts:[],reservations:[],forecastSignals:[],payrollSettings:{ccnt:{weeklyHours:42}}};assert.equal(multiRestaurantBenchmark(sparse,new Date('2026-09-23T23:00:00Z')).rows.length,1);
 assert.ok(benchmark.rows.some(x=>x.name==='Site A'&&x.revenue===1000));
 assert.ok(benchmark.rows.every(x=>'revenueVsNetwork' in x));
 assert.ok(app.includes('profitLeakCockpit(state)'),'Finance UI must expose the profitability cockpit');
