@@ -6,10 +6,12 @@ const css=fs.readFileSync(new URL('../app/styles.css',import.meta.url),'utf8');
 const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
 
 for(const token of [
-  'modular-dashboard',
   'hub-classic-home',
+  'hub-home-intro',
+  'hub-ca-banner',
+  'hub-home-section',
   'hub-category-grid',
-  "t('modularPilotageHint')",
+  "t('hubCategoryHint')",
   "t('allTools')",
   'id="pos-layout-editor-root"',
   'id="floor-plan-editor-root"',
@@ -38,7 +40,7 @@ for(const token of [
 ]) assert.ok(css.includes(token),token+' missing');
 
 for(const key of [
-  'home','modularPos','modularPilotageHint','allTools',
+  'home','modularPos','hubCategoryHint','allTools',
   'posCatalog','posLayout','posHistory','posTerminals'
 ]) assert.ok(i18n.includes(key+':'),key+' translation key missing');
 
