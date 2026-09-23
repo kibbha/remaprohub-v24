@@ -508,3 +508,24 @@ h2{font-size:clamp(14px,2.8vw,17px)}
 @media(max-width:350px){.hub-category-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(min-width:700px){.hub-category-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.hub-category-card{min-height:128px}.hub-subcategory-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
 html[data-theme="dark"] .hub-category-hero,html[data-theme="dark"] .hub-subcategory-row{background:#2c2722;border-color:#514337;color:#f3eadf}
+
+
+/* V27.12 — keep every deep module focused on the current viewport */
+.artisan-page>section.card,.artisan-page>.card,.artisan-page>.grid,.artisan-page>.intelligence-grid,.artisan-page>.document-groups,.artisan-page>.pos-admin-grid{scroll-margin-top:86px}
+@media(max-width:699px){
+ .artisan-page:not(.hub-classic-home):not(.hub-category-page){max-width:100%;overflow-x:hidden}
+ .artisan-page:not(.hub-classic-home):not(.hub-category-page)>.grid,
+ .artisan-page:not(.hub-classic-home):not(.hub-category-page)>.intelligence-grid,
+ .pos-admin-grid,.document-groups{grid-template-columns:1fr!important}
+ .artisan-page .card{border-radius:17px;padding:14px;margin-bottom:9px}
+ .artisan-page .form{gap:9px}
+ .artisan-page .row{padding:10px 2px;gap:8px}
+ .artisan-page .page-actions{position:sticky;top:64px;z-index:6;background:var(--bg);padding:7px 0}
+ .artisan-page .artisan-hero{padding:13px 14px;min-height:0;margin-bottom:9px}
+ .artisan-page .artisan-hero h2{font-size:18px}
+ .artisan-page .kpi{font-size:26px}
+ .document-fullpage,.document-workspace{min-height:0}
+ .pos-admin-page .pos-admin-toolbar{position:sticky;top:64px;z-index:7;background:var(--bg);padding:8px 0;overflow-x:auto;flex-wrap:nowrap}
+ .pos-admin-page .pos-admin-toolbar .btn{white-space:nowrap}
+ .pos-foodcost-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
