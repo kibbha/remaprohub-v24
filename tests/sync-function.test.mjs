@@ -52,7 +52,7 @@ assert.match(app,/id="cloudPull"/);
 assert.match(app,/id="cloudPush"/);
 const pullBody=app.match(/async function pullCloudWorkspace\([\s\S]*?(?=\nasync function pushCloudWorkspace)/)?.[0]||'';
 const pushBody=app.match(/async function pushCloudWorkspace\([\s\S]*?(?=\nfunction syncCurrentWorkspaceOnOpen)/)?.[0]||'';
-assert.match(pullBody,/else\{seed=true;current\.cloudDirty=true\}current\.cloudRevision[\s\S]*?save\(state\)/,'a missing remote workspace must stay dirty until its deferred seed push succeeds');
+assert.match(pullBody,/else\{seed=true;current\.cloudDirty=true;current\.cloudDirtyKeys=\[\]\}current\.cloudRevision[\s\S]*?save\(state\)/,'a missing remote workspace must stay dirty and reset to a full writable seed until its deferred push succeeds');
 assert.doesNotMatch(pullBody,/current\.cloudRevision[^;]*;current\.cloudDirty=false;save\(state\)/,'pull must not clear a pending seed before it is pushed');
 assert.match(pushBody,/current\.cloudRevision[^;]*;current\.cloudDirty=false;save\(state\)/,'successful push must clear the persisted dirty marker');
 

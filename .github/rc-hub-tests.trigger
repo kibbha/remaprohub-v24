@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run reached workspace sync guards. The implementation now supports non-conflicting stale-key merges, so the legacy test incorrectly required locking on baseRevision.
-Retry base: 21cc385845de2aaf2c7e20791bba61dc7b49144c
-Fix: validate conflict evaluation against baseRevision and final CAS against currentRevision.
+Previous run reached the seed-sync guard. The runtime intentionally clears key-level dirty markers while keeping cloudDirty=true so a missing remote workspace is seeded with the full writable workspace.
+Retry base: ed6a5e1a0a6e246dd28aeb8f06afcc364d7b3aa9
+Fix: test the current full-seed contract explicitly.
