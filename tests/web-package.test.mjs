@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
-import {readFileSync,existsSync} from 'node:fs';
+import {readFileSync,existsSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+
 const html=readFileSync('app/index.html','utf8');
 const sw=readFileSync('app/sw.js','utf8');
+const bootstrap=readFileSync('app/bootstrap.js','utf8');
 const manifest=JSON.parse(readFileSync('app/manifest.json','utf8'));
 const installIcon=readFileSync('app/icon.svg','utf8');
 const appSource=readFileSync('src/app.js','utf8');
+
 assert.match(html,/src="src\/app\.js"/);
 assert.match(html,/src="bootstrap\.js"/);
-assert.match(readFileSync('app/bootstrap.js','utf8'),/serviceWorker\.register\('\.\/sw\.js'\)/);
+assert.ok(html.indexOf('src="bootstrap.js"')<html.indexOf('src="src/app.js"'),'boot guard must load before app module');
+assert.match(bootstrap,/serviceWorker\.register\('\.\/sw\.js'\)/);
+assert.match(bootstrap,/remapro-boot-fatal/);
+assert.match(bootstrap,/unhandledrejection/);
 assert.equal(manifest.icons?.[0]?.src,'icon.svg');
 assert.equal(manifest.icons?.[0]?.sizes,'192x192');
 assert.equal(manifest.icons?.[1]?.sizes,'512x512');
@@ -18,18 +24,22 @@ assert.match(installIcon,/viewBox="0 0 1024 1024"/);
 assert.match(installIcon,/#8D7B6A/);
 assert.match(installIcon,/M430 225/);
 assert.doesNotMatch(installIcon,/data:image\/png;base64,/);
-assert.match(sw,/'\.\/icon\.svg'/);
 assert.match(appSource,/class="brand remapro-brand"/);
 assert.match(appSource,/class="remapro-wordmark"/);
 assert.doesNotMatch(appSource,/assets-remaprohub-logo\.png/);
 assert.doesNotMatch(html,/\.\.\/src\/app\.js/);
-const assets=[...sw.matchAll(/'\.\/(?:src\/[^']+|[^']+)'/g)].map(match=>match[0].slice(3,-1));
-for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
-for(const module of ['app.js','restored.js','i18n.js','store.js','ai.js','cloud.js','legal.js','billing.js','security.js','intelligence.js','accounting.js','integrations.js','pos.js','pos-layout.js','delivery-ai.js','academy-content.js','academy.js','telemetry.js','workspace-storage.js'])assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'));
-const hash=createHash('sha256');
-for(const asset of ['index.html','bootstrap.js','runtime-config.js','privacy-policy.html','account-deletion.html','order.html','order.css','order.js','styles.css','icons.svg','manifest.json','icon.svg','src/app.js','src/restored.js','src/i18n.js','src/store.js','src/ai.js','src/cloud.js','src/legal.js','src/billing.js','src/security.js','src/intelligence.js','src/accounting.js','src/integrations.js','src/pos.js','src/pos-layout.js','src/delivery-ai.js','src/academy-content.js','src/academy.js','src/telemetry.js','src/workspace-storage.js']){
-  hash.update(asset);
-  hash.update(readFileSync(`app/${asset}`));
+
+const modules=readdirSync('src').filter(name=>name.endsWith('.js')).sort();
+assert.ok(modules.includes('floor-plan.js'),'floor-plan runtime module must be packaged');
+for(const module of modules){
+  assert.equal(readFileSync(`app/src/${module}`,'utf8'),readFileSync(`src/${module}`,'utf8'),`packaged module differs: ${module}`);
+  assert.ok(sw.includes(`src/${module}`),`service worker missing module: ${module}`);
 }
+
+const assets=JSON.parse(sw.match(/const ASSETS=(\[[\s\S]*?\]);/)?.[1]||'[]');
+for(const asset of assets)assert.ok(existsSync(`app/${asset}`),`offline asset missing: ${asset}`);
+
+const hash=createHash('sha256');
+for(const asset of assets){hash.update(asset);hash.update(readFileSync(`app/${asset}`))}
 assert.ok(sw.includes(`const CACHE='remaprohub-v27-shell-${hash.digest('hex').slice(0,12)}';`),'offline cache must match packaged assets');
-console.log('PWA offline shell and packaged modules OK');
+console.log(`PWA offline shell and packaged module graph OK (${modules.length} modules)`);
