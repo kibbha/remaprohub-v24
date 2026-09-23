@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const printer=fs.readFileSync(new URL('../src/printer.js',import.meta.url),'utf8');
+const java=fs.readFileSync(new URL('../android-native/NetworkPrinterPlugin.java',import.meta.url),'utf8');
+const patch=fs.readFileSync(new URL('../scripts/patch-network-printer.mjs',import.meta.url),'utf8');
+const workflow=fs.readFileSync(new URL('../.github/workflows/pos-android-validation.yml',import.meta.url),'utf8');
+assert.ok(printer.includes("['bluetooth','usb','network']"));
+assert.ok(printer.includes("nativeNetworkPrinterPlugin"));
+assert.ok(printer.includes("plugin.print({host:host.trim(),port"));
+assert.ok(!printer.includes('NETWORK_ESC_POS_NOT_AVAILABLE_ON_CAPACITOR7'));
+assert.ok(java.includes('@CapacitorPlugin(name = "NetworkPrinter")'));
+assert.ok(java.includes('new InetSocketAddress'));
+assert.ok(java.includes('socket.setTcpNoDelay(true)'));
+assert.ok(patch.includes('registerPlugin(NetworkPrinterPlugin.class)'));
+assert.ok(workflow.includes('patch-network-printer.mjs'));
+console.log('Network ESC/POS native TCP bridge checks passed');
