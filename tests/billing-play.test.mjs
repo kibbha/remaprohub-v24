@@ -29,3 +29,9 @@ assert.match(account,/auth\.admin\.deleteUser/);
 assert.match(config,/\[functions\.remapro-revenuecat-webhook\][\s\S]*verify_jwt = false/);
 assert.match(config,/\[functions\.remapro-account\][\s\S]*verify_jwt = true/);
 console.log('RevenueCat billing, immutable HACCP RLS and account deletion wiring OK');
+
+const injectSource=readFileSync('scripts/inject-runtime-config.mjs','utf8');
+assert.match(injectSource,/REVENUECAT_ANDROID_API_KEY_REQUIRED/);
+assert.match(injectSource,/REQUIRE_REVENUECAT/);
+const androidWorkflow=readFileSync('.github/workflows/android.yml','utf8');
+assert.match(androidWorkflow,/REQUIRE_REVENUECAT: '1'/);
