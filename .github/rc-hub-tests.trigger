@@ -7,3 +7,4 @@ rerun dom-free i18n gate
 rerun clean i18n assertion
 rerun compact dictionary gate
 rerun without redundant taxonomy assertion
+rerun missing indicators key
