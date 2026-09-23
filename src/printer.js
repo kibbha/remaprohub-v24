@@ -1,3 +1,5 @@
+import {recordDiagnostic} from './telemetry.js';
+const printerDiag=(type,error,details={})=>{void recordDiagnostic(type,{...details,message:error?.message||String(error||'unknown')})};
 const nativePlatform=()=>Boolean(globalThis.Capacitor?.isNativePlatform?.());
 const nativePrinterPlugin=()=>globalThis.Capacitor?.Plugins?.EscPosPrinter||null;
 const nativeNetworkPrinterPlugin=()=>globalThis.Capacitor?.Plugins?.NetworkPrinter||null;
@@ -61,14 +63,14 @@ export async function discoverNativePrinters(){
   if(!nativePlatform())return[];
   const plugin=printerPlugin();
   const found=[];
-  try{await plugin.requestBluetoothEnable()}catch{}
+  try{await plugin.requestBluetoothEnable()}catch(error){printerDiag('printer.bluetooth_enable_error',error)}
   try{
     const result=await plugin.getBluetoothPrinterDevices();
     for(const d of result?.devices||[])found.push({
       connectionType:'bluetooth',address:d.address,name:d.name||d.alias||d.address,
       detail:d.address
     });
-  }catch{}
+  }catch(error){printerDiag('printer.bluetooth_discovery_error',error)}
   try{
     const result=await plugin.getUsbPrinterDevices();
     for(const d of result?.devices||[])found.push({
@@ -76,7 +78,7 @@ export async function discoverNativePrinters(){
       detail:[d.manufacturerName,d.vendorId&&('VID '+d.vendorId),d.productId&&('PID '+d.productId)].filter(Boolean).join(' · '),
       hasPermission:d.hasPermission===true
     });
-  }catch{}
+  }catch(error){printerDiag('printer.usb_discovery_error',error)}
   return found;
 }
 
@@ -116,8 +118,8 @@ export async function printEscPosText(profile,text){
     return{ok:true,bytes:payload.length};
   }finally{
     if(hashKey){
-      try{await plugin.disconnectPrinter({hashKey})}catch{}
-      try{await plugin.disposePrinter({hashKey})}catch{}
+      try{await plugin.disconnectPrinter({hashKey})}catch(error){printerDiag('printer.disconnect_error',error,{connectionType:type})}
+      try{await plugin.disposePrinter({hashKey})}catch(error){printerDiag('printer.dispose_error',error,{connectionType:type})}
     }
   }
 }
