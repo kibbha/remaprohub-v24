@@ -1,4 +1,4 @@
 RC POS validation trigger
-Previous run reached Academy responsive test and found malformed regex flags.
-Retry base: d28eaf1ef3d098d79035710a9ea85efe7c111901
-Fix: valid multiline-safe responsive CSS regexes.
+Previous run reached Academy responsive contracts; the test still expected the pre-refactor 720px dialog.
+Retry base: c9ef02d8ca4b6669bde13964a61856f9cfed2580
+Fix: assert the current responsive Academy dialog contract (760px max + mobile override).
