@@ -1,4 +1,4 @@
-RC Hub validation trigger
-Scope: final validation after RevenueCat diagnostic workflow adjustment.
-Expectation: full Hub test suite runs even if RevenueCat GitHub secret is absent; final job may fail only on that external configuration gate.
+RC Hub final validation trigger
+Scope: all Swiss production fixes, database hardening migration, release checklist.
+Expected: full Node suite success; final workflow remains blocked only if RevenueCat Android public SDK key is absent.
 No Android build.
