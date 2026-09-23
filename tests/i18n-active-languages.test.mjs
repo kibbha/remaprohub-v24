@@ -11,7 +11,7 @@ const controlledPushTrigger="  push:\n    branches: [rebuild/remaprohub-clean]\n
 assert.ok(workflow.includes(controlledPushTrigger),'Android build push trigger must stay restricted to the final-build sentinel');
 assert.equal((workflow.match(/\n  push:/g)||[]).length,1,'Only one controlled push trigger is allowed');
 const i18nSource=readFileSync('src/i18n.js','utf8');
-for(const key of ["todayRevenue","hubCategoryHint","hubGroupSalesSub","hubGroupProductsSub","hubGroupCustomersSub","hubGroupStockSub","hubGroupTeamSub","hubGroupFinanceSub","hubGroupHaccpSub","hubGroupDocumentsSub","hubGroupSettingsSub","hubToolOrdersSub","hubToolPosAdminSub","hubToolHelpSub"," missing "]) {
+for(const key of ["todayRevenue","hubCategoryHint","hubGroupSalesSub","hubGroupProductsSub","hubGroupCustomersSub","hubGroupStockSub","hubGroupTeamSub","hubGroupFinanceSub","hubGroupHaccpSub","hubGroupDocumentsSub","hubGroupSettingsSub","hubToolOrdersSub","hubToolPosAdminSub","hubToolHelpSub"]) {
   for(const lang of ['fr','en','de','it']) assert.ok(i18nSource.includes('const '+lang+'={')&&i18nSource.includes(key+':'),lang+' missing '+key);
 }
 console.log('Hub category taxonomy active-language coverage passed');
