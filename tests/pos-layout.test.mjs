@@ -68,6 +68,7 @@ assert.match(editorHtml,/Boisson/);
 assert.match(editorHtml,/Quantité manuelle/);
 assert.match(editorHtml,/Calculée par stock\/recette/);
 assert.match(editorHtml,/Alerte basse/);
+assert.match(editorHtml,/Remettre la quantité disponible/);
 
 const normalized=normalizePosLayout(seeded);
 assert.equal(normalized.buttons[0].w,2);
