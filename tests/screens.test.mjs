@@ -22,5 +22,5 @@ globalThis.history={pushState:state=>{pushed=state}};
 listeners.get('page:operations')();
 assert.deepEqual(pushed,{remaproPage:'operations'});
 window.dispatchEvent({type:'popstate',state:{remaproPage:'dashboard'}});
-assert.ok(app.innerHTML.includes(`<h1>${catalogue(LANGS.at(-1)).dashboard}</h1>`),'Android/browser back restores dashboard');
+assert.ok(app.innerHTML.includes(`<h1>${catalogue(LANGS.at(-1)).home}</h1>`),'Android/browser back restores modular home');
 console.log(`${pages.size} screens render in all ${LANGS.length} languages OK`);
