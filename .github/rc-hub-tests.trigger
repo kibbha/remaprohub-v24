@@ -1,3 +1,4 @@
 RC Hub final validation trigger
-Scope: auto-link standalone POS buttons to later Hub products/recipes, recipe-derived availability, manual replenishment, atomic manual counters, live stock oversell guard, stable order-line availability keys.
+Scope: corrected availability UI assertion; automatic matching, manual replenishment, recipe-derived stock portions and stable server keys.
+Expected: Node suite green; external RevenueCat gate may remain the only workflow-level blocker.
 No Android build.
