@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run passed CRUD architecture and found new dedicated forms absent from the architecture allow-list.
-Retry base: f0a556a2e76039209516fc2cce9b7441a183eb84
-Fix: architecture gate now recognizes delivery scanner and POS-admin forms that already have explicit submit listeners.
+Previous run reached quantity guards; architecture test still targeted retired reservationForm/loyaltyForm paths.
+Retry base: a85ee36ababf1a8e3378ad252423cba3bc5c7afe
+Fix: gate now checks advancedReservationForm + recordAdvancedReservation and loyaltyTransactionForm + loyaltyTransaction.
