@@ -7,6 +7,7 @@ import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
 import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 import {recordDiagnostic} from './telemetry.js';
+import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 
 const APP_VERSION='0.27.0';
@@ -642,9 +643,6 @@ async function refreshReceipts(){
     }
   }catch(error){state.error=error.message||String(error)}
 }
-function queuedPayload(item){
-  return{...item.payload,clientEventId:item.payload?.clientEventId||item.client_event_id};
-}
 async function executeQueued(item){
   assertQueuedOperator(item);
   if(item.action==='open_cash_session'){
@@ -692,12 +690,6 @@ async function executeQueued(item){
     return r;
   }
   throw new Error('UNKNOWN_QUEUE_ACTION');
-}
-function queueRetryDelayMs(attempts){
-  const n=Math.max(1,Number(attempts)||1);return Math.min(60000,1000*(2**Math.min(6,n-1)));
-}
-function queueRetryDue(item,now=Date.now()){
-  const at=Date.parse(item?.next_retry_at||'');return !Number.isFinite(at)||at<=now;
 }
 async function flushQueueInternal({force=false}={}){
   if(state.trainingMode)return;
