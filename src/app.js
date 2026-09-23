@@ -17,7 +17,7 @@ const state={
   identity:null,restaurant:null,bootstrap:null,category:'Tous',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
-  tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
+  tables:[],openOrders:[],floorPlan:null,floorZoneId:'',view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
@@ -34,6 +34,7 @@ const catalogKey=id=>'catalog:'+id;
 const receiptsKey=id=>'receipts:'+id;
 const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
+const floorPlanKey=id=>'floorPlan:'+id;
 const productionKey=id=>'production:'+id;
 const kdsMetricsKey=id=>'kdsMetrics:'+id;
 const terminalsKey=id=>'terminals:'+id;
@@ -636,16 +637,21 @@ async function refreshFloorData(){
   if(!state.online){
     state.tables=await kvGet(tablesKey(state.restaurant.id))||state.tables||[];
     state.openOrders=await kvGet(openOrdersKey(state.restaurant.id))||state.openOrders||[];
+    state.floorPlan=await kvGet(floorPlanKey(state.restaurant.id))||state.floorPlan||null;
     return;
   }
   try{
-    const [tables,orders]=await Promise.all([
+    const [tables,orders,floor]=await Promise.all([
       posFunction({action:'list_tables',restaurantId:state.restaurant.id}),
-      posFunction({action:'list_open_orders',restaurantId:state.restaurant.id})
+      posFunction({action:'list_open_orders',restaurantId:state.restaurant.id}),
+      posFunction({action:'floor_plan_current',restaurantId:state.restaurant.id}).catch(()=>({plan:null}))
     ]);
     state.tables=tables.rows||[];
     state.openOrders=orders.rows||[];
-    await saveFloorCache();
+    state.floorPlan=floor.plan||null;
+    const zones=Array.isArray(state.floorPlan?.document?.zones)?state.floorPlan.document.zones:[];
+    if(!zones.some(z=>z.id===state.floorZoneId))state.floorZoneId=zones[0]?.id||'';
+    await Promise.all([saveFloorCache(),kvSet(floorPlanKey(state.restaurant.id),state.floorPlan)]);
   }catch(error){state.error=error.message||String(error)}
 }
 async function saveReceipt(receipt){
@@ -770,6 +776,8 @@ async function bootstrapRestaurant(restaurant){
   state.receipts=await kvGet(receiptsKey(restaurant.id))||[];
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
+  state.floorPlan=await kvGet(floorPlanKey(restaurant.id))||null;
+  state.floorZoneId=state.floorPlan?.document?.zones?.[0]?.id||'';
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
   state.printers=await kvGet(printersKey(restaurant.id))||[];
@@ -1965,11 +1973,35 @@ function topbar(){
   </header>`;
 }
 function floorView(){
-  const unassigned=state.openOrders.filter(o=>!o.table_id);
+  const unassigned=state.openOrders.filter(o=>!o.table_id),plan=state.floorPlan,doc=plan?.document&&typeof plan.document==='object'?plan.document:null;
+  const zones=Array.isArray(doc?.zones)?doc.zones:[],elements=Array.isArray(doc?.elements)?doc.elements:[];
+  if(zones.length&&!zones.some(z=>String(z.id)===String(state.floorZoneId)))state.floorZoneId=String(zones[0].id||'');
+  const selectedZone=zones.find(z=>String(z.id)===String(state.floorZoneId))||zones[0]||null;
+  const canvas=doc?.canvas||{width:1000,height:700,background:'#f7f3ed'};
+  const tableMap=new Map((state.tables||[]).map(t=>[String(t.id),t]));
+  const byLabel=new Map((state.tables||[]).map(t=>[String(t.label||'').trim().toLocaleLowerCase(),t]));
+  const floorElements=elements.filter(e=>e?.active!==false&&(!selectedZone||String(e.zoneId)===String(selectedZone.id)));
+  const stage=floorElements.length?'<div class="pos-floor-stage" style="aspect-ratio:'+Number(canvas.width||1000)+'/'+Number(canvas.height||700)+';--floor-bg:'+esc(canvas.background||'#f7f3ed')+'">'
+    +(selectedZone?'<div class="pos-floor-zone-label">'+esc(selectedZone.name||'Salle')+'</div>':'')
+    +floorElements.map(e=>{
+      const left=(Number(e.x)||0)/Number(canvas.width||1000)*100,top=(Number(e.y)||0)/Number(canvas.height||700)*100,width=Math.max(3,(Number(e.w)||80)/Number(canvas.width||1000)*100),height=Math.max(3,(Number(e.h)||60)/Number(canvas.height||700)*100),style='left:'+left+'%;top:'+top+'%;width:'+width+'%;height:'+height+'%;transform:rotate('+(Number(e.rotation)||0)+'deg);--floor-color:'+esc(e.color||'#fffaf5');
+      if(e.type==='table'){
+        const table=tableMap.get(String(e.tableId||''))||byLabel.get(String(e.label||'').trim().toLocaleLowerCase())||null;
+        if(!table)return'';
+        const order=state.openOrders.find(o=>String(o.table_id||'')===String(table.id)||(!o.table_id&&o.table_label===table.label));
+        const status=order?(order.status==='payment_pending'?'payment':order.status==='served'?'served':'occupied'):'free';
+        const age=order?.updated_at?Math.max(0,Math.floor((Date.now()-Date.parse(order.updated_at))/60000)):0;
+        return '<button class="pos-floor-table floor-shape-'+esc(e.shape||'round')+' '+status+'" data-table="'+esc(table.id)+'" style="'+style+'"><span class="floor-table-label">'+esc(e.label||table.label)+'</span><small>'+Number(e.seats||table.seats||0)+' pl.</small><strong>'+(order?money(order.total):'Libre')+'</strong>'+(order?'<em>'+age+' min</em>':'')+'</button>';
+      }
+      return '<div class="pos-floor-static pos-floor-'+esc(e.type||'label')+'" style="'+style+'"><span>'+esc(e.type==='toilet'?'WC':e.label||e.type)+'</span></div>';
+    }).join('')+'</div>':'';
+  const fallback='<div class="table-grid">'+state.tables.map(t=>{const o=state.openOrders.find(x=>x.table_id===t.id||(!x.table_id&&x.table_label===t.label));return '<button class="table-card '+(o?'occupied':'free')+'" data-table="'+t.id+'"><span class="table-label">'+esc(t.label)+'</span><span>'+ (t.seats||0)+' pl.</span><strong>'+(o?money(o.total):'Libre')+'</strong>'+(o?'<small>'+esc(o.status)+'</small>':'')+'</button>'}).join('')+'</div>';
   return `<div class="shell">${topbar()}${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
-    <main class="floor-page"><div class="floor-head"><div><h2>Plan de salle</h2><p>${state.openOrders.length} note${state.openOrders.length>1?'s':''} ouverte${state.openOrders.length>1?'s':''}</p></div>
-      ${isManager()?'<button class="primary compact" id="add-table">+ Table</button>':''}</div>
-      <div class="table-grid">${state.tables.map(t=>{const o=state.openOrders.find(x=>x.table_id===t.id||(!x.table_id&&x.table_label===t.label));return `<button class="table-card ${o?'occupied':'free'}" data-table="${t.id}"><span class="table-label">${esc(t.label)}</span><span>${t.seats||0} pl.</span><strong>${o?money(o.total):'Libre'}</strong>${o?'<small>'+esc(o.status)+'</small>':''}</button>`}).join('')||'<div class="empty">Aucune table configurée.</div>'}</div>
+    <main class="floor-page visual-floor-page"><div class="floor-head"><div><h2>Plan de salle</h2><p>${plan?esc(plan.name)+' · v'+Number(plan.version||0):'Configuration classique'} · ${state.openOrders.length} note${state.openOrders.length>1?'s':''} ouverte${state.openOrders.length>1?'s':''}</p></div>
+      ${isManager()&&!plan?'<button class="primary compact" id="add-table">+ Table</button>':''}</div>
+      ${zones.length?'<div class="pos-floor-zone-tabs">'+zones.map(z=>'<button data-floor-zone="'+esc(z.id)+'" class="'+(String(z.id)===String(state.floorZoneId)?'active':'')+'">'+esc(z.name)+'</button>').join('')+'</div>':''}
+      <div class="pos-floor-legend"><span><i class="free"></i>Libre</span><span><i class="occupied"></i>En cours</span><span><i class="served"></i>Servie</span><span><i class="payment"></i>Encaissement</span></div>
+      ${stage||fallback||'<div class="empty">Aucune table configurée.</div>'}
       ${unassigned.length?`<section class="unassigned"><h3>Notes sans table</h3>${unassigned.map(o=>`<button class="secondary open-order" data-order="${o.id}">${esc(o.table_label||o.service_type)} · ${money(o.total)}</button>`).join('')}</section>`:''}
     </main></div>`;
 }
@@ -2245,6 +2277,7 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#refresh-report')?.addEventListener('click',()=>refreshServiceReport(state.reportDate||dateKey()));
   document.querySelector('#print-report')?.addEventListener('click',()=>printServiceReport(state.serviceReport));
   document.querySelector('#add-table')?.addEventListener('click',()=>addDiningTable());
+  document.querySelectorAll('[data-floor-zone]').forEach(b=>b.addEventListener('click',()=>{state.floorZoneId=b.dataset.floorZone;render()}));
   document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{const t=state.tables.find(x=>x.id===b.dataset.table);if(t)openTable(t)}));
   document.querySelectorAll('[data-order]').forEach(b=>b.addEventListener('click',()=>{const o=state.openOrders.find(x=>x.id===b.dataset.order);if(!o)return;state.activeOrderId=o.id;state.activeTableId=o.table_id||null;state.tableLabel=o.table_label||'';state.serviceType=o.service_type||'dine_in';state.covers=o.covers||1;const locked=o.status!=='open';state.cart=(o.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''}));state.view='sale';render()}));
   document.querySelector('#save-open-order')?.addEventListener('click',()=>saveOpenOrder());

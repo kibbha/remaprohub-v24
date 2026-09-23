@@ -206,3 +206,25 @@ body{background:#f5efe8}
   .product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.product{min-height:140px}.product-visual{height:62px}
   .service-segments button{font-size:9px}.cart-tools{grid-template-columns:1fr 1fr}.payments{grid-template-columns:1fr 1.4fr 1fr}
 }
+
+
+/* ReMaPro POS visual floor plan */
+.visual-floor-page{padding:18px;max-width:1500px;margin:0 auto;width:100%}
+.pos-floor-zone-tabs{display:flex;gap:7px;overflow:auto;margin:0 0 10px;padding-bottom:2px}
+.pos-floor-zone-tabs button{flex:0 0 auto;min-height:40px;border:1px solid #e5d8cb;background:#fffdf9;color:#6e6258;border-radius:11px;padding:8px 13px;font-weight:800;font-size:11px}
+.pos-floor-zone-tabs button.active{background:#8e3a26;border-color:#8e3a26;color:#fff;box-shadow:0 6px 14px #8e3a2620}
+.pos-floor-legend{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin:0 0 10px;color:#80756c;font-size:9px;font-weight:750}
+.pos-floor-legend span{display:flex;align-items:center;gap:5px}.pos-floor-legend i{display:inline-block;width:9px;height:9px;border-radius:50%;background:#d9cec4}.pos-floor-legend i.free{background:#73a982}.pos-floor-legend i.occupied{background:#d6874f}.pos-floor-legend i.served{background:#7799bd}.pos-floor-legend i.payment{background:#b45a50}
+.pos-floor-stage{position:relative;width:100%;min-height:520px;max-height:calc(100dvh - 220px);border:1px solid #dfd2c6;border-radius:18px;background:var(--floor-bg);box-shadow:inset 0 0 0 1px #fff,0 12px 34px #51301b0f;overflow:hidden;background-image:linear-gradient(#8d77650b 1px,transparent 1px),linear-gradient(90deg,#8d77650b 1px,transparent 1px);background-size:22px 22px}
+.pos-floor-zone-label{position:absolute;left:14px;top:11px;z-index:3;padding:6px 9px;border-radius:999px;background:#fffdf9d9;border:1px solid #e3d6ca;color:#6d5d51;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.7px;backdrop-filter:blur(8px)}
+.pos-floor-table,.pos-floor-static{position:absolute}
+.pos-floor-table{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:2px solid #c9b7a7;background:var(--floor-color);color:#342b25;padding:5px;box-shadow:0 5px 14px #4b2e1a12;overflow:hidden;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+.pos-floor-table:active{box-shadow:0 2px 8px #4b2e1a18}
+.pos-floor-table.free{border-color:#75a582;background:#f5fbf6}.pos-floor-table.occupied{border-color:#d07a45;background:#fff3e9}.pos-floor-table.served{border-color:#6c91b5;background:#edf5fb}.pos-floor-table.payment{border-color:#a94f46;background:#fff0ee;animation:floor-pay-pulse 1.7s ease-in-out infinite}
+@keyframes floor-pay-pulse{50%{box-shadow:0 0 0 5px #a94f4616}}
+.floor-shape-round{border-radius:50%}.floor-shape-oval{border-radius:50%}.floor-shape-square{border-radius:10px}.floor-shape-high{border-radius:18px}.floor-shape-rect{border-radius:12px}
+.floor-table-label{font-family:Georgia,ui-serif,serif;font-size:13px;font-weight:850;line-height:1}.pos-floor-table small{font-size:8px;color:#807369}.pos-floor-table strong{font-size:11px}.pos-floor-table em{font-size:7px;color:#9b5d3d;font-style:normal;font-weight:800}
+.pos-floor-static{display:flex;align-items:center;justify-content:center;border:1px solid #cdbfb2;background:var(--floor-color);border-radius:10px;color:#67594f;font-size:9px;font-weight:800;padding:4px;overflow:hidden}
+.pos-floor-wall{border-radius:3px;background:#6c6057;color:#fff;border:0}.pos-floor-door{background:#f7eee5;border-style:dashed}.pos-floor-kitchen{background:#f0dcd0;color:#7d3f2b}.pos-floor-toilet{background:#e4ece8;color:#49675a}.pos-floor-bar{background:#d9c5b3;color:#5c4739}.pos-floor-banquette{background:#d5c3b5}.pos-floor-label{background:transparent;border:0;font-size:12px}
+@media(max-width:820px){.visual-floor-page{padding:10px}.pos-floor-stage{min-height:430px;max-height:none}.floor-table-label{font-size:11px}.pos-floor-table strong{font-size:9px}}
+@media(max-width:560px){.pos-floor-stage{min-height:360px}.pos-floor-legend{gap:8px}.pos-floor-table small,.pos-floor-table em{display:none}.floor-table-label{font-size:9px}}

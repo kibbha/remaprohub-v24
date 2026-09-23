@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+assert.ok(app.includes("floorPlan:null"));
+assert.ok(app.includes("action:'floor_plan_current'"));
+assert.ok(app.includes('pos-floor-stage'));
+assert.ok(app.includes('data-floor-zone'));
+assert.ok(app.includes('floor-shape-'));
+assert.ok(css.includes('ReMaPro POS visual floor plan'));
+assert.ok(css.includes('.pos-floor-table.occupied'));
+assert.ok(sw.includes('v0281-floorplan-20260923'));
+console.log('ReMaPro POS visual floor plan checks passed');
