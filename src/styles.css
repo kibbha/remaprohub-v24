@@ -271,3 +271,7 @@ body{background:linear-gradient(180deg,#fffdf9,#fff8f1)}
  .payments{position:sticky;bottom:0;background:#fffdf9;padding:7px 0 max(7px,env(safe-area-inset-bottom));z-index:8}
  .pos-more-panel{max-height:min(72dvh,620px);overflow:auto}
 }
+
+
+.pos-more-groups{display:grid;gap:10px}.pos-more-groups section{display:grid;gap:5px}.pos-more-groups section>small{text-transform:uppercase;letter-spacing:.08em;font-weight:900;color:#8a6e59;font-size:9px}.pos-more-groups .pos-more-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.pos-more-groups .nav-tab{min-height:42px;border-radius:11px}
+@media(max-width:520px){.pos-more-groups .pos-more-nav{grid-template-columns:repeat(2,minmax(0,1fr))}}
