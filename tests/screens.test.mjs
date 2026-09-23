@@ -22,5 +22,5 @@ globalThis.history={pushState:state=>{pushed=state}};
 listeners.get('page:operations')();
 assert.deepEqual(pushed,{remaproPage:'operations'});
 window.dispatchEvent({type:'popstate',state:{remaproPage:'dashboard'}});
-assert.ok(app.innerHTML.includes(`<h1>${catalogue(LANGS.at(-1)).dashboardSub}</h1>`),'Android/browser back restores current dashboard');
+assert.ok(app.innerHTML.includes('hub-classic-home')&&app.innerHTML.includes('<h1>ReMaPro Hub</h1>'),'Android/browser back restores current dashboard');
 console.log(`${pages.size} screens render in all ${LANGS.length} languages OK`);
