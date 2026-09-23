@@ -6,7 +6,7 @@ for(const name of ['layout-dashboard','clipboard-check','chart-bar','file-descri
 assert.equal((sprite.match(/<svg\b/g)||[]).length,1,'sprite must have only one outer SVG');
 assert.match(app,/icons\.svg#\$\{ICONS\[key\]/);
 assert.match(app,/class="module" data-page="\$\{k\}">\$\{icon\(k\)\}/);
-assert.match(sw,/'\.\/icons\.svg'/);
+assert.match(sw,/["'](?:\.\/)?icons\.svg["']/);
 const mapped=app.match(/const ICONS=\{([^}]+)\}/)?.[1]||'';
 for(const key of ['dashboard','operations','orders','products','haccp','finance','documents','stock','suppliers','purchases','invoices','team','planning','leave','training','recipes','reservations','customers','loyalty','incidents','waste','maintenance','equipment','deliveries','allergens','recalls','cleaning','audits','checklists','alerts','goals','briefing','handover','categories','organization','ai','settings','help','more'])assert.match(mapped,new RegExp(`(?:^|,)\\s*${key}:`),`missing icon mapping for ${key}`);
 console.log('Offline Tabler icon sprite and UI references OK');
