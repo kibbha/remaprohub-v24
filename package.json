@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/smoke.test.mjs && node tests/layout.test.mjs && node tests/academy.test.mjs && node tests/academy-training.test.mjs && node tests/academy-responsive.test.mjs && node tests/pos-hardening.test.mjs && node tests/pos-resilience.test.mjs && node tests/pos-failure-matrix.test.mjs && node tests/kds.test.mjs && node tests/direct-orders.test.mjs && node tests/customer-display.test.mjs && node tests/hub-config-sync.test.mjs",
+    "test": "node tests/smoke.test.mjs && node tests/layout.test.mjs && node tests/academy.test.mjs && node tests/academy-training.test.mjs && node tests/academy-responsive.test.mjs && node tests/pos-hardening.test.mjs && node tests/pos-resilience.test.mjs && node tests/pos-failure-matrix.test.mjs && node tests/kds.test.mjs && node tests/direct-orders.test.mjs && node tests/customer-display.test.mjs && node tests/hub-config-sync.test.mjs && node tests/network-printer.test.mjs",
     "inject:config": "node scripts/inject-runtime-config.mjs",
     "android": "npm run prepare:web && npx cap sync android",
     "prepare:web": "node scripts/prepare-web.mjs"
