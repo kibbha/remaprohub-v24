@@ -1,4 +1,4 @@
-RC POS final pre-APK audit validation
-Scope: current HEAD after floor-plan/reservations/merged tables; full test suite and packaged runtime checks.
+RC POS final audited validation
+Scope: complete pre-APK audit after Android hardening, CSP, network, floor-plan and printer-security fixes.
 No Android build.
-Audit: 2026-09-23 final pass.
+Audit rerun: 2026-09-23.
