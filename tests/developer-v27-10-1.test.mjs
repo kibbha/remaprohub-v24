@@ -35,7 +35,7 @@ assert.match(app,/id="developerLoginForm"/);
 assert.match(app,/id="developerAccessForm"/);
 assert.match(app,/developerAliasMatches\(developerId,developerAccess\)/);
 assert.match(app,/saveDeveloperAccess\(\{alias,email,enabled:true\}\)/);
-assert.match(app,/Promise\.all\(\[initializeCloudSessionStorage\(\),loadDeveloperAccess\(\)\]\)/);
+assert.match(app,/Promise\.all\(\[initializeCloudSessionStorage\(\),loadDeveloperAccess\(\),restoreStateMirror\(state\)\]\)/);
 assert.match(app,/orgAdmin&&session\?card\(t\('developerAccess'\),developerForm\)/);
 assert.doesNotMatch(securitySource,/password\s*[:=]/i,'security module must not persist a developer password');
 

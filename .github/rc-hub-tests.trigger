@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run reached CRM registry reuse guard; the bounded regex predates the advanced reservation/loyalty UI.
-Retry base: 5175e2a0c52092504bc91ec0e1659cf1f4ecfc09
-Fix: retain the same CRM datalist contract with bounds sized for the current screens.
+Previous run progressed through architecture and found a stale developer boot assertion.
+Retry base: c3df20bb8a598cab86850d94ab29a7078b54ad47
+Fix: developer security gate now asserts session init + developer access + state mirror recovery, matching the hardened boot path.
