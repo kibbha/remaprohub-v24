@@ -52,7 +52,7 @@ assert.ok(app.includes("action:'availability_snapshot'"));
 assert.ok(app.includes('availability-badge soldout'));
 assert.ok(app.includes("uiAlert('Article épuisé.')"));
 assert.ok(app.includes('applyLocalAvailabilityConsumption(state.cart)'));
-assert.ok(app.includes("p.autoMatched?' · lié auto'"));
+assert.ok(app.includes('const product=itemForButton(button,catalog)'));
 assert.ok(app.includes('await refreshAvailability()'));
 assert.ok(app.includes("kind:'remapro_availability'"));
 assert.ok(app.includes('availabilityKey:String(x.availability_key)'));
