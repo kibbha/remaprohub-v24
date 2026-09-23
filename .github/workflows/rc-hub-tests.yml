@@ -23,22 +23,21 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Validate RevenueCat runtime injection
-        id: revenuecat
-        continue-on-error: true
+      - name: Validate optional RevenueCat runtime injection
         env:
           REVENUECAT_ANDROID_API_KEY: ${{ secrets.REVENUECAT_ANDROID_API_KEY }}
           REQUIRE_REVENUECAT: '0'
         run: |
           node scripts/inject-runtime-config.mjs
-          node -e "const fs=require('fs');const s=fs.readFileSync('app/runtime-config.js','utf8');if(!/REMAPRO_REVENUECAT_ANDROID_API_KEY=['\"][^'\"]+/.test(s))process.exit(1)"
+          if [ -n "$REVENUECAT_ANDROID_API_KEY" ]; then
+            grep -Eq "REMAPRO_REVENUECAT_ANDROID_API_KEY=['\"][^'\"]+" app/runtime-config.js
+          else
+            echo "RevenueCat Android key not configured; billing remains disabled in the test APK."
+          fi
       - name: Run full Hub test suite
         run: npm test
-      - name: Report RevenueCat readiness
-        if: steps.revenuecat.outcome != 'success'
-        run: echo "RevenueCat Android key is not configured; billing remains disabled in this test APK."
       - name: Verify RC runtime additions
-        if: always() && steps.revenuecat.outcome == 'success'
+        if: always()
         run: |
           test -s app/src/accounting.js
           test -s app/src/integrations.js
