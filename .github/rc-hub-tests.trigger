@@ -11,3 +11,4 @@ rerun missing indicators key
 rerun category architecture guard
 rerun actual dashboard structure
 rerun compact dashboard permission guards
+rerun current home back navigation
