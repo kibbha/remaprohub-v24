@@ -11,5 +11,5 @@ for(const row of rows){const safe=clientSafeIntegrationAdapter({...row,apiKey:'s
 const app=readFileSync('src/app.js','utf8'),pack=readFileSync('scripts/package-web.mjs','utf8');
 assert.ok(app.includes('integrationAdapterRegistry()'),'Hub integration registry UI missing');
 assert.ok(app.includes('integrationSecretsServerOnly'),'server-only secret policy must be visible');
-assert.ok(pack.includes("'integrations.js'"),'integration registry must ship in runtime');
+assert.match(pack,/readdir\(source/,'dynamic module packaging must include integrations.js');
 console.log('Integration adapter registry and client secret isolation checks passed');
