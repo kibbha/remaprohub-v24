@@ -12,3 +12,4 @@ rerun category architecture guard
 rerun actual dashboard structure
 rerun compact dashboard permission guards
 rerun current home back navigation
+rerun current modular home guard
