@@ -1,3 +1,4 @@
 RC POS validation trigger
-HEAD base: a5b3b196520cf6c7463ae50f671d386300997e5e
-Scope: full npm test + packaged runtime checks
+Previous run stopped on stale hard-coded smoke version 0.26.0
+Retry base: 6c0a26b5958d0ac2ff83f894b09c56dbd0a70f8b
+Fix: smoke test now derives APP_VERSION from package.json
