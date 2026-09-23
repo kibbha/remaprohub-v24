@@ -9,12 +9,30 @@ await copyFile(resolve(root,'android-native/NetworkPrinterPlugin.java'),resolve(
 
 const activityPath=resolve(javaDir,'MainActivity.java');
 let activity=await readFile(activityPath,'utf8');
+
 if(!activity.includes('registerPlugin(NetworkPrinterPlugin.class);')){
-  activity=activity.replace(
-    /protected void onCreate\(Bundle savedInstanceState\) \{\s*/,
-    match=>match+'        registerPlugin(NetworkPrinterPlugin.class);\n'
-  );
+  if(!activity.includes('import android.os.Bundle;')){
+    activity=activity.replace(/(package\s+[^;]+;\s*)/, '$1\nimport android.os.Bundle;\n');
+  }
+
+  if(/protected\s+void\s+onCreate\s*\(Bundle\s+savedInstanceState\)\s*\{/.test(activity)){
+    activity=activity.replace(
+      /protected\s+void\s+onCreate\s*\(Bundle\s+savedInstanceState\)\s*\{\s*/,
+      match=>match+'        registerPlugin(NetworkPrinterPlugin.class);\n'
+    );
+  }else{
+    const method=`
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(NetworkPrinterPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+`;
+    activity=activity.replace(/\n}\s*$/,method+'\n}\n');
+  }
 }
+
 if(!activity.includes('registerPlugin(NetworkPrinterPlugin.class);'))throw new Error('Unable to register NetworkPrinterPlugin');
+if(!activity.includes('import android.os.Bundle;'))throw new Error('Unable to import android.os.Bundle');
 await writeFile(activityPath,activity);
 console.log('ReMaPro network ESC/POS plugin registered');
