@@ -1,3 +1,5 @@
+import {recordDiagnostic} from './telemetry.js';
+const cloudDiag=(type,error,details={})=>{void recordDiagnostic(type,{...details,message:error?.message||String(error||'unknown')})};
 const SESSION_KEY='remapro-pos-session';
 const OPERATOR_KEY='remapro-pos-operator-session';
 let SESSION_CACHE=null,SESSION_READY=false,OPERATOR_CACHE=null,OPERATOR_READY=false;
@@ -18,32 +20,32 @@ async function persistSession(session){
 function persistOperator(session){
   OPERATOR_CACHE=session;OPERATOR_READY=true;
   const plugin=secureStorage(),raw=JSON.stringify(session);
-  if(plugin){plugin.set({key:OPERATOR_KEY,value:raw}).catch(()=>{});localStorage.removeItem(OPERATOR_KEY)}
+  if(plugin){plugin.set({key:OPERATOR_KEY,value:raw}).catch(error=>cloudDiag('cloud.secure_storage_write_error',error,{key:'operator'}));localStorage.removeItem(OPERATOR_KEY)}
   else localStorage.setItem(OPERATOR_KEY,raw);
   return session;
 }
 async function removeStoredSession(){
   SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);
-  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:SESSION_KEY})}catch{}
+  const plugin=secureStorage();if(plugin)try{await plugin.remove({key:SESSION_KEY})}catch(error){cloudDiag('cloud.secure_storage_remove_error',error,{key:'session'})}
 }
 function removeStoredOperator(){
   OPERATOR_CACHE=null;OPERATOR_READY=true;localStorage.removeItem(OPERATOR_KEY);
-  const plugin=secureStorage();if(plugin)plugin.remove({key:OPERATOR_KEY}).catch(()=>{});
+  const plugin=secureStorage();if(plugin)plugin.remove({key:OPERATOR_KEY}).catch(error=>cloudDiag('cloud.secure_storage_remove_error',error,{key:'operator'}));
 }
 export async function initializePosSessionStorage(){
   if(!SESSION_READY){
     const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();let secureRaw='';
-    if(plugin)try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}
+    if(plugin)try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'session'})}
     SESSION_CACHE=parseSession(secureRaw||legacy);
-    if(plugin&&SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}
+    if(plugin&&SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch(error){cloudDiag('cloud.secure_storage_write_error',error,{key:'session'})}
     if(plugin)localStorage.removeItem(SESSION_KEY);
     SESSION_READY=true;
   }
   if(!OPERATOR_READY){
     const legacy=localStorage.getItem(OPERATOR_KEY),plugin=secureStorage();let secureRaw='';
-    if(plugin)try{secureRaw=String((await plugin.get({key:OPERATOR_KEY}))?.value||'')}catch{}
+    if(plugin)try{secureRaw=String((await plugin.get({key:OPERATOR_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'operator'})}
     OPERATOR_CACHE=parseOperator(secureRaw||legacy);
-    if(plugin&&OPERATOR_CACHE&&!secureRaw)try{await plugin.set({key:OPERATOR_KEY,value:JSON.stringify(OPERATOR_CACHE)})}catch{}
+    if(plugin&&OPERATOR_CACHE&&!secureRaw)try{await plugin.set({key:OPERATOR_KEY,value:JSON.stringify(OPERATOR_CACHE)})}catch(error){cloudDiag('cloud.secure_storage_write_error',error,{key:'operator'})}
     if(plugin)localStorage.removeItem(OPERATOR_KEY);
     OPERATOR_READY=true;
   }
@@ -53,7 +55,7 @@ export const currentSession=()=>SESSION_READY?SESSION_CACHE:parseSession(localSt
 export const currentOperatorSession=()=>OPERATOR_READY?OPERATOR_CACHE:parseOperator(localStorage.getItem(OPERATOR_KEY)||'null');
 export const saveOperatorSession=session=>persistOperator(session);
 export const clearOperatorSession=()=>removeStoredOperator();
-export const signOut=()=>{removeStoredSession().catch(()=>{});removeStoredOperator();};
+export const signOut=()=>{removeStoredSession().catch(error=>cloudDiag('cloud.signout_storage_error',error));removeStoredOperator();};
 
 async function auth(path,body){
   const {url,key}=config();if(!url||!key)throw new Error('Configuration Supabase manquante');
