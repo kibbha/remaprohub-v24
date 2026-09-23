@@ -19,6 +19,8 @@ assert.ok(edge.includes('action==="floor_plan_current"'));
 assert.ok(edge.includes('action==="publish_floor_plan"'));
 assert.ok(edge.includes('synchronizeTablesFromFloorPlan'));
 assert.ok(edge.includes('FLOOR_PLAN_TABLE_IN_USE'));
+assert.ok(edge.includes('restaurant_workspaces'));
+assert.ok(edge.includes('durationMinutes'));
 assert.ok(migration.includes('create table if not exists public.pos_floor_plans'));
 assert.ok(migration.includes('create table if not exists public.pos_floor_plan_versions'));
 console.log('ReMaPro visual floor-plan checks passed');

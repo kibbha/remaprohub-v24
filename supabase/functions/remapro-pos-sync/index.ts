@@ -306,11 +306,22 @@ export default {
       }
 
       if(action==="floor_plan_current"){
-        const {data,error}=await ctx.supabaseAdmin.from("pos_floor_plans")
-          .select("id,name,published_document,published_version,active,published_at")
-          .eq("restaurant_id",restaurantId).eq("active",true).not("published_document","is",null).maybeSingle();
-        if(error)return json({error:error.message},500);
-        return json({ok:true,plan:data?{id:data.id,name:data.name,document:data.published_document,version:Number(data.published_version)||0,active:true,publishedAt:data.published_at}:null});
+        const [planResult,workspaceResult]=await Promise.all([
+          ctx.supabaseAdmin.from("pos_floor_plans")
+            .select("id,name,published_document,published_version,active,published_at")
+            .eq("restaurant_id",restaurantId).eq("active",true).not("published_document","is",null).maybeSingle(),
+          ctx.supabaseAdmin.from("restaurant_workspaces").select("data").eq("restaurant_id",restaurantId).maybeSingle()
+        ]);
+        if(planResult.error)return json({error:planResult.error.message},500);
+        const source=Array.isArray(workspaceResult.data?.data?.reservations)?workspaceResult.data.data.reservations:[];
+        const reservations=source.filter((r:any)=>!["cancelled","noShow","completed","waitlist"].includes(String(r?.status||"")))
+          .slice(0,300).map((r:any)=>({
+            id:clean(r?.id,120),name:clean(r?.name,120),time:clean(r?.time,40),covers:Math.max(0,Math.trunc(Number(r?.covers)||0)),
+            status:clean(r?.status,30)||"booked",durationMinutes:Math.max(15,Math.min(480,Math.trunc(Number(r?.durationMinutes)||120))),
+            tableId:validUuid(r?.tableId)?String(r.tableId):"",tableLabel:clean(r?.tableLabel,80)
+          }));
+        const data=planResult.data;
+        return json({ok:true,plan:data?{id:data.id,name:data.name,document:data.published_document,version:Number(data.published_version)||0,active:true,publishedAt:data.published_at}:null,reservations});
       }
 
       if(action==="floor_plan_admin"){
