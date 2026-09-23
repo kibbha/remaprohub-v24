@@ -53,7 +53,7 @@ async function tipsByOperatorForDate(db:any,restaurantId:string,businessDate:str
 const normalizeMatchName=(value:any)=>String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const availabilityConfig=(value:any)=>{
   const src=value&&typeof value==="object"?value:{},mode=["unlimited","manual","stock"].includes(String(src.mode))?String(src.mode):"unlimited";
-  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3))};
+  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3)),resetAt:clean(src.resetAt,40)};
 };
 const exactCatalogMatch=(button:any,catalog:any[])=>{
   if(validUuid(button?.productId))return catalog.find((x:any)=>String(x.id)===String(button.productId))||null;
@@ -98,8 +98,9 @@ async function posAvailabilitySnapshot(db:any,restaurantId:string,organizationId
       const existing=manualMap.get(key);
       const quantityChanged=!existing||Number(existing.configured_quantity)!==Number(cfg.manualQuantity);
       const thresholdChanged=!existing||Number(existing.low_threshold)!==Number(cfg.lowThreshold);
-      if(quantityChanged||thresholdChanged){
-        const nextRemaining=quantityChanged?cfg.manualQuantity:Math.max(0,Number(existing?.remaining_quantity)||0);
+      const resetRequested=!!cfg.resetAt&&Number.isFinite(Date.parse(cfg.resetAt))&&(!existing?.updated_at||Date.parse(cfg.resetAt)>Date.parse(existing.updated_at));
+      if(quantityChanged||thresholdChanged||resetRequested){
+        const nextRemaining=quantityChanged||resetRequested?cfg.manualQuantity:Math.max(0,Number(existing?.remaining_quantity)||0);
         desiredManual.push({restaurant_id:restaurantId,organization_id:organizationId,availability_key:key,mode:"manual",configured_quantity:cfg.manualQuantity,remaining_quantity:nextRemaining,low_threshold:cfg.lowThreshold,version:Number(existing?.version||0)+1,updated_at:new Date().toISOString()});
         remaining=nextRemaining;
       }else remaining=Math.max(0,Number(existing.remaining_quantity)||0);
