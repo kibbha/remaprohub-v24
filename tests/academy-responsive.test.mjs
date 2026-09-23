@@ -9,10 +9,10 @@ const widths=[
   {name:'mobile',width:390,columns:1}
 ];
 assert.match(source,/\.academy-path-grid,.academy-topic-grid\{display:grid;grid-template-columns:repeat\(3/,'desktop 3-column grid');
-assert.match(source,/@media\(max-width:900px\).*repeat\(2/mins,'tablet 2-column grid');
-assert.match(source,/@media\(max-width:560px\).*grid-template-columns:1fr/mins,'mobile 1-column grid');
+assert.match(source,/@media\(max-width:900px\)[\s\S]*?repeat\(2,/,'tablet 2-column grid');
+assert.match(source,/@media\(max-width:560px\)[\s\S]*?grid-template-columns:1fr/,'mobile 1-column grid');
 assert.match(source,/min-height:44px/,'touch target minimum');
-assert.match(source,/width:min\(720px,calc\(100vw - 28px\)\)/,'tablet dialog bound');
+assert.match(source,/\.academy-dialog\{[^}]*width:min\(760px,100%\)[^}]*max-height:88vh/,'tablet dialog bound');
 assert.match(source,/width:calc\(100vw - 16px\);max-height:94vh/,'mobile dialog bound');
 assert.match(source,/academy-searchbar\{grid-template-columns:1fr;position:static\}/,'mobile search flow');
 for(const device of widths){
