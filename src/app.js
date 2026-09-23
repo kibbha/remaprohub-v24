@@ -373,7 +373,7 @@ async function refreshOperators(){
 async function refreshDirectOrders(){
   if(!state.restaurant||!state.online||state.trainingMode)return state.directOrders;
   try{
-    const r=await posFunction({action:'list_direct_orders',restaurantId:state.restaurant.id,statuses:['pending','accepted']});
+    const r=await posFunction({action:'list_direct_orders',restaurantId:state.restaurant.id,statuses:['pending','accepted','imported']});
     state.directOrders=Array.isArray(r.rows)?r.rows:[];return state.directOrders;
   }catch(error){recordDiagnostic('direct_orders.refresh_error',{message:error.message||String(error)});return state.directOrders}
 }
@@ -895,20 +895,32 @@ async function saveOpenOrder(){
 
 async function acceptDirectOrder(id){
   if(!state.online){uiAlert(t('connectionRequired'));return}
-  const direct=state.directOrders.find(x=>String(x.id)===String(id));if(!direct||direct.status!=='pending')return;
+  const direct=state.directOrders.find(x=>String(x.id)===String(id));if(!direct||!['pending','accepted','imported'].includes(direct.status))return;
   if(!state.cashSession||state.cashSession.status!=='open'){uiAlert(t('directCashRequired'));return}
   try{
-    await posFunction({action:'claim_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id});
+    if(direct.status==='imported'&&direct.pos_order_id){
+      const sent=await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId:direct.pos_order_id});
+      await autoPrintProductionItems(direct.pos_order_id,sent.order?.sentItemIds||[]);
+      await Promise.all([refreshDirectOrders(),refreshFloorData(),refreshProductionQueue()]);
+      state.view='directOrders';state.error=t('directSentKds');render();return;
+    }
+    if(direct.status==='pending')await posFunction({action:'claim_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id});
     const cart=directOrderCart(direct);if(!cart.length)throw new Error(t('directEmpty'));
-    const device=await ensureDevice(),orderId=uuid(),eventId=uuid(),table=direct.service_type==='dine_in'?(state.tables||[]).find(x=>String(x.label||'').trim().toLocaleLowerCase()===String(direct.table_label||'').trim().toLocaleLowerCase()&&!state.openOrders.some(o=>o.table_id===x.id)):null;
-    const lines=cart.map(linePayload),order={id:orderId,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,businessDate:state.cashSession.businessDate,serviceType:direct.service_type||'takeaway',tableId:table?.id||null,tableLabel:direct.table_label||'',covers:Number(direct.covers)||0,currency:direct.currency||state.restaurant.currency||'CHF',lines,occurredAt:new Date().toISOString()};
-    const saved=await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order});
-    await posFunction({action:'link_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id,posOrderId:orderId});
-    const local=saved?.order||localOpenOrder(order,'open');state.openOrders=[local,...state.openOrders.filter(x=>x.id!==orderId)];await saveFloorCache();
-    state.activeOrderId=orderId;state.activeTableId=table?.id||null;state.tableLabel=direct.table_label||'';state.serviceType=direct.service_type||'takeaway';state.covers=Number(direct.covers)||0;
-    state.cart=(local.items||[]).map(item=>({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked:false,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''}));
-    await refreshDirectOrders();state.view='sale';state.error=t('directImported');render();
-  }catch(error){state.error=error.message||String(error);recordDiagnostic('direct_orders.accept_error',{message:state.error});await refreshDirectOrders();render()}
+    const device=await ensureDevice(),orderId=direct.pos_order_id||uuid(),eventId=uuid(),table=direct.service_type==='dine_in'?(state.tables||[]).find(x=>String(x.label||'').trim().toLocaleLowerCase()===String(direct.table_label||'').trim().toLocaleLowerCase()&&!state.openOrders.some(o=>o.table_id===x.id)):null;
+    let local=state.openOrders.find(x=>String(x.id)===String(orderId))||null;
+    if(!direct.pos_order_id){
+      const lines=cart.map(linePayload),order={id:orderId,clientEventId:eventId,deviceId:device.id,cashSessionId:state.cashSession.id,businessDate:state.cashSession.businessDate,serviceType:direct.service_type||'takeaway',tableId:table?.id||null,tableLabel:direct.table_label||'',covers:Number(direct.covers)||0,currency:direct.currency||state.restaurant.currency||'CHF',lines,occurredAt:new Date().toISOString()};
+      const saved=await posFunction({action:'save_open_order',restaurantId:state.restaurant.id,order});local=saved?.order||localOpenOrder(order,'open');
+      await posFunction({action:'link_direct_order',restaurantId:state.restaurant.id,directOrderId:direct.id,posOrderId:orderId});
+    }
+    const sent=await posFunction({action:'send_to_production',restaurantId:state.restaurant.id,orderId});
+    await autoPrintProductionItems(orderId,sent.order?.sentItemIds||[]);
+    await Promise.all([refreshDirectOrders(),refreshFloorData(),refreshProductionQueue()]);
+    local=state.openOrders.find(x=>String(x.id)===String(orderId))||local;
+    state.activeOrderId=orderId;state.activeTableId=local?.table_id||table?.id||null;state.tableLabel=direct.table_label||'';state.serviceType=direct.service_type||'takeaway';state.covers=Number(direct.covers)||0;
+    state.cart=(local?.items||cart).map(item=>item.name_snapshot?({id:item.catalog_item_id||('saved:'+item.id),catalog_item_id:item.catalog_item_id||null,line_id:item.id,recipe_id:item.recipe_id||null,sku:item.sku_snapshot||'',name:item.name_snapshot,price:Number(item.unit_price)||0,tax_rate:Number(item.tax_rate)||0,production_station:item.station_snapshot||'kitchen',qty:Number(item.quantity)||1,quick:!item.catalog_item_id,locked:true,delta:false,modifiers:Array.isArray(item.modifiers)?item.modifiers:[],note:item.note||''}):({...item,locked:true,delta:false}));
+    state.view='sale';state.error=t('directSentKds');render();
+  }catch(error){state.error=error.message||String(error);recordDiagnostic('direct_orders.accept_error',{status:direct.status,message:state.error});await refreshDirectOrders();render()}
 }
 async function rejectDirectOrder(id){
   if(!state.online){uiAlert(t('connectionRequired'));return}
