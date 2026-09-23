@@ -396,6 +396,7 @@ function openPosStockComponents(collection,index){
     item.posAvailabilityMode=['unlimited','manual','stock'].includes(String(d.get('availabilityMode')))?String(d.get('availabilityMode')):'unlimited';
     item.posManualAvailability=Math.max(0,Math.floor(Number(d.get('manualAvailability'))||0));
     item.posLowStockThreshold=Math.max(0,Math.floor(Number(d.get('lowThreshold'))||3));
+    if(item.posAvailabilityMode==='manual')item.posAvailabilityResetAt=new Date().toISOString();
     persist();schedulePosCatalogAutoSync('stock-availability');closePosStockComponents();render();
   });
 }
