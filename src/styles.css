@@ -98,3 +98,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 
 .customer-display-link{white-space:nowrap}
 @media(max-width:920px){#customer-display-open{order:20}}
+
+.availability-badge{display:inline-flex;align-self:flex-start;margin-top:5px;padding:3px 7px;border-radius:999px;font-size:11px;font-weight:850;line-height:1;background:#eef4ed;color:#315d37}
+.availability-badge.low{background:#fff0d8;color:#87530a}.availability-badge.soldout{background:#f5dfdc;color:#8d2f28}.availability-badge.ok{background:#e8f4ea;color:#2d6637}
+.layout-product:disabled .availability-badge{opacity:1}
