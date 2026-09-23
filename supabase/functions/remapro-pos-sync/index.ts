@@ -349,6 +349,7 @@ export default {
             standaloneLayoutItems:true,
             itemAvailability:true,
             automaticCatalogMatching:true,
+            tapToPayPrepared:true,
             paymentProviders:false
           }
         });
@@ -1089,7 +1090,7 @@ export default {
           rows:data||[],
           automaticTransactions:false,
           officialPaths:{
-            worldline:["terminal_api_cloud","tim"],
+            worldline:["terminal_api_cloud","tim","tap_to_pay"],
             twint:["direct","terminal_psp"]
           }
         });

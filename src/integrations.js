@@ -1,5 +1,5 @@
 const ADAPTERS=Object.freeze([
-  {id:'worldline',label:'Worldline',category:'payments',status:'prepared',transport:'Terminal API Cloud / TIM',secretPolicy:'server_only'},
+  {id:'worldline',label:'Worldline',category:'payments',status:'prepared',transport:'Terminal API Cloud / TIM / Tap on Mobile',secretPolicy:'server_only'},
   {id:'twint',label:'TWINT',category:'payments',status:'prepared',transport:'Direct / PSP terminal',secretPolicy:'server_only'},
   {id:'bexio',label:'bexio',category:'accounting',status:'prepared',transport:'REST API',secretPolicy:'server_only'},
   {id:'abacus',label:'Abacus',category:'accounting',status:'prepared',transport:'API / export',secretPolicy:'server_only'},

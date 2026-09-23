@@ -545,7 +545,7 @@ function posAdmin(){
       </section>
 
       <section class="card pos-admin-card" data-pos-section="terminals"><h2>Terminaux de paiement</h2>
-        <form id="posTerminalAddForm" class="form pos-inline-form"><input name="label" required maxlength="120" placeholder="Terminal principal"><select name="provider"><option value="worldline">Worldline</option><option value="twint">TWINT</option><option value="generic">Générique</option></select><select name="integrationMode"><option value="cloud">Cloud/API</option><option value="external_app">Application externe</option><option value="local_network">Réseau local</option></select><input name="externalTerminalId" maxlength="180" placeholder="ID terminal prestataire"><button class="btn primary">Ajouter</button></form>
+        <form id="posTerminalAddForm" class="form pos-inline-form"><input name="label" required maxlength="120" placeholder="Terminal principal"><select name="provider"><option value="worldline">Worldline</option><option value="twint">TWINT</option><option value="generic">Générique</option></select><select name="integrationMode"><option value="cloud">Cloud/API</option><option value="tap_to_pay">Tap to Pay / NFC</option><option value="external_app">Application externe</option><option value="local_network">Réseau local</option></select><input name="externalTerminalId" maxlength="180" placeholder="ID terminal prestataire"><button class="btn primary">Ajouter</button></form>
         <div class="pos-admin-warning">Aucun secret/API key n’est stocké ici. Les identifiants prestataire restent côté serveur.</div>
         <div class="pos-admin-list">${posAdminState.terminals.length?posAdminState.terminals.map(t=>`<div class="pos-admin-row"><span><strong>${esc(t.label)}</strong><small>${esc(t.provider)} · ${esc(t.connection_status||'not_configured')} · ${t.active?'Actif':'Inactif'}</small></span><button class="btn compact" data-pos-terminal-edit="${t.id}">Modifier</button></div>`).join(''):'<p class="muted">Aucun terminal configuré.</p>'}</div>
       </section>
@@ -554,14 +554,14 @@ function posAdmin(){
         <p class="muted">Prépare les connexions officielles sans stocker de clé secrète dans Hub ou dans le POS.</p>
         <form id="posProviderAddForm" class="form pos-inline-form">
           <select name="provider"><option value="worldline">Worldline</option><option value="twint">TWINT</option></select>
-          <select name="integrationMode"><option value="terminal_api_cloud">Worldline · Terminal API Cloud</option><option value="tim">Worldline · TIM</option><option value="direct">TWINT · Direct</option><option value="terminal_psp">TWINT · Terminal / PSP</option></select>
+          <select name="integrationMode"><option value="terminal_api_cloud">Worldline · Terminal API Cloud</option><option value="tim">Worldline · TIM</option><option value="tap_to_pay">Worldline · Tap to Pay / Tap on Mobile</option><option value="direct">TWINT · Direct</option><option value="terminal_psp">TWINT · Terminal / PSP</option></select>
           <select name="environment"><option value="test">Test</option><option value="live">Live</option></select>
           <select name="status"><option value="waiting_contract">Contrat à finaliser</option><option value="credentials_pending">Identifiants attendus</option><option value="ready_for_adapter">Prêt pour adaptateur</option><option value="disabled">Désactivé</option></select>
           <input name="merchantReference" maxlength="180" placeholder="Référence marchand (non secrète)">
           <input name="notes" maxlength="1000" placeholder="Note interne">
           <button class="btn primary">Enregistrer</button>
         </form>
-        <div class="pos-admin-warning">Les paiements automatiques restent désactivés tant que l’adaptateur officiel et les identifiants prestataire n’ont pas été installés côté serveur.</div>
+        <div class="pos-admin-warning">Les paiements automatiques restent désactivés tant que l’adaptateur officiel et les identifiants prestataire n’ont pas été installés côté serveur. Pour Tap to Pay, l’activation nécessite aussi le SDK Worldline officiel sur ReMaPro POS.</div>
         <div class="pos-admin-list">${posAdminState.providerConnections.length?posAdminState.providerConnections.map(c=>`<div class="pos-admin-row"><span><strong>${esc(c.provider.toUpperCase())} · ${esc(c.integration_mode)}</strong><small>${esc(c.environment)} · ${esc(c.status)}${c.merchant_reference?' · '+esc(c.merchant_reference):''}</small></span><button class="btn compact" data-pos-provider-edit="${c.id}">Modifier</button></div>`).join(''):'<p class="muted">Aucune connexion prestataire préparée.</p>'}</div>
       </section>
     </div>
