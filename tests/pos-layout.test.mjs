@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,layoutButtonItem,renderPosLayoutEditor} from '../src/pos-layout.js';
+import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,autoMatchLayoutButton,layoutButtonItem,renderPosLayoutEditor} from '../src/pos-layout.js';
 
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),
@@ -42,12 +42,32 @@ assert.equal(layoutButtonItem(standalone.buttons[0],catalog).source,'layout');
 assert.equal(layoutButtonItem(standalone.buttons[0],catalog).production_station,'bar');
 const linkedButton={id:'linked',productId:'p1'};
 assert.equal(layoutButtonItem(linkedButton,catalog).source,'hub');
+const saladCatalog=[
+  {id:'salad-1',name:'Salade César',price:19,active:true,production_station:'kitchen'},
+  {id:'salad-2',name:'Salade maison',price:14,active:true,production_station:'kitchen'}
+];
+const saladButton=normalizePosLayout({...emptyPosLayout(),buttons:[{id:'salad-btn',label:'Salade Cesar',productId:'',item:{name:'Salade Cesar',price:19,taxRate:8.1,type:'dish',station:'kitchen'},availability:{mode:'stock',manualQuantity:0,lowThreshold:2}}]}).buttons[0];
+assert.equal(autoMatchLayoutButton(saladButton,saladCatalog)?.id,'salad-1');
+assert.equal(layoutButtonItem(saladButton,saladCatalog).autoMatched,true);
+assert.equal(saladButton.availability.mode,'stock');
+assert.equal(saladButton.availability.lowThreshold,2);
+const ambiguousCatalog=[
+  {id:'dup-1',name:'Salade',price:12,active:true},
+  {id:'dup-2',name:'Salade',price:12,active:true}
+];
+const ambiguousButton=normalizePosLayout({...emptyPosLayout(),buttons:[{id:'dup-btn',label:'Salade',productId:'',item:{name:'Salade',price:12,taxRate:8.1,type:'dish',station:'kitchen'}}]}).buttons[0];
+assert.equal(autoMatchLayoutButton(ambiguousButton,ambiguousCatalog),null);
+assert.equal(layoutButtonItem(ambiguousButton,ambiguousCatalog).source,'layout');
+
 const editorHtml=renderPosLayoutEditor({layout:standalone,catalog});
 assert.match(editorHtml,/Créer une touche de caisse/);
 assert.match(editorHtml,/Aucun — touche autonome/);
 assert.match(editorHtml,/Auto : Caisse/);
 assert.match(editorHtml,/Plat/);
 assert.match(editorHtml,/Boisson/);
+assert.match(editorHtml,/Quantité manuelle/);
+assert.match(editorHtml,/Calculée par stock\/recette/);
+assert.match(editorHtml,/Alerte basse/);
 
 const normalized=normalizePosLayout(seeded);
 assert.equal(normalized.buttons[0].w,2);
