@@ -1,3 +1,3 @@
 RC Hub modular navigation final validation
-Scope: proposition 3 Hub modulaire; Accueil/Opérations/POS/Finance/Plus; Pilotage/Exploitation/POS/Administration blocks; direct POS deep links; PWA cache refresh.
+Scope: current HEAD after modular-home priority refinements; Accueil/Opérations/POS/Finance/Plus; direct POS shortcuts; all regressions.
 No Android build.
