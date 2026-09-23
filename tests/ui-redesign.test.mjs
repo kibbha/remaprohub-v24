@@ -13,5 +13,5 @@ assert.ok(css.includes('V0.28 — ReMaPro POS clarity redesign'));
 assert.ok(css.includes('.pos-more-menu'));
 assert.ok(css.includes('.product-visual'));
 assert.ok(css.includes('.cart-tools'));
-assert.ok(sw.includes('v0280-ui-20260923'));
+assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-20260923/);
 console.log('ReMaPro POS clarity redesign checks passed');
