@@ -54,7 +54,6 @@ jobs:
           grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:launchMode="singleTop"' android/app/src/main/AndroidManifest.xml
-          grep -q 'android.permission.USE_BIOMETRIC' android/app/src/main/AndroidManifest.xml
       - name: Enable camera capture
         run: |
           node scripts/patch-android-camera.mjs

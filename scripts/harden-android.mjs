@@ -13,10 +13,6 @@ if(!/compileSdkVersion\s*=\s*36/.test(gradle)||!/targetSdkVersion\s*=\s*36/.test
 await writeFile(variables,gradle);
 
 let xml=await readFile(manifest,'utf8');
-if(!xml.includes('android.permission.USE_BIOMETRIC')){
-  xml=xml.replace(/<manifest\b([^>]*)>/,(_m,attrs)=>'<manifest'+attrs+'>\n    <uses-permission android:name="android.permission.USE_BIOMETRIC" />');
-}
-
 xml=xml.replace(/<application\b([^>]*)>/,(_m,attrs)=>{
   const clean=attrs
     .replace(/\sandroid:allowBackup="[^"]*"/g,'')
@@ -28,7 +24,7 @@ xml=xml.replace(/<activity\b([^>]*android:name="\.MainActivity"[^>]*)>/,(_m,attr
   const clean=attrs.replace(/\sandroid:launchMode="[^"]*"/g,'');
   return '<activity'+clean+' android:launchMode="singleTop">';
 });
-for(const required of ['android.permission.USE_BIOMETRIC','android:allowBackup="false"','android:usesCleartextTraffic="false"','android:launchMode="singleTop"']){
+for(const required of ['android:allowBackup="false"','android:usesCleartextTraffic="false"','android:launchMode="singleTop"']){
   if(!xml.includes(required))throw new Error('Android hardening attribute missing: '+required);
 }
 await writeFile(manifest,xml);

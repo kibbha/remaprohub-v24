@@ -246,33 +246,6 @@
     },
     {
       "type": "library",
-      "name": "@capgo/capacitor-native-biometric",
-      "scope": "required",
-      "properties": [
-        {
-          "name": "remapro:declared-version",
-          "value": "^7.1.13"
-        },
-        {
-          "name": "remapro:review-status",
-          "value": "review-required"
-        },
-        {
-          "name": "remapro:source",
-          "value": "https://github.com/Cap-go/capacitor-native-biometric"
-        }
-      ],
-      "purl": "pkg:npm/%40capgo/capacitor-native-biometric",
-      "licenses": [
-        {
-          "license": {
-            "name": "Version-dependent: MIT (<7.5.3) / MPL-2.0 (>=7.5.3)"
-          }
-        }
-      ]
-    },
-    {
-      "type": "library",
       "name": "@capacitor/camera",
       "scope": "required",
       "properties": [
