@@ -32,6 +32,12 @@ const manualStandalone=normalizeLayout({buttons:[{
 }]}).buttons[0];
 assert.equal(availabilityConfigForButton(manualStandalone,[]).manualQuantity,5);
 assert.equal(availabilityConfigForButton(manualStandalone,[]).key,'layout:daily-special');
+const resetStandalone=normalizeLayout({buttons:[{
+  id:'reset',productId:'',label:'Plat du jour',
+  item:{name:'Plat du jour',price:24,taxRate:8.1,type:'dish',station:'kitchen'},
+  availability:{mode:'manual',manualQuantity:5,lowThreshold:1,resetAt:'2026-09-23T15:00:00.000Z'}
+}]}).buttons[0];
+assert.equal(availabilityConfigForButton(resetStandalone,[]).resetAt,'2026-09-23T15:00:00.000Z');
 
 const ambiguous=[
   {id:'a',name:'Salade',price:12,active:true},
