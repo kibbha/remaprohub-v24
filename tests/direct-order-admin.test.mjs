@@ -4,7 +4,7 @@ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const admin=readFileSync(new URL('../supabase/functions/remapro-direct-order-admin/index.ts',import.meta.url),'utf8');
 const sync=readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 assert.ok(app.includes("remapro-direct-order-admin"),'Hub must call direct-order admin function');
-for(const token of ['directOrderAdminCard','createDirectOrderChannel','rotateDirectOrderChannel','directOrderPrint'])assert.ok(app.includes(token),token+' missing');
+for(const token of ['directOrderAdminCard','createDirectOrderChannel','rotateDirectOrderChannel','directOrderPrint','directPaymentChoices','name="paymentMethod"'])assert.ok(app.includes(token),token+' missing');
 assert.ok(admin.includes('token_hash'),'plain QR secret must not be persisted');
 assert.ok(admin.includes('QRCode.toString'),'QR SVG generation required');
 assert.ok(admin.includes('paymentMethods'),'QR payment preferences must be manager-configurable');
