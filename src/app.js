@@ -1,7 +1,7 @@
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
-import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,configurationForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
+import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
@@ -19,7 +19,7 @@ const state={
   tables:[],openOrders:[],view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
-  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],directOrders:[],
+  operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],directOrders:[],availabilityRows:[],
   pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
@@ -39,6 +39,7 @@ const terminalsKey=id=>'terminals:'+id;
 const printersKey=id=>'printers:'+id;
 const operatorsKey=id=>'operators:'+id;
 const providersKey=id=>'providers:'+id;
+const availabilityCacheKey=id=>'availability:'+id;
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -756,6 +757,7 @@ async function bootstrapRestaurant(restaurant){
   const cachedOperator=currentOperatorSession();
   state.operator=state.operatorRequired&&operatorSessionUsable(cachedOperator,restaurant.id)?cachedOperator.operator:null;
   state.cashSession=await kvGet(sessionKey(restaurant.id));
+  state.availabilityRows=await kvGet(availabilityCacheKey(restaurant.id))||[];
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   render();
   const device=await ensureDevice();
@@ -769,7 +771,7 @@ async function bootstrapRestaurant(restaurant){
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
       await refreshOperators();
-      await refreshOperationalData();startDirectOrderPolling()
+      await Promise.all([refreshOperationalData(),refreshAvailability()]);startDirectOrderPolling()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -1083,7 +1085,8 @@ async function cancelCurrentOrder(){
   try{
     await posFunction({action:'cancel_open_order',restaurantId:state.restaurant.id,orderId:order.id,reason:reason.trim()});
     state.openOrders=state.openOrders.filter(x=>x.id!==order.id);await saveFloorCache();
-    state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
+    applyLocalAvailabilityConsumption(state.cart);
+  state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
 
@@ -1523,6 +1526,8 @@ function closeItemConfigurator(){
 }
 function addConfiguredLine(product,button,modifiers,menu){
   if(progressivePaymentActive()){uiAlert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
+  const availability=availabilityForButton(button),availabilityKey=availability.key;
+  if(availability.soldOut){uiAlert('Article épuisé.');return}
   const supplement=modifierPriceDelta(modifiers);
   const basePrice=menu&&Number(menu.price)>0?Number(menu.price):Number(product.price)||0;
   const line={
@@ -1531,7 +1536,8 @@ function addConfiguredLine(product,button,modifiers,menu){
     tax_rate:Number(product.tax_rate)||0,
     production_station:button?.station||product.production_station||'kitchen',
     qty:1,quick:!!product.layoutStandalone,locked:false,delta:orderLocked(),modifiers:modifiers||[],
-    note:modifierSummary(modifiers||[]),layout_button_id:button?.id||'',layout_version:activeLayout()?.version||0
+    note:modifierSummary(modifiers||[]),layout_button_id:button?.id||'',layout_version:activeLayout()?.version||0,
+    availability_key:availabilityKey,availability_mode:availability.mode
   };
   state.cart.push(line);closeItemConfigurator();render();
 }
@@ -1540,6 +1546,7 @@ function openItemConfigurator(buttonId){
   if(!doc)return;
   const button=buttonById(doc,buttonId);if(!button||button.hidden)return;
   if(button.unavailable){uiAlert('Article temporairement indisponible.');return}
+  const availability=availabilityForButton(button,catalog);if(availability.soldOut){uiAlert('Article épuisé.');return}
   const product=itemForButton(button,catalog);if(!product){uiAlert('Cette touche POS est incomplète. Modifiez-la dans ReMaPro Hub.');return}
   const config=configurationForButton(doc,button,catalog);
   if(!config.groups.length&&!config.menu){addConfiguredLine(product,button,[],null);return}
@@ -1628,10 +1635,37 @@ async function addQuickItem(){
   const price=Number(String(form.price).replace(',','.'));if(!Number.isFinite(price)||price<0){uiAlert(t('invalidPrice'));return}
   addItem({id:'quick:'+uuid(),name:String(form.name).trim(),price,tax_rate:8.1,quick:true});
 }
+function availabilityRow(key){return(state.availabilityRows||[]).find(x=>String(x.key)===String(key))||null}
+function availabilityForButton(button,catalog=state.bootstrap?.catalog||[]){
+  const config=availabilityConfigForButton(button,catalog),row=availabilityRow(config.key),product=itemForButton(button,catalog);
+  let remaining=row?.remaining;
+  if(remaining==null&&config.mode==='manual')remaining=config.manualQuantity;
+  if(remaining==null&&config.mode==='stock')remaining=product?.metadata?.availability?.availablePortions;
+  if(remaining!=null)remaining=Math.max(0,Math.floor(Number(remaining)||0));
+  const inCart=state.cart.reduce((sum,line)=>sum+(String(line.availability_key||'')===String(config.key)?Number(line.qty)||0:0),0);
+  return{...config,remaining,availableNow:remaining==null?null:Math.max(0,remaining-inCart),soldOut:remaining!=null&&remaining-inCart<=0};
+}
+function applyLocalAvailabilityConsumption(lines=[]){
+  const use=new Map();
+  for(const line of lines||[]){const key=String(line.availability_key||'');if(!key)continue;use.set(key,(use.get(key)||0)+(Number(line.qty)||Number(line.quantity)||0))}
+  if(!use.size)return;
+  state.availabilityRows=(state.availabilityRows||[]).map(row=>use.has(String(row.key))&&row.remaining!=null?{...row,remaining:Math.max(0,(Number(row.remaining)||0)-use.get(String(row.key)))}:row);
+  if(state.restaurant)kvSet(availabilityCacheKey(state.restaurant.id),state.availabilityRows).catch(()=>{});
+}
+async function refreshAvailability(){
+  if(!state.restaurant||!state.online||!currentSession())return false;
+  try{
+    const result=await posFunction({action:'availability_snapshot',restaurantId:state.restaurant.id}),next=Array.isArray(result.rows)?result.rows:[];
+    const changed=JSON.stringify(next)!==JSON.stringify(state.availabilityRows||[]);
+    state.availabilityRows=next;await kvSet(availabilityCacheKey(state.restaurant.id),next);
+    return changed;
+  }catch(error){recordDiagnostic('availability.sync_error',{message:error?.message||String(error)});return false}
+}
+
 async function refreshCatalog(){
   if(!state.restaurant||!state.online)return;
-  const changed=await syncHubManagedConfiguration({force:true});
-  if(changed)state.error='';
+  const [changed,availabilityChanged]=await Promise.all([syncHubManagedConfiguration({force:true}),refreshAvailability()]);
+  if(changed||availabilityChanged)state.error='';
   render();
 }
 
@@ -1694,10 +1728,11 @@ function startHubConfigurationPolling(){
   if(hubConfigPollTimer)clearInterval(hubConfigPollTimer);
   hubConfigPollTimer=setInterval(async()=>{
     if(document.visibilityState==='hidden')return;
-    if(await syncHubManagedConfiguration())render();
+    const [configChanged,availabilityChanged]=await Promise.all([syncHubManagedConfiguration(),refreshAvailability()]);
+    if(configChanged||availabilityChanged)render();
   },HUB_CONFIG_POLL_MS);
 }
-function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}if(delta>0&&line.availability_key){const row=availabilityRow(line.availability_key);if(row?.remaining!=null){const used=state.cart.reduce((sum,x)=>sum+(x!==line&&String(x.availability_key||'')===String(line.availability_key)?Number(x.qty)||0:0),0);if((Number(line.qty)||0)+used>=Number(row.remaining)){uiAlert('Quantité disponible atteinte.');return}}}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
@@ -1729,7 +1764,7 @@ async function checkout(method){
 
   state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await saveFloorCache();await updateQueueCount();render();
-  if(state.online)await flushQueue();else state.error='Vente enregistrée hors ligne — synchronisation automatique au retour du réseau.';
+  if(state.online){await flushQueue();await refreshAvailability()}else state.error='Vente enregistrée hors ligne — synchronisation automatique au retour du réseau.';
   render();
 }
 
@@ -2063,7 +2098,7 @@ function mainView(){
     const cats=categoriesForPage(doc,state.layoutPageId),buttons=layoutVisibleButtons(layout);
     categoryArea='<nav class="categories layout-categories"><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button><button class="category '+(state.layoutCategoryId==='favorites'?'active':'')+'" data-layout-category="favorites">★ Favoris</button>'+cats.map(c=>'<button class="category '+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+(c.parentId?'↳ ':'')+esc(c.name)+'</button>').join('')+'</nav>';
     productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div><div class="product-toolbar"><button class="secondary" id="quick-item">+ Article libre</button><span>Implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</span></div>'
-      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null;return '<button class="product layout-product '+(b.unavailable?'unavailable':'')+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable?'disabled':'')+' style="--pos-color:'+esc(b.color||'#d6b98c')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.unavailable?'Indisponible · ':'')+(b.favorite?'★ · ':'')+esc(b.station||p.production_station||'kitchen')+(p.layoutStandalone?' · POS':'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucune touche sur cette page</h3><p>Configurez l’implantation dans ReMaPro Hub.</p></div>')+'</section>';
+      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null,a=availabilityForButton(b,catalog),remaining=a.availableNow,badge=remaining==null?'':remaining<=0?'<span class="availability-badge soldout">Épuisé</span>':'<span class="availability-badge '+(remaining<=a.lowThreshold?'low':'ok')+'">'+remaining+' dispo</span>';return '<button class="product layout-product '+(b.unavailable||a.soldOut?'unavailable':'')+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable||a.soldOut?'disabled':'')+' style="--pos-color:'+esc(b.color||'#d6b98c')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.unavailable?'Indisponible · ':'')+(b.favorite?'★ · ':'')+esc(b.station||p.production_station||'kitchen')+(p.autoMatched?' · lié auto':p.layoutStandalone?' · POS':'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span>'+badge+'</button>'}).join('')+'</div>':'<div class="empty"><h3>Aucune touche sur cette page</h3><p>Configurez l’implantation dans ReMaPro Hub.</p></div>')+'</section>';
   }else{
     const cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
     if(!cats.includes(state.category))state.category='Tous';
