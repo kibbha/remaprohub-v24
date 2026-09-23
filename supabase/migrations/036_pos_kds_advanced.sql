@@ -141,6 +141,9 @@ begin
   if not found then raise exception 'ORDER_NOT_FOUND'; end if;
   if not public.pos_actor_has_access(p_actor_user_id,v_order.organization_id,v_order.restaurant_id) then raise exception 'POS_ACCESS_DENIED'; end if;
   if v_order.status in ('paid','refunded','cancelled') then raise exception 'ORDER_LOCKED'; end if;
+  if coalesce(v_order.production_priority,0)=v_priority then
+    return jsonb_build_object('ok',true,'idempotent',true,'orderId',v_order.id,'priority',v_priority);
+  end if;
   update public.pos_orders set production_priority=v_priority,client_updated_at=now(),version=version+1 where id=p_order_id returning * into v_order;
   insert into public.pos_event_log(client_event_id,organization_id,restaurant_id,device_id,actor_user_id,entity_type,entity_id,event_type,payload,occurred_at)
   values(gen_random_uuid(),v_order.organization_id,v_order.restaurant_id,v_order.device_id,p_actor_user_id,'order',v_order.id,'pos.production.priority',jsonb_build_object('priority',v_priority),now());
@@ -163,7 +166,12 @@ begin
   update public.pos_order_items set kitchen_status='ready',production_served_at=null,updated_at=now()
   where order_id=p_order_id and station_snapshot<>'none' and kitchen_status='served';
   get diagnostics v_recalled=row_count;
-  if v_recalled=0 then raise exception 'NO_SERVED_ITEMS_TO_RECALL'; end if;
+  if v_recalled=0 then
+    if exists(select 1 from public.pos_order_items where order_id=p_order_id and station_snapshot<>'none' and kitchen_status='ready') then
+      return jsonb_build_object('ok',true,'idempotent',true,'orderId',v_order.id,'recalledItems',0,'status',v_order.status);
+    end if;
+    raise exception 'NO_SERVED_ITEMS_TO_RECALL';
+  end if;
   update public.pos_orders set status='preparing',client_updated_at=now(),version=version+1 where id=p_order_id returning * into v_order;
   insert into public.pos_event_log(client_event_id,organization_id,restaurant_id,device_id,actor_user_id,entity_type,entity_id,event_type,payload,occurred_at)
   values(gen_random_uuid(),v_order.organization_id,v_order.restaurant_id,v_order.device_id,p_actor_user_id,'order',v_order.id,'pos.production.recalled',jsonb_build_object('recalledItems',v_recalled),now());

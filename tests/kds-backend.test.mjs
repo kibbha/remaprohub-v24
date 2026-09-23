@@ -9,6 +9,8 @@ for(const fn of ['pos_set_production_priority','pos_recall_production_order','po
 assert.match(migration,/avg_ready_minutes/);
 assert.match(migration,/avg_served_minutes/);
 assert.match(migration,/production_served_at=null/,'recall must reopen served items');
+assert.match(migration,/idempotent.*priority/s,'priority retry must be idempotent');
+assert.match(migration,/kitchen_status='ready'.*idempotent/s,'recall retry must be idempotent once items are already ready');
 assert.match(edge,/advancedKds:true/);
 assert.match(edge,/action==="set_production_priority"/);
 assert.match(edge,/action==="recall_production_order"/);
