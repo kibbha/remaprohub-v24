@@ -15,6 +15,12 @@ assert.ok(app.includes("from './i18n.js'"),'runtime i18n imported');
 assert.ok(app.includes("from './ui.js'"),'touch dialog system imported');
 for(const lang of ['fr','en','de','it'])assert.ok(i18n.includes(lang+':{'),lang+' dictionary required');
 assert.ok(i18n.includes('translateDom'),'rendered UI translation required');
+const modalMounts=(app.match(/document\.body\.appendChild\(modal\)/g)||[]).length;
+const translatedModalMounts=(app.match(/appendChild\(modal\);translateDom\(modal\)/g)||[]).length;
+assert.equal(translatedModalMounts,modalMounts,'dynamic POS modals must be translated at mount time');
+for(const key of ['managerRequired','tableTransferNeedsNetwork','noFreeTable','tableNotFound','orderNotSaved','cancelNeedsNetwork','itemLocked','splitInvalid','splitTotalMismatch','refundNeedsNetwork','openCashBeforeRefund','alreadyRefunded','sendNewItemsFirst']){
+  assert.ok(app.includes(`t('${key}')`),`critical POS message must use i18n key: ${key}`);
+}
 assert.ok(ui.includes('role="dialog"'),'accessible modal role required');
 assert.ok(ui.includes("aria-modal"),'modal aria semantics required');
 assert.ok(ui.includes("aria-labelledby"),'modal title must be announced');

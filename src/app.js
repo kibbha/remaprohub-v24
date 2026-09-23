@@ -113,7 +113,7 @@ function closeTerminalEditor(){
   document.body.classList.remove('modal-open');
 }
 function openTerminalEditor(existing=null){
-  if(!isManager()){uiAlert('Accès manager requis.');return}
+  if(!isManager()){uiAlert(t('managerRequired'));return}
   closeTerminalEditor();
   const modal=document.createElement('div');
   modal.id='terminal-editor-modal';modal.className='modal-overlay';
@@ -136,7 +136,7 @@ function openTerminalEditor(existing=null){
     +'<div class="terminal-security-note"><strong>Connexion réelle non configurée.</strong> Les identifiants prestataire seront ajoutés plus tard dans les secrets serveur, jamais dans l’application.</div>'
     +'<div class="split-footer"><button type="button" class="secondary" id="terminal-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer le profil</button></div>'
     +'</form>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#terminal-editor-close')?.addEventListener('click',closeTerminalEditor);
   modal.querySelector('#terminal-editor-cancel')?.addEventListener('click',closeTerminalEditor);
   modal.querySelector('#terminal-editor-form')?.addEventListener('submit',async e=>{
@@ -280,7 +280,7 @@ function showTerminalIntentModal(order,intent,terminal){
     +'<div class="terminal-live-error" id="terminal-live-error"></div>'
     +'<div class="terminal-security-note">La vente ne sera comptabilisée que lorsque le backend recevra un statut <strong>captured</strong> signé/validé par le prestataire.</div>'
     +'<div class="terminal-wait-actions"><button class="secondary" id="terminal-wait-cancel">Annuler l’intent</button></div></div>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#terminal-wait-cancel')?.addEventListener('click',async()=>{
     if(!(await uiConfirm({title:t('cancelPaymentIntent'),message:t('cancelAudit'),danger:true})))return;
     try{
@@ -412,7 +412,7 @@ function operatorLoginView(){
 }
 function closeOperatorEditor(){document.querySelector('#operator-editor-modal')?.remove();document.body.classList.remove('modal-open')}
 function openOperatorEditor(existing=null){
-  if(!canManageSettings()){uiAlert('Droits manager requis.');return}
+  if(!canManageSettings()){uiAlert(t('managerRequired'));return}
   closeOperatorEditor();const o=existing||{};
   const modal=document.createElement('div');modal.id='operator-editor-modal';modal.className='modal-overlay';
   modal.innerHTML='<form class="terminal-dialog" id="operator-editor-form"><div class="split-dialog-head"><div><h2>'+(existing?'Modifier le profil':'Ajouter un opérateur')+'</h2><p>Le PIN est hashé côté serveur et n’est jamais relu.</p></div><button type="button" class="split-close" id="operator-editor-close">×</button></div>'
@@ -421,7 +421,7 @@ function openOperatorEditor(existing=null){
     +'<label>PIN '+(existing?'(laisser vide pour conserver)':'')+'<input name="pin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" '+(existing?'':'required')+' maxlength="8"></label>'
     +'<label class="terminal-check"><input type="checkbox" name="active" '+(o.active!==false?'checked':'')+'> Profil actif</label></div>'
     +'<div class="split-footer"><button type="button" class="secondary" id="operator-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></div></form>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#operator-editor-close')?.addEventListener('click',closeOperatorEditor);
   modal.querySelector('#operator-editor-cancel')?.addEventListener('click',closeOperatorEditor);
   modal.querySelector('#operator-editor-form')?.addEventListener('submit',async e=>{
@@ -493,7 +493,7 @@ function closePrinterEditor(){
   document.body.classList.remove('modal-open');
 }
 function openPrinterEditor(existing=null,discovered=null){
-  if(!isManager()){uiAlert('Accès manager requis.');return}
+  if(!isManager()){uiAlert(t('managerRequired'));return}
   closePrinterEditor();
   const p=existing||{};
   const deviceAddress=discovered?.address||p.address||'';
@@ -514,7 +514,7 @@ function openPrinterEditor(existing=null,discovered=null){
     +'<label class="terminal-check"><input type="checkbox" name="active" '+(p.active!==false?'checked':'')+'> Profil actif</label>'
     +'</div><div class="terminal-security-note">Bluetooth/USB utilise le pilote ESC/POS natif. Le mode système utilise le dialogue d’impression Android.</div>'
     +'<div class="split-footer"><button type="button" class="secondary" id="printer-editor-cancel">Annuler</button><button type="submit" class="primary">Enregistrer</button></div></form>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#printer-editor-close')?.addEventListener('click',closePrinterEditor);
   modal.querySelector('#printer-editor-cancel')?.addEventListener('click',closePrinterEditor);
   modal.querySelector('#printer-editor-form')?.addEventListener('submit',async e=>{
@@ -1026,12 +1026,12 @@ function standardPaymentBlocked(){return paymentBlockedByDelta()||progressivePay
 async function transferCurrentOrder(){
   const order=currentServerOrder();
   if(!order){uiAlert('Enregistrez d’abord la note avant de la transférer.');return}
-  if(!state.online){uiAlert('Le transfert de table nécessite une connexion.');return}
+  if(!state.online){uiAlert(t('tableTransferNeedsNetwork'));return}
   const free=state.tables.filter(t=>t.id!==state.activeTableId&&!state.openOrders.some(o=>o.id!==order.id&&o.table_id===t.id));
-  if(!free.length){uiAlert('Aucune autre table libre.');return}
+  if(!free.length){uiAlert(t('noFreeTable'));return}
   const transfer=await uiFields({title:t('transferTitle'),fields:[{name:'tableId',label:t('transferTo'),type:'select',value:free[0].id,options:free.map(x=>({value:x.id,label:x.label}))}]});if(!transfer)return;
   const target=free.find(t=>String(t.id)===String(transfer.tableId));
-  if(!target){uiAlert('Table introuvable ou occupée.');return}
+  if(!target){uiAlert(t('tableNotFound'));return}
   try{
     await posFunction({action:'transfer_open_order',restaurantId:state.restaurant.id,orderId:order.id,targetTableId:target.id});
     state.activeTableId=target.id;state.tableLabel=target.label;await refreshFloorData();state.error='';render();
@@ -1039,8 +1039,8 @@ async function transferCurrentOrder(){
 }
 async function cancelCurrentOrder(){
   const order=currentServerOrder();
-  if(!order){uiAlert('Cette note n’est pas encore enregistrée.');return}
-  if(!state.online){uiAlert('L’annulation nécessite une connexion.');return}
+  if(!order){uiAlert(t('orderNotSaved'));return}
+  if(!state.online){uiAlert(t('cancelNeedsNetwork'));return}
   const reason=await uiPrompt({title:t('cancelOrderTitle'),label:t('cancelReason'),required:true});if(!reason?.trim())return;
   if(!(await uiConfirm({title:t('cancelOrderTitle'),message:t('cancelAudit'),danger:true})))return;
   try{
@@ -1053,7 +1053,7 @@ async function cancelCurrentOrder(){
 async function prepareOrderForAllocatedSplit(){
   if(!state.online){uiAlert('Le partage par articles nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
-  if(paymentBlockedByDelta()){uiAlert('Envoyez d’abord les nouveaux articles en production.');return null}
+  if(paymentBlockedByDelta()){uiAlert(t('sendNewItemsFirst'));return null}
 
   let order=currentServerOrder();
   if(!order||order.status==='open'){
@@ -1171,7 +1171,7 @@ async function openAllocatedSplit(){
   if(!items.length){uiAlert('Aucun article à répartir.');return}
   const raw=await uiPrompt({title:t('splitPeople'),label:t('splitPeople'),value:'2',type:'number',inputMode:'numeric',min:'2',max:'8',step:'1'});if(raw===null)return;
   const groupCount=Math.max(2,Math.min(8,Math.trunc(Number(raw)||0)));
-  if(groupCount<2){uiAlert('Nombre invalide.');return}
+  if(groupCount<2){uiAlert(t('splitInvalid'));return}
 
   closeAllocatedSplit();
   const modal=document.createElement('div');
@@ -1179,7 +1179,7 @@ async function openAllocatedSplit(){
   const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
   const itemRows=items.map(item=>'<tr data-split-item-row data-item-id="'+esc(item.id)+'" data-qty="'+Number(item.quantity||0)+'" data-total="'+Number(item.line_total||0)+'"><td><strong>'+esc(item.name_snapshot)+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_price)+'</small></td>'+Array.from({length:groupCount},(_,gi)=>'<td><input class="split-qty-input" data-split-group="'+gi+'" type="number" min="0" max="'+Number(item.quantity||0)+'" step="0.001" value="'+(gi===0?Number(item.quantity||0):0)+'"></td>').join('')+'<td><span class="split-remaining" data-split-remaining>OK</span></td></tr>').join('');
   modal.innerHTML='<div class="split-dialog"><div class="split-dialog-head"><div><h2>Partager par articles</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · '+money(order.total)+'</p></div><button class="split-close" id="allocated-split-close">×</button></div><div class="split-toolbar"><button class="secondary" id="allocated-auto">Répartir par unité</button><span>Chaque quantité doit être attribuée entièrement.</span></div><div class="split-table-wrap"><table class="split-table"><thead><tr><th>Article</th>'+groupHeads+'<th>Contrôle</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="split-footer"><button class="secondary" id="allocated-split-cancel">Annuler</button><button class="primary" id="allocated-split-submit">Encaisser la répartition</button></div></div>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#allocated-split-close')?.addEventListener('click',closeAllocatedSplit);
   modal.querySelector('#allocated-split-cancel')?.addEventListener('click',closeAllocatedSplit);
   modal.querySelector('#allocated-auto')?.addEventListener('click',autoAllocateSplit);
@@ -1210,7 +1210,7 @@ function printProgressivePayment(order,payment){
 async function prepareOrderForProgressivePayment(){
   if(!state.online){uiAlert('Le paiement progressif nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
-  if(paymentBlockedByDelta()){uiAlert('Envoyez d’abord les nouveaux articles en production.');return null}
+  if(paymentBlockedByDelta()){uiAlert(t('sendNewItemsFirst'));return null}
   let order=currentServerOrder();
   if(!order||order.status==='open'){
     const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
@@ -1264,7 +1264,7 @@ async function openProgressivePayment(){
     +'<div class="progressive-items">'+rows+'</div>'
     +'<div class="progressive-summary"><div><span>Cette personne</span><strong id="progressive-selected-total">'+money(0)+'</strong></div><div><span>Restera après paiement</span><strong id="progressive-after-total">'+money(progress.remainingAmount)+'</strong></div></div>'
     +'<div class="split-footer"><button class="secondary" id="progressive-cancel">Annuler</button><button class="primary" id="progressive-submit" disabled>Encaisser cette personne</button></div></div>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
 
   modal.querySelector('#progressive-close')?.addEventListener('click',closeProgressiveModal);
   modal.querySelector('#progressive-cancel')?.addEventListener('click',closeProgressiveModal);
@@ -1325,7 +1325,7 @@ async function splitCheckout(){
     payments.push({method,amount,tipAmount:tip,provider:'',providerReference:''});
     remaining=Math.round((remaining-amount)*100)/100;
   }
-  if(Math.abs(remaining)>0.01){uiAlert('Le total des parts doit correspondre exactement à l’addition.');return}
+  if(Math.abs(remaining)>0.01){uiAlert(t('splitTotalMismatch'));return}
   const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
   const existing=currentServerOrder();
   if(!existing||existing.status==='open'){
@@ -1338,12 +1338,12 @@ async function splitCheckout(){
   await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 async function refundReceipt(receipt){
-  if(!state.online){uiAlert('Un remboursement nécessite une connexion.');return}
-  if(!state.cashSession||state.cashSession.status!=='open'){uiAlert('Ouvrez une caisse avant de rembourser.');return}
+  if(!state.online){uiAlert(t('refundNeedsNetwork'));return}
+  if(!state.cashSession||state.cashSession.status!=='open'){uiAlert(t('openCashBeforeRefund'));return}
   const refunds=Array.isArray(receipt.refunds)?receipt.refunds:[];
   const reserved=refunds.filter(r=>['completed','pending_external'].includes(r.status)).reduce((s,r)=>s+Number(r.amount||0),0);
   const remaining=Math.max(0,Math.round((Number(receipt.total||0)-reserved)*100)/100);
-  if(remaining<=0){uiAlert('Ce ticket est déjà entièrement remboursé ou réservé pour remboursement.');return}
+  if(remaining<=0){uiAlert(t('alreadyRefunded'));return}
   const defaultMethod=receipt.payments?.[0]?.method||'cash';
   const form=await uiFields({title:t('refundTitle'),fields:[
     {name:'amount',label:t('refundAmount'),value:remaining.toFixed(2),type:'number',inputMode:'decimal',min:'0.01',max:String(remaining),step:'0.01',required:true},
@@ -1526,7 +1526,7 @@ function openItemConfigurator(buttonId){
   }).join('')+'</section>':'';
 
   modal.innerHTML='<form class="item-config-dialog" id="item-config-form"><div class="split-dialog-head"><div><h2>'+esc(config.menu?.name||button.label||product.name)+'</h2><p>'+money(config.menu?.price||product.price)+' · '+esc(button.station||product.production_station||'kitchen')+'</p></div><button type="button" class="split-close" id="item-config-close">×</button></div><div class="item-config-body">'+menuHtml+groupHtml+'</div><div class="split-footer"><button type="button" class="secondary" id="item-config-cancel">Annuler</button><button class="primary">Ajouter à la commande</button></div></form>';
-  document.body.appendChild(modal);document.body.classList.add('modal-open');
+  document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
   modal.querySelector('#item-config-close')?.addEventListener('click',closeItemConfigurator);
   modal.querySelector('#item-config-cancel')?.addEventListener('click',closeItemConfigurator);
   modal.querySelector('#item-config-form')?.addEventListener('submit',e=>{
@@ -1600,7 +1600,7 @@ async function refreshCatalog(){
   }catch(error){state.error=error.message||String(error)}
   render();
 }
-function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert('Cet article a déjà été envoyé en production.');return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
