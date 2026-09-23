@@ -14,6 +14,6 @@ assert.match(store,/export async function restoreStateMirror/,'store must expose
 assert.match(store,/deleteStateMirror\(key\)/,'reset must clear the persistent mirror');
 assert.match(app,/storage\.mirror_recovered/,'mirror recovery must be observable');
 assert.match(app,/await restoreStateMirror\(state\)/,'cloud-scoped state must recover after scope selection');
-assert.match(sw,/\.\/src\/workspace-storage\.js/,'mirror runtime must be available offline');
+assert.match(sw,/["'](?:\.\/)?src\/workspace-storage\.js["']/,'mirror runtime must be available offline');
 assert.match(pack,/workspace-storage\.js/,'web package must include mirror runtime');
 console.log('Hub IndexedDB state mirror and recovery wiring OK');
