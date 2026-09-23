@@ -65,6 +65,21 @@ jobs:
       - name: Synchronize native plugins
         run: npx cap sync android
 
+      - name: Apply ReMaPro POS Android branding
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/mipmap-anydpi
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p android/app/src/main/res/values
+          install -m 644 android-native/remapropos_foreground.xml android/app/src/main/res/drawable/remapropos_foreground.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml
+          install -m 644 android-native/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          install -m 644 android-native/remapropos_colors.xml android/app/src/main/res/values/remapropos_colors.xml
+          grep -q '#C75232' android/app/src/main/res/values/remapropos_colors.xml
+          grep -q '@drawable/remapropos_foreground' android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+
       - name: Verify packaged Android runtime and native plugins
         run: |
           test -s android/app/src/main/assets/public/index.html
