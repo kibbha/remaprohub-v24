@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "product": "ReMaPro Hub",
+  "branch": "rebuild/remaprohub-clean",
+  "scope": "Direct dependencies declared in package.json. Release due diligence must also inventory resolved transitive dependencies.",
+  "components": [
+    {
+      "name": "@capacitor/android",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor Android runtime."
+    },
+    {
+      "name": "@capacitor/cli",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor CLI."
+    },
+    {
+      "name": "@capacitor/core",
+      "declaredVersion": "7.4.3",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor",
+      "status": "approved",
+      "notes": "Capacitor core."
+    },
+    {
+      "name": "@capacitor/filesystem",
+      "declaredVersion": "7.0.0",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor-filesystem",
+      "status": "approved",
+      "notes": "Filesystem plugin."
+    },
+    {
+      "name": "@capacitor/share",
+      "declaredVersion": "7.0.0",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor-plugins",
+      "status": "approved",
+      "notes": "Share plugin."
+    },
+    {
+      "name": "@capacitor/local-notifications",
+      "declaredVersion": "7.0.0",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor-plugins",
+      "status": "approved",
+      "notes": "Local notifications plugin."
+    },
+    {
+      "name": "@revenuecat/purchases-capacitor",
+      "declaredVersion": "11.3.2",
+      "licenseId": "MIT",
+      "source": "https://github.com/RevenueCat/purchases-capacitor",
+      "status": "approved",
+      "notes": "RevenueCat Capacitor SDK; vendor service terms also apply to the RevenueCat service/account."
+    },
+    {
+      "name": "capacitor-secure-storage-plugin",
+      "declaredVersion": "0.12.0",
+      "licenseId": "MIT",
+      "source": "https://github.com/martinkasa/capacitor-secure-storage-plugin",
+      "status": "approved",
+      "notes": "Secure storage plugin."
+    },
+    {
+      "name": "@capgo/capacitor-native-biometric",
+      "declaredVersion": "^7.1.13",
+      "licenseId": null,
+      "licenseName": "Version-dependent: MIT (<7.5.3) / MPL-2.0 (>=7.5.3)",
+      "source": "https://github.com/Cap-go/capacitor-native-biometric",
+      "status": "review-required",
+      "notes": "Declared caret range crosses a licence transition. Published security advisories affect versions <8.3.6. Resolve compatibility/licence/security before production release."
+    },
+    {
+      "name": "@capacitor/camera",
+      "declaredVersion": "7.0.5",
+      "licenseId": "MIT",
+      "source": "https://github.com/ionic-team/capacitor-camera",
+      "status": "approved",
+      "notes": "Camera plugin."
+    }
+  ]
+}
