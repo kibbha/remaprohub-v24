@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  normalizeLayout,publishedLayout,pageButtons,categoriesForPage,configurationForButton,
+  normalizeLayout,publishedLayout,pageButtons,categoriesForPage,configurationForButton,itemForButton,
   modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation
 } from '../src/layout.js';
 
@@ -33,6 +33,19 @@ const doc=normalizeLayout({
     {id:'c1',name:'Accompagnement',required:true,min:1,max:1,categoryId:'cat1',productIds:[],modifierGroupIds:[]}
   ]}]
 });
+const standaloneDoc=normalizeLayout({
+  pages:[{id:'page-pos',name:'Caisse'}],
+  categories:[{id:'cat-pos',name:'Boissons'}],
+  buttons:[{id:'btn-pos',pageId:'page-pos',categoryId:'cat-pos',productId:'',label:'Limonade maison',item:{name:'Limonade maison',price:6.5,taxRate:8.1,type:'drink',station:'bar'}}]
+});
+const standalone=itemForButton(standaloneDoc.buttons[0],catalog);
+assert.equal(standalone.layoutStandalone,true);
+assert.equal(standalone.name,'Limonade maison');
+assert.equal(standalone.price,6.5);
+assert.equal(standalone.tax_rate,8.1);
+assert.equal(standalone.production_station,'bar');
+assert.equal(configurationForButton(standaloneDoc,standaloneDoc.buttons[0],catalog).menu,null);
+
 const layout=publishedLayout({layout:{version:3,schemaVersion:1,checksum:'abc',document:doc}});
 assert.equal(layout.version,3);
 assert.equal(pageButtons(doc,'page1').length,8);
