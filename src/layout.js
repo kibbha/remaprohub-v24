@@ -50,8 +50,8 @@ export function itemForButton(button,catalog=[]){
   return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,layoutStandalone:true,autoMatched:false}:null;
 }
 export function availabilityKeyForButton(button,catalog=[]){
-  const item=itemForButton(button,catalog);
-  return item&&!item.layoutStandalone&&item.id?'catalog:'+String(item.id):'layout:'+String(button?.id||'');
+  const explicit=button?.productId?productById(catalog,button.productId):null;
+  return explicit?.id?'catalog:'+String(explicit.id):'layout:'+String(button?.id||'');
 }
 export function availabilityConfigForButton(button,catalog=[]){
   const item=itemForButton(button,catalog),buttonCfg=normalizeAvailability(button?.availability),catalogCfg=normalizeAvailability(item?.metadata?.availability);
