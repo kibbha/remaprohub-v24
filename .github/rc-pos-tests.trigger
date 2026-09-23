@@ -1,3 +1,3 @@
-RC POS audited validation — rerun 4
-Floor-plan cache assertion corrected.
+RC POS audited validation — rerun 5
+Standalone layout assertion aligned.
 2026-09-23
