@@ -16,21 +16,54 @@ export function plannedLabor(state,now=new Date(),days=7){
   return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),weeklyLimit,byEmployee,overWeeklyHours,missingRates:[...missingRates].filter(Boolean),shifts:rows.length,rows};
 }
 
+function clockWorkedHours(row,now=new Date()){
+  const clockIn=new Date(row?.clockIn||''),stop=row?.clockOut?new Date(row.clockOut):new Date(now);
+  if(Number.isNaN(clockIn.getTime())||Number.isNaN(stop.getTime())||stop<=clockIn)return 0;
+  let breakMinutes=0;for(const pause of row?.breaks||[]){const pa=new Date(pause?.start||''),pb=pause?.end?new Date(pause.end):new Date(now);if(!Number.isNaN(pa.getTime())&&!Number.isNaN(pb.getTime())&&pb>pa)breakMinutes+=(pb-pa)/60000}
+  return Math.max(0,(stop-clockIn)/3600000-breakMinutes/60);
+}
+function shiftBounds(shift){
+  const start=new Date(String(shift?.date||'')+'T'+String(shift?.start||'00:00')+':00'),end=new Date(String(shift?.date||'')+'T'+String(shift?.end||'00:00')+':00');
+  if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))return null;if(end<=start)end.setDate(end.getDate()+1);return{start,end};
+}
 export function actualLabor(state,now=new Date(),days=7){
   const end=new Date(now),start=new Date(end);start.setDate(start.getDate()-Math.max(1,Math.trunc(days))+1);start.setHours(0,0,0,0);
   const members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x]));let hours=0,cost=0;const rows=[];
-  for(const row of state?.timeClock||[]){const clockIn=new Date(row?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;const stop=row.clockOut?new Date(row.clockOut):end;if(Number.isNaN(stop.getTime())||stop<=clockIn)continue;
-    let breakMinutes=0;for(const pause of row.breaks||[]){const a=new Date(pause?.start||''),b=new Date(pause?.end||end);if(!Number.isNaN(a.getTime())&&!Number.isNaN(b.getTime())&&b>a)breakMinutes+=(b-a)/60000}
-    const worked=Math.max(0,(stop-clockIn)/3600000-breakMinutes/60),member=members.get(String(row.employee||'').trim().toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),amount=worked*rate;
-    hours+=worked;cost+=amount;rows.push({employee:String(row.employee||''),clockIn:clockIn.toISOString(),clockOut:row.clockOut||'',hours:round(worked,2),breakHours:round(breakMinutes/60,2),rate,cost:round(amount,2),open:row.status==='open'});
+  for(const row of state?.timeClock||[]){const clockIn=new Date(row?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;
+    const worked=clockWorkedHours(row,end),grossWithoutBreak=clockWorkedHours({...row,breaks:[]},end),member=members.get(String(row.employee||'').trim().toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),amount=worked*rate;
+    hours+=worked;cost+=amount;rows.push({employee:String(row.employee||''),clockIn:clockIn.toISOString(),clockOut:row.clockOut||'',hours:round(worked,2),breakHours:round(Math.max(0,grossWithoutBreak-worked),2),rate,cost:round(amount,2),open:row.status==='open'});
   }
-  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),rows:rows.sort((a,b)=>b.clockIn.localeCompare(a.clockIn)),open:rows.filter(x=>x.open).length}
+  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),rows:rows.sort((x,y)=>y.clockIn.localeCompare(x.clockIn)),open:rows.filter(x=>x.open).length}
+}
+
+export function workforceVariance(state,now=new Date(),days=7){
+  const end=new Date(now),start=new Date(end);start.setDate(start.getDate()-Math.max(1,Math.trunc(days))+1);start.setHours(0,0,0,0);
+  const members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x])),groups=new Map();
+  const keyOf=(employee,date)=>String(employee||'').trim().toLocaleLowerCase()+'|'+date;
+  for(const shift of state?.shifts||[]){const bounds=shiftBounds(shift);if(!bounds||bounds.start<start||bounds.start>end)continue;const employee=String(shift.employee||'').trim(),date=String(shift.date||''),key=keyOf(employee,date),group=groups.get(key)||{employee,date,shifts:[],clocks:[]};group.shifts.push({...shift,bounds});groups.set(key,group)}
+  for(const clock of state?.timeClock||[]){const clockIn=new Date(clock?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;const employee=String(clock.employee||'').trim(),date=localDate(clockIn),key=keyOf(employee,date),group=groups.get(key)||{employee,date,shifts:[],clocks:[]};group.clocks.push(clock);groups.set(key,group)}
+  const rows=[];for(const group of groups.values()){
+    group.shifts.sort((x,y)=>x.bounds.start-y.bounds.start);group.clocks.sort((x,y)=>new Date(x.clockIn)-new Date(y.clockIn));
+    const plannedHours=group.shifts.reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),actualHours=group.clocks.reduce((sum,x)=>sum+clockWorkedHours(x,end),0),member=members.get(group.employee.toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),startedShifts=group.shifts.filter(x=>x.bounds.start<=end),firstShift=startedShifts[0],firstClock=group.clocks[0],lateMinutes=firstShift&&firstClock?Math.max(0,Math.round((new Date(firstClock.clockIn)-firstShift.bounds.start)/60000)):0,missingClockIn=!!firstShift&&!firstClock&&end-firstShift.bounds.start>15*60000;
+    rows.push({employee:group.employee,date:group.date,plannedHours:round(plannedHours,2),actualHours:round(actualHours,2),varianceHours:round(actualHours-plannedHours,2),extraVsPlanHours:round(Math.max(0,actualHours-plannedHours),2),lateMinutes,missingClockIn,plannedCost:round(plannedHours*rate,2),actualCost:round(actualHours*rate,2),rate});
+  }
+  rows.sort((x,y)=>y.date.localeCompare(x.date)||x.employee.localeCompare(y.employee));
+  const weeklyLimit=Math.max(1,n(state?.payrollSettings?.ccnt?.weeklyHours)||42),employeeActual=new Map();
+  for(const row of rows)employeeActual.set(row.employee,round((employeeActual.get(row.employee)||0)+row.actualHours,2));
+  const weeklyOvertime=[...employeeActual].map(([employee,hours])=>({employee,hours,overtimeHours:round(Math.max(0,hours-weeklyLimit),2)})).filter(x=>x.overtimeHours>0).sort((x,y)=>y.overtimeHours-x.overtimeHours);
+  const sum=key=>round(rows.reduce((total,row)=>total+n(row[key]),0),2);
+  return{days:Math.max(1,Math.trunc(days)),weeklyLimit,rows,plannedHours:sum('plannedHours'),actualHours:sum('actualHours'),varianceHours:sum('varianceHours'),extraVsPlanHours:sum('extraVsPlanHours'),plannedCost:sum('plannedCost'),actualCost:sum('actualCost'),lateArrivals:rows.filter(x=>x.lateMinutes>=5).length,missingClockIns:rows.filter(x=>x.missingClockIn).length,weeklyOvertimeHours:round(weeklyOvertime.reduce((s,x)=>s+x.overtimeHours,0),2),weeklyOvertime}
 }
 
 export function laborForecast(state,now=new Date(),days=7){
-  const history=(state?.financeHistory||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x?.date||''))),byDow=new Map();
-  for(const row of history){const d=new Date(String(row.date)+'T12:00:00');if(Number.isNaN(d.getTime()))continue;const key=d.getDay(),bucket=byDow.get(key)||[];bucket.push({covers:n(row.covers),revenue:n(row.revenue)});byDow.set(key,bucket)}
-  const rows=[];for(let i=0;i<Math.max(1,Math.trunc(days));i++){const day=new Date(now);day.setHours(12,0,0,0);day.setDate(day.getDate()+i);const date=localDate(day),hist=(byDow.get(day.getDay())||[]).slice(-8),histCovers=hist.length?hist.reduce((sum,x)=>sum+x.covers,0)/hist.length:0,histRevenue=hist.length?hist.reduce((sum,x)=>sum+x.revenue,0)/hist.length:0,reservations=(state?.reservations||[]).filter(x=>String(x.time||'').slice(0,10)===date&&!['cancelled','noShow'].includes(x.status)),reservedCovers=reservations.reduce((sum,x)=>sum+n(x.covers),0),forecastCovers=Math.max(Math.round(histCovers),reservedCovers),forecastRevenue=histCovers>0?round(histRevenue*(forecastCovers/histCovers),2):round(histRevenue,2),recommendedHours=round(Math.max(forecastCovers?4:0,forecastCovers*.22),1),recommendedStaff=forecastCovers?Math.max(1,Math.ceil(recommendedHours/6)):0,scheduled=(state?.shifts||[]).filter(x=>x.date===date).reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),gap=round(recommendedHours-scheduled,1);rows.push({date,forecastCovers,forecastRevenue,reservedCovers,recommendedHours,recommendedStaff,scheduledHours:round(scheduled,1),gap})}
+  const history=(state?.financeHistory||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x?.date||''))).sort((x,y)=>String(x.date).localeCompare(String(y.date))),byDow=new Map(),byMonth=new Map();
+  let allCovers=0,allRevenue=0,allCount=0;
+  for(const row of history){const d=new Date(String(row.date)+'T12:00:00');if(Number.isNaN(d.getTime()))continue;const sample={covers:n(row.covers),revenue:n(row.revenue),date:String(row.date)},dow=d.getDay(),month=d.getMonth(),dowBucket=byDow.get(dow)||[],monthBucket=byMonth.get(month)||[];dowBucket.push(sample);monthBucket.push(sample);byDow.set(dow,dowBucket);byMonth.set(month,monthBucket);allCovers+=sample.covers;allRevenue+=sample.revenue;allCount++}
+  const overallCovers=allCount?allCovers/allCount:0,signals=Array.isArray(state?.forecastSignals)?state.forecastSignals:[];
+  const rows=[];for(let i=0;i<Math.max(1,Math.trunc(days));i++){
+    const day=new Date(now);day.setHours(12,0,0,0);day.setDate(day.getDate()+i);const date=localDate(day),hist=(byDow.get(day.getDay())||[]).slice(-12),monthHist=byMonth.get(day.getMonth())||[],histCovers=hist.length?hist.reduce((sum,x)=>sum+x.covers,0)/hist.length:0,histRevenue=hist.length?hist.reduce((sum,x)=>sum+x.revenue,0)/hist.length:0,monthCovers=monthHist.length?monthHist.reduce((sum,x)=>sum+x.covers,0)/monthHist.length:0,seasonFactor=monthHist.length>=3&&overallCovers>0?Math.max(.75,Math.min(1.35,monthCovers/overallCovers)):1,reservations=(state?.reservations||[]).filter(x=>String(x.time||'').slice(0,10)===date&&!['cancelled','noShow'].includes(x.status)),reservedCovers=reservations.reduce((sum,x)=>sum+n(x.covers),0),daySignals=signals.filter(x=>x.date===date),signalFactor=Math.max(.5,Math.min(1.75,daySignals.reduce((factor,x)=>factor*(1+n(x.impactPct)/100),1))),adjustedHistorical=Math.max(0,histCovers*seasonFactor*signalFactor),forecastCovers=Math.max(Math.round(adjustedHistorical),reservedCovers),avgSpend=histCovers>0?histRevenue/histCovers:(allCovers>0?allRevenue/allCovers:0),forecastRevenue=round(forecastCovers*avgSpend,2),recommendedHours=round(Math.max(forecastCovers?4:0,forecastCovers*.22),1),recommendedStaff=forecastCovers?Math.max(1,Math.ceil(recommendedHours/6)):0,scheduled=(state?.shifts||[]).filter(x=>x.date===date).reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),gap=round(recommendedHours-scheduled,1);
+    rows.push({date,forecastCovers,forecastRevenue,reservedCovers,recommendedHours,recommendedStaff,scheduledHours:round(scheduled,1),gap,historySamples:hist.length,seasonFactor:round(seasonFactor,2),signalFactor:round(signalFactor,2),signals:daySignals.map(x=>({type:String(x.type||'manual'),impactPct:n(x.impactPct),note:String(x.note||'')})),confidence:hist.length>=6?'high':hist.length>=3?'medium':'low'})
+  }
   return{rows,understaffed:rows.filter(x=>x.gap>1).length,overstaffed:rows.filter(x=>x.gap<-2).length}
 }
 

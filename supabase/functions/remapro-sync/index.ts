@@ -7,7 +7,7 @@ const cors={
 };
 const ORG_ADMIN_ROLES=new Set(["network_admin","network_manager"]);
 const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
-const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","payrollSettings","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","expenseEntries","cashChecks","weeklyKpis","managerTasks","stockMoves","complianceItems","priceHistory","stock","temps","haccpAudit","suppliers","purchases","purchaseOrders","productionBatches","inventoryCounts","team","shifts","timeClock","availability","shiftSwaps","incidents","waste","reservations","customers","giftCards","loyaltyTransactions","reservationSettings","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
+const ALL_KEYS=["revenue","covers","expenses","recipeTarget","recipeWarning","payrollSettings","sales","orders","products","loyalty","briefings","invoices","checklists","alerts","goals","training","leave","leaveHolidays","equipment","audits","cleaning","deliveries","allergens","recalls","financeHistory","expenseEntries","cashChecks","weeklyKpis","managerTasks","stockMoves","complianceItems","priceHistory","stock","temps","haccpAudit","suppliers","purchases","purchaseOrders","productionBatches","inventoryCounts","team","shifts","timeClock","availability","shiftSwaps","incidents","waste","reservations","forecastSignals","customers","giftCards","loyaltyTransactions","reservationSettings","recipes","maintenance","handover","categories","tasksDate","tasks","documentEntries"];
 const READ_BY_PERMISSION={
   operations:["tasksDate","tasks","briefings","handover","maintenance","equipment"],
   finance:["revenue","covers","expenses","sales","financeHistory","expenseEntries","cashChecks","weeklyKpis","goals","alerts"],
@@ -15,7 +15,7 @@ const READ_BY_PERMISSION={
   stock:["stock","stockMoves","products","categories","priceHistory","inventoryCounts","productionBatches"],
   deliveries:["deliveries","stock","suppliers"],
   checklists:["checklists"],
-  planning:["shifts","team","leave","leaveHolidays","training","managerTasks","timeClock","availability","shiftSwaps"],
+  planning:["shifts","team","leave","leaveHolidays","training","managerTasks","timeClock","availability","shiftSwaps","forecastSignals"],
   reservations:["reservations","customers","reservationSettings"],
   recipes:["recipes","stock","products","categories","recipeTarget","recipeWarning","productionBatches"],
   documents:["documentEntries"],
@@ -36,7 +36,7 @@ const WRITE_BY_PERMISSION={
   stock:["stock","stockMoves","products","categories","priceHistory"],
   deliveries:["deliveries","stock"],
   checklists:["checklists"],
-  planning:["shifts","leave","leaveHolidays","training","tasks","managerTasks","timeClock","availability","shiftSwaps"],
+  planning:["shifts","leave","leaveHolidays","training","tasks","managerTasks","timeClock","availability","shiftSwaps","forecastSignals"],
   reservations:["reservations"],
   recipes:["recipes","recipeTarget","recipeWarning"],
   documents:["documentEntries"],
