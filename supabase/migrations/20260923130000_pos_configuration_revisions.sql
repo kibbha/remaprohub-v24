@@ -21,7 +21,7 @@ select id,1,now() from public.restaurants
 on conflict(restaurant_id) do nothing;
 
 create or replace function public.pos_bump_configuration_revision() returns trigger
-language plpgsql security definer set search_path=public as $$
+language plpgsql security invoker set search_path=public as $
 declare v_restaurant_id uuid;
 begin
   v_restaurant_id:=case when tg_op='DELETE' then old.restaurant_id else new.restaurant_id end;
