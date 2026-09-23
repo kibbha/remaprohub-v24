@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog} from '../src/pos-layout.js';
+import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,layoutButtonItem,renderPosLayoutEditor} from '../src/pos-layout.js';
 
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),
@@ -31,6 +31,24 @@ seeded.menus.push({
   id:'m1',name:'Menu midi',productId:'p1',price:24.5,
   choices:[{id:'c1',name:'Accompagnement',required:true,min:1,max:1,categoryId:seeded.categories[0].id,productIds:[],modifierGroupIds:[]}]
 });
+const standalone=normalizePosLayout({
+  ...emptyPosLayout(),
+  buttons:[{id:'standalone',pageId:'',categoryId:'',productId:'',label:'Café maison',item:{name:'Café maison',price:4.5,taxRate:8.1,type:'drink',station:'bar'}}]
+});
+assert.equal(standalone.buttons[0].item.name,'Café maison');
+assert.equal(standalone.buttons[0].item.price,4.5);
+assert.equal(standalone.buttons[0].item.type,'drink');
+assert.equal(layoutButtonItem(standalone.buttons[0],catalog).source,'layout');
+assert.equal(layoutButtonItem(standalone.buttons[0],catalog).production_station,'bar');
+const linkedButton={id:'linked',productId:'p1'};
+assert.equal(layoutButtonItem(linkedButton,catalog).source,'hub');
+const editorHtml=renderPosLayoutEditor({layout:standalone,catalog});
+assert.match(editorHtml,/Créer une touche de caisse/);
+assert.match(editorHtml,/Aucun — touche autonome/);
+assert.match(editorHtml,/Auto : Caisse/);
+assert.match(editorHtml,/Plat/);
+assert.match(editorHtml,/Boisson/);
+
 const normalized=normalizePosLayout(seeded);
 assert.equal(normalized.buttons[0].w,2);
 assert.equal(normalized.buttons[0].h,2);
@@ -40,6 +58,6 @@ assert.equal(normalized.modifierGroups[0].required,true);
 assert.equal(normalized.menus[0].choices[0].required,true);
 
 const source=fs.readFileSync(new URL('../src/pos-layout.js',import.meta.url),'utf8');
-for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice'])assert.ok(source.includes(token),token);
+for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
 
 console.log('Hub POS layout editor issue #6 checks passed');
