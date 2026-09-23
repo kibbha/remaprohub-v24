@@ -1,4 +1,4 @@
 RC Hub validation trigger
-Previous run passed architecture CRUD checks and found accountingExportForm lacked a submit path.
-Retry base: afe9efaa8e2dcd12f0c5bd158d7fd4db9b78b41d
-Fix: Enter/submit now performs the default sales CSV export while existing per-export buttons remain intact.
+Previous run passed CRUD architecture and found new dedicated forms absent from the architecture allow-list.
+Retry base: f0a556a2e76039209516fc2cce9b7441a183eb84
+Fix: architecture gate now recognizes delivery scanner and POS-admin forms that already have explicit submit listeners.

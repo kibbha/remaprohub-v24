@@ -32,7 +32,7 @@ global.localStorage={setItem(){},getItem(){return JSON.stringify({financeHistory
 // Every rendered data-entry form must have either the shared helper or an explicit dedicated listener.
 const renderedForms=[...app.matchAll(/id="([A-Za-z]+Form)"/g)].map(x=>x[1]);
 const helperBindings=new Set([...app.matchAll(/form\('([^']+)'/g)].map(x=>x[1]));
-const dedicatedForms=new Set(['settingsForm','securitySettingsForm','securityLoginForm','securitySignupForm','developerLoginForm','developerAccessForm','memberAccessForm','billingPurchaseForm','cloudForm','cloudLoginForm','aiForm','visionStockForm','invoiceReviewForm','restaurantForm','managerForm','staffAccessForm']);
+const dedicatedForms=new Set(['settingsForm','securitySettingsForm','securityLoginForm','securitySignupForm','developerLoginForm','developerAccessForm','memberAccessForm','billingPurchaseForm','cloudForm','cloudLoginForm','aiForm','visionStockForm','invoiceReviewForm','deliveryScanReviewForm','restaurantForm','managerForm','staffAccessForm','directChannelForm','posTableAddForm','posOperatorAddForm','posPrinterAddForm','posTerminalAddForm','posProviderAddForm']);
 for(const id of renderedForms){
   if(dedicatedForms.has(id))
     assert.match(app,new RegExp(`getElementById\\('${id}'\\)\\?\\.addEventListener\\('submit'`),`missing dedicated submit binding for ${id}`);
