@@ -1,3 +1,4 @@
 RC Hub validation trigger
-Scope: Swiss payroll hard-stop; realtime POS stock ledger; RevenueCat key injection; i18n cleanup; telemetry diagnostics; Swiss payments documentation.
+Scope: final validation after RevenueCat diagnostic workflow adjustment.
+Expectation: full Hub test suite runs even if RevenueCat GitHub secret is absent; final job may fail only on that external configuration gate.
 No Android build.
