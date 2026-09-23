@@ -76,8 +76,13 @@ async function synchronizeTablesFromFloorPlan(db:any,restaurant:any,document:any
   const byLabel=new Map((existing||[]).map((x:any)=>[String(x.label||"").trim().toLocaleLowerCase(),String(x.id)])),zoneNames=new Map(doc.zones.map((z:any)=>[z.id,z.name]));
   const normalizedElements=doc.elements.map((e:any)=>{if(e.type!=="table")return e;const old=byLabel.get(String(e.label||"").trim().toLocaleLowerCase());return{...e,tableId:old||e.tableId||crypto.randomUUID()}});
   const rows=normalizedElements.filter((e:any)=>e.type==="table"&&e.active!==false).map((e:any,i:number)=>({id:e.tableId,organization_id:restaurant.organization_id,restaurant_id:restaurant.id,label:e.label,area:zoneNames.get(e.zoneId)||"Salle",seats:e.seats,sort_order:i,x:e.x,y:e.y,active:true,updated_at:new Date().toISOString()}));
-  if(rows.length){const {error}=await db.from("pos_tables").upsert(rows,{onConflict:"id"});if(error)throw new Error(error.message)}
   const keep=new Set(rows.map((x:any)=>String(x.id))),deactivateIds=(existing||[]).filter((x:any)=>!keep.has(String(x.id))).map((x:any)=>x.id);
+  if(deactivateIds.length){
+    const {data:inUse,error:inUseError}=await db.from("pos_orders").select("id,table_id,status").eq("restaurant_id",restaurant.id).in("table_id",deactivateIds).in("status",["open","sent","preparing","served","payment_pending"]).limit(1);
+    if(inUseError)throw new Error(inUseError.message);
+    if(inUse?.length)throw new Error("FLOOR_PLAN_TABLE_IN_USE");
+  }
+  if(rows.length){const {error}=await db.from("pos_tables").upsert(rows,{onConflict:"id"});if(error)throw new Error(error.message)}
   if(deactivateIds.length){
     const {error:deactivateError}=await db.from("pos_tables").update({active:false,updated_at:new Date().toISOString()}).in("id",deactivateIds);
     if(deactivateError)throw new Error(deactivateError.message);

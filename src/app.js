@@ -524,7 +524,11 @@ async function publishCurrentFloorPlan(){
   try{
     await publishPosFloorPlan(rid,plan.id,{activate:true});
     await loadPosAdminData(false);posFloorPlanSelectedId=plan.id;posFloorPlanSelectedElementId='';posFloorPlanDirty=false;
-  }catch(error){posAdminState.error=error?.message||String(error);render()}
+  }catch(error){
+    const message=error?.message||String(error);
+    posAdminState.error=message.includes('FLOOR_PLAN_TABLE_IN_USE')?'Impossible de publier ce plan : une table retirée ou désactivée porte encore une note ouverte. Fermez ou transférez la note avant de republier.':message;
+    render()
+  }
 }
 async function restoreCurrentFloorPlan(version){
   const plan=currentFloorPlan(),rid=cloudRestaurantId();if(!plan||!rid)return;
