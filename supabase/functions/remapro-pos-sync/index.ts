@@ -117,7 +117,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export",
         "list_provider_connections","upsert_provider_connection",
-        "layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
+        "configuration_head","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -151,6 +151,16 @@ export default {
         }
       }
 
+      if(action==="configuration_head"){
+        const {data,error}=await ctx.supabaseAdmin.from("pos_configuration_revisions")
+          .select("revision,updated_at").eq("restaurant_id",restaurantId).maybeSingle();
+        if(error){
+          if(String(error.message||"").toLowerCase().includes("pos_configuration_revisions"))return json({ok:true,revision:0,updatedAt:null,legacy:true});
+          return json({error:error.message},500);
+        }
+        return json({ok:true,revision:Number(data?.revision)||0,updatedAt:data?.updated_at||null});
+      }
+
       if(action==="bootstrap"){
         const deviceId=clean(body.deviceId,64);
         const requests:any[]=[
@@ -161,7 +171,9 @@ export default {
           ctx.supabaseAdmin.from("pos_event_log").select("sequence").eq("restaurant_id",restaurantId).order("sequence",{ascending:false}).limit(1).maybeSingle(),
           ctx.supabaseAdmin.from("pos_layout_versions")
             .select("version,schema_version,document,checksum,published_at")
-            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle()
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(1).maybeSingle(),
+          ctx.supabaseAdmin.from("pos_configuration_revisions")
+            .select("revision,updated_at").eq("restaurant_id",restaurantId).maybeSingle()
         ];
         if(validUuid(deviceId)){
           requests.push(ctx.supabaseAdmin.from("pos_cash_sessions")
@@ -169,7 +181,7 @@ export default {
             .eq("restaurant_id",restaurantId).eq("device_id",deviceId).eq("status","open").maybeSingle());
         }
         const results=await Promise.all(requests);
-        const catalogResult=results[0],profileResult=results[1],eventResult=results[2],layoutResult=results[3],sessionResult=results[4];
+        const catalogResult=results[0],profileResult=results[1],eventResult=results[2],layoutResult=results[3],revisionResult=results[4],sessionResult=results[5];
         if(catalogResult.error)return json({error:"Unable to load POS catalog"},500);
         return json({
           ok:true,
@@ -185,6 +197,8 @@ export default {
           }:null,
           openSession:sessionResult?.data||null,
           serverCursor:Number(eventResult.data?.sequence||0),
+          configurationRevision:Number(revisionResult?.data?.revision)||0,
+          configurationUpdatedAt:revisionResult?.data?.updated_at||null,
           capabilities:{
             offlineQueue:true,
             cashSessions:true,
