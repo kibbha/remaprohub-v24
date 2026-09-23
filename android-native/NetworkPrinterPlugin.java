@@ -15,6 +15,7 @@ import java.net.Socket;
 public class NetworkPrinterPlugin extends Plugin {
     private byte[] bytesFrom(JSArray data) throws Exception {
         if (data == null || data.length() == 0) throw new IllegalArgumentException("PRINTER_DATA_REQUIRED");
+        if (data.length() > 65536) throw new IllegalArgumentException("PRINTER_DATA_TOO_LARGE");
         byte[] out = new byte[data.length()];
         for (int i = 0; i < data.length(); i++) {
             Object raw = data.get(i);
@@ -29,6 +30,12 @@ public class NetworkPrinterPlugin extends Plugin {
         String value = call.getString("host", "");
         value = value == null ? "" : value.trim();
         if (value.isEmpty() || value.length() > 253) throw new IllegalArgumentException("PRINTER_HOST_REQUIRED");
+        if (!value.matches("^[A-Za-z0-9._:\\-\\[\\]]+$")) throw new IllegalArgumentException("PRINTER_HOST_INVALID");
+        String lower = value.toLowerCase(java.util.Locale.ROOT);
+        if (lower.equals("localhost") || lower.equals("::1") || lower.equals("[::1]") ||
+            lower.equals("0.0.0.0") || lower.startsWith("127.") || lower.equals("169.254.169.254")) {
+            throw new IllegalArgumentException("PRINTER_HOST_BLOCKED");
+        }
         return value;
     }
 

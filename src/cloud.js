@@ -5,6 +5,14 @@ const OPERATOR_KEY='remapro-pos-operator-session';
 let SESSION_CACHE=null,SESSION_READY=false,OPERATOR_CACHE=null,OPERATOR_READY=false;
 
 const config=()=>({url:String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,''),key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()});
+const NETWORK_TIMEOUT_MS=20000;
+async function fetchWithTimeout(url,options={},timeoutMs=NETWORK_TIMEOUT_MS){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(1000,Number(timeoutMs)||NETWORK_TIMEOUT_MS));
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  catch(error){if(error?.name==='AbortError')throw new Error('NETWORK_TIMEOUT');throw error}
+  finally{clearTimeout(timer)}
+}
+
 export const cloudConfigured=()=>{const c=config();return /^https:\/\//.test(c.url)&&!!c.key};
 const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
 const parseSession=raw=>{try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}};
@@ -59,16 +67,16 @@ export const signOut=()=>{removeStoredSession().catch(error=>cloudDiag('cloud.si
 
 async function auth(path,body){
   const {url,key}=config();if(!url||!key)throw new Error('Configuration Supabase manquante');
-  const r=await fetch(url+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key},body:JSON.stringify(body)});
+  const r=await fetchWithTimeout(url+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key},body:JSON.stringify(body)});
   const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.msg||data?.message||data?.error_description||'Connexion impossible');return data;
 }
 export async function signIn(email,password){return persistSession(await auth('/auth/v1/token?grant_type=password',{email:String(email).trim().toLowerCase(),password:String(password)}))}
 export async function refreshSession(){const s=currentSession();if(!s?.refresh_token)throw new Error('Session expirée');return persistSession(await auth('/auth/v1/token?grant_type=refresh_token',{refresh_token:s.refresh_token}))}
-async function fresh(){let s=currentSession();if(!s)return null;const exp=Number(s.expires_at||0)*1000;if(exp&&exp-Date.now()<60000)s=await refreshSession();return s}
+async function fresh(){let s=currentSession();if(!s)return null;const exp=Number(s.expires_at||0)*1000;if(exp&&exp-Date.now()<60000){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();cloudDiag('cloud.refresh_session_error',error);return null}}return s}
 async function request(path){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
-  let r=await fetch(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}});
-  if(r.status===401){s=await refreshSession();r=await fetch(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}})}
+  let r=await fetchWithTimeout(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}});
+  if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await fetchWithTimeout(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}})}
   const data=await r.json().catch(()=>null);if(!r.ok)throw new Error(data?.message||data?.error||'REQUEST_FAILED');return data;
 }
 export async function loadIdentity(){
@@ -82,14 +90,14 @@ export async function posFunction(payload){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
   const op=currentOperatorSession();
   const body=op?.token?{...payload,operatorSessionToken:op.token}:payload;
-  const call=()=>fetch(url+'/functions/v1/remapro-pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(body)});
-  let r=await call();if(r.status===401){s=await refreshSession();r=await call()}
-  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data?.error||'POS_SYNC_FAILED');return data;
+  const call=()=>fetchWithTimeout(url+'/functions/v1/remapro-pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(body)});
+  let r=await call();if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await call()}
+  const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'POS_SYNC_FAILED');error.status=r.status;error.payload=data;throw error}return data;
 }
 
 export async function academyFunction(payload){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
-  const call=()=>fetch(url+'/functions/v1/remapro-academy',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(payload)});
-  let r=await call();if(r.status===401){s=await refreshSession();r=await call()}
+  const call=()=>fetchWithTimeout(url+'/functions/v1/remapro-academy',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(payload)});
+  let r=await call();if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await call()}
   const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'ACADEMY_SYNC_FAILED');error.status=r.status;throw error}return data;
 }

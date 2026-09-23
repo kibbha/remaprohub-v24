@@ -6,7 +6,7 @@ const clean=value=>String(value??'').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{
 
 export async function recordDiagnostic(type,details={}){
   try{
-    const rows=Array.isArray(await kvGet(KEY))?await kvGet(KEY):[];
+    const stored=await kvGet(KEY),rows=Array.isArray(stored)?stored:[];
     const safe={};
     for(const [key,value] of Object.entries(details||{})){
       if(['token','accessToken','refreshToken','password','pin','authorization'].includes(String(key)))continue;
@@ -19,13 +19,13 @@ export async function recordDiagnostic(type,details={}){
   }catch{return false}
 }
 export async function diagnosticSummary(){
-  const rows=Array.isArray(await kvGet(KEY))?await kvGet(KEY):[];
+  const stored=await kvGet(KEY),rows=Array.isArray(stored)?stored:[];
   const counts={};
   for(const row of rows)counts[row.type]=(counts[row.type]||0)+1;
   return{count:rows.length,lastAt:rows[0]?.at||'',counts};
 }
 export async function diagnosticEvents(limit=100){
-  const rows=Array.isArray(await kvGet(KEY))?await kvGet(KEY):[];
+  const stored=await kvGet(KEY),rows=Array.isArray(stored)?stored:[];
   return rows.slice(0,Math.max(1,Math.min(250,Number(limit)||100)));
 }
 export async function clearDiagnostics(){await kvSet(KEY,[]);return true}

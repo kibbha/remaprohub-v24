@@ -15,11 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: pos/remapro-pos
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
 
@@ -66,6 +66,20 @@ jobs:
 
       - name: Synchronize native plugins
         run: npx cap sync android
+
+      - name: Harden ReMaPro POS Android runtime
+        run: |
+          node scripts/harden-android.mjs
+          grep -q 'compileSdkVersion = 36' android/variables.gradle
+          grep -q 'targetSdkVersion = 36' android/variables.gradle
+          grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:launchMode="singleTop"' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          ET.parse('android/app/src/main/AndroidManifest.xml')
+          print('AndroidManifest.xml valid')
+          PY
 
       - name: Apply ReMaPro POS Android branding
         run: |

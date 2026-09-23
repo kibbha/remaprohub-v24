@@ -7,6 +7,10 @@ const ui=fs.readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const css=fs.readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+const workflow=fs.readFileSync(new URL('../.github/workflows/pos-android-validation.yml',import.meta.url),'utf8');
+const harden=fs.readFileSync(new URL('../scripts/harden-android.mjs',import.meta.url),'utf8');
+const cloud=fs.readFileSync(new URL('../src/cloud.js',import.meta.url),'utf8');
+const printerNative=fs.readFileSync(new URL('../android-native/NetworkPrinterPlugin.java',import.meta.url),'utf8');
 
 assert.equal((app.match(/\bprompt\(/g)||[]).length,0,'native prompt() must not be used');
 assert.equal((app.match(/\bconfirm\(/g)||[]).length,0,'native confirm() must not be used');
@@ -39,4 +43,17 @@ assert.ok(app.includes('paymentBusy:false'),'payment double-tap lock state requi
 assert.ok(app.includes('guardedPayment'),'critical payment guard required');
 assert.ok(sw.includes("url.origin!==self.location.origin"),'service worker must ignore cross-origin requests');
 assert.ok(sw.includes("runtime-config.js"),'runtime config must remain network-first');
+assert.match(harden,/compileSdkVersion = 36/);
+assert.match(harden,/targetSdkVersion = 36/);
+assert.match(harden,/allowBackup="false"/);
+assert.match(harden,/usesCleartextTraffic="false"/);
+assert.match(workflow,/node scripts\/harden-android\.mjs/);
+assert.match(workflow,/android:allowBackup="false"/);
+assert.match(workflow,/android:usesCleartextTraffic="false"/);
+assert.match(html,/frame-src 'none'/);
+assert.match(html,/connect-src 'self' https:\/\/gkbzawjlmwjweuqckuxm\.supabase\.co/);
+assert.match(cloud,/async function fetchWithTimeout/);
+assert.match(cloud,/NETWORK_TIMEOUT/);
+assert.match(printerNative,/PRINTER_DATA_TOO_LARGE/);
+assert.match(printerNative,/PRINTER_HOST_BLOCKED/);
 console.log('POS beta hardening checks passed');
