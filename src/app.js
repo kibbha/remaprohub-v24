@@ -693,13 +693,20 @@ async function executeQueued(item){
   }
   throw new Error('UNKNOWN_QUEUE_ACTION');
 }
-async function flushQueueInternal(){
+function queueRetryDelayMs(attempts){
+  const n=Math.max(1,Number(attempts)||1);return Math.min(60000,1000*(2**Math.min(6,n-1)));
+}
+function queueRetryDue(item,now=Date.now()){
+  const at=Date.parse(item?.next_retry_at||'');return !Number.isFinite(at)||at<=now;
+}
+async function flushQueueInternal({force=false}={}){
   if(state.trainingMode)return;
   if(!state.online||!state.restaurant)return;
   const list=await queueAll();
   let floorChanged=false,productionChanged=false;
   for(const item of list){
     if(item.restaurantId!==state.restaurant.id)continue;
+    if(!force&&!queueRetryDue(item))break;
     try{
       await executeQueued(item);
       if(['save_open_order','append_order_items','send_to_production','update_production_item','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
@@ -709,8 +716,9 @@ async function flushQueueInternal(){
       const message=error?.message==='OFFLINE_OPERATOR_REAUTH'
         ?'Reconnectez '+(error.operatorName||'l’opérateur d’origine')+' pour synchroniser cette action.'
         :(error.message||String(error));
-      await queuePut({...item,attempts:Number(item.attempts||0)+1,last_error:message,last_attempt_at:new Date().toISOString()});
-      recordDiagnostic('sync.queue_error',{action:item.action,attempts:Number(item.attempts||0)+1,message});
+      const attempts=Number(item.attempts||0)+1,lastAttemptAt=new Date().toISOString(),nextRetryAt=new Date(Date.now()+queueRetryDelayMs(attempts)).toISOString();
+      await queuePut({...item,attempts,last_error:message,last_attempt_at:lastAttemptAt,next_retry_at:nextRetryAt});
+      recordDiagnostic('sync.queue_error',{action:item.action,attempts,message,nextRetryAt});
       state.error='Synchronisation: '+message;
       break
     }
@@ -721,9 +729,9 @@ async function flushQueueInternal(){
   state.syncLastRun=new Date().toISOString();
   await updateQueueCount();render();
 }
-async function flushQueue(){
+async function flushQueue(options={}){
   if(queueFlushPromise)return queueFlushPromise;
-  queueFlushPromise=flushQueueInternal();
+  queueFlushPromise=flushQueueInternal(options);
   try{return await queueFlushPromise}finally{queueFlushPromise=null}
 }
 async function queueCommand(action,payload,options={}){
@@ -1973,7 +1981,7 @@ function wire(){
   document.querySelector('#switch-operator')?.addEventListener('click',()=>switchOperator());
   document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
   document.querySelector('#sync-refresh')?.addEventListener('click',()=>updateQueueCount().then(render));
-  document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue();if(state.view==='sync')render()});
+  document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue({force:true});if(state.view==='sync')render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
   document.querySelector('#nav-sale')?.addEventListener('click',()=>{state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});

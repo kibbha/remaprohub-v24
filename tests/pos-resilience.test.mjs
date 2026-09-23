@@ -11,6 +11,10 @@ assert.ok(app.includes('if(queueFlushPromise)return queueFlushPromise'),'concurr
 assert.ok(app.includes('terminalPollInFlight=false'),'terminal poll single-flight state required');
 assert.ok(app.includes('if(terminalPollInFlight)return'),'overlapping terminal polls must be blocked');
 assert.ok(app.includes('finally{terminalPollInFlight=false}'),'terminal poll guard must always release');
+assert.ok(app.includes('function queueRetryDelayMs(attempts)'),'retry backoff helper required');
+assert.ok(app.includes('function queueRetryDue(item,now=Date.now())'),'retry due guard required');
+assert.ok(app.includes('next_retry_at:nextRetryAt'),'failed queue items must persist next retry time');
+assert.ok(app.includes("flushQueue({force:true})"),'manual retry must bypass automatic backoff');
 assert.ok(app.includes('function queuedPayload(item)'),'queued actions must normalize idempotency metadata');
 assert.ok(app.includes('clientEventId:item.payload?.clientEventId||item.client_event_id'),'queued actions must preserve a stable client event id');
 for(const action of ['open_cash_session','append_order_items','send_to_production','update_production_item','settle_open_order','settle_open_order_split','close_cash_session']){
