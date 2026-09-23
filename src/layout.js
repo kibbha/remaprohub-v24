@@ -1,4 +1,9 @@
 const clone=v=>JSON.parse(JSON.stringify(v));
+const normalizeMatchName=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const normalizeAvailability=input=>{
+  const src=input&&typeof input==='object'?input:{},mode=['unlimited','manual','stock'].includes(String(src.mode))?String(src.mode):'unlimited';
+  return{mode,manualQuantity:Math.max(0,Math.floor(Number(src.manualQuantity)||0)),lowThreshold:Math.max(0,Math.floor(Number(src.lowThreshold)||3))};
+};
 function normalizeStandaloneItem(item){
   if(!item||typeof item!=='object')return null;
   const name=String(item.name||'').trim(),price=Number(item.price),taxRate=Number(item.taxRate??item.tax_rate??8.1);
@@ -13,7 +18,7 @@ export function normalizeLayout(input){
     schemaVersion:1,
     pages:Array.isArray(src.pages)?src.pages:[],
     categories:Array.isArray(src.categories)?src.categories:[],
-    buttons:Array.isArray(src.buttons)?src.buttons.map(button=>({...button,productId:String(button?.productId||''),item:normalizeStandaloneItem(button?.item)})):[],
+    buttons:Array.isArray(src.buttons)?src.buttons.map(button=>({...button,productId:String(button?.productId||''),item:normalizeStandaloneItem(button?.item),availability:normalizeAvailability(button?.availability)})):[],
     modifierGroups:Array.isArray(src.modifierGroups)?src.modifierGroups:[],
     productModifiers:Array.isArray(src.productModifiers)?src.productModifiers:[],
     menus:Array.isArray(src.menus)?src.menus:[]
@@ -26,11 +31,33 @@ export function publishedLayout(bootstrap){
   return {version:Number(layout.version)||0,checksum:String(layout.checksum||''),publishedAt:layout.publishedAt||null,document:normalizeLayout(layout.document)};
 }
 export function productById(catalog,id){return(catalog||[]).find(x=>String(x.id)===String(id))||null}
+export function autoMatchButtonProduct(button,catalog=[]){
+  if(button?.productId)return null;
+  const name=normalizeMatchName(button?.item?.name||button?.label);if(!name)return null;
+  let candidates=(catalog||[]).filter(x=>x?.active!==false&&normalizeMatchName(x?.name)===name);
+  if(candidates.length>1&&Number.isFinite(Number(button?.item?.price))){
+    const price=Number(button.item.price),priced=candidates.filter(x=>Math.abs((Number(x?.price)||0)-price)<=0.01);
+    if(priced.length===1)candidates=priced;
+  }
+  return candidates.length===1?candidates[0]:null;
+}
 export function itemForButton(button,catalog=[]){
   const linked=button?.productId?productById(catalog,button.productId):null;
-  if(linked)return{...linked,layoutStandalone:false};
+  if(linked)return{...linked,layoutStandalone:false,autoMatched:false};
+  const matched=autoMatchButtonProduct(button,catalog);
+  if(matched)return{...matched,layoutStandalone:false,autoMatched:true};
   const item=normalizeStandaloneItem(button?.item);
-  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,layoutStandalone:true}:null;
+  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,layoutStandalone:true,autoMatched:false}:null;
+}
+export function availabilityKeyForButton(button,catalog=[]){
+  const item=itemForButton(button,catalog);
+  return item&&!item.layoutStandalone&&item.id?'catalog:'+String(item.id):'layout:'+String(button?.id||'');
+}
+export function availabilityConfigForButton(button,catalog=[]){
+  const item=itemForButton(button,catalog),buttonCfg=normalizeAvailability(button?.availability),catalogCfg=normalizeAvailability(item?.metadata?.availability);
+  const explicit=button?.availability&&typeof button.availability==='object';
+  const cfg=explicit&&buttonCfg.mode!=='unlimited'?buttonCfg:catalogCfg.mode!=='unlimited'?catalogCfg:buttonCfg;
+  return{...cfg,key:availabilityKeyForButton(button,catalog),catalogItemId:item&&!item.layoutStandalone?String(item.id):'',autoMatched:!!item?.autoMatched};
 }
 export function buttonById(doc,id){return normalizeLayout(doc).buttons.find(x=>String(x.id)===String(id))||null}
 export function pageButtons(doc,pageId){
