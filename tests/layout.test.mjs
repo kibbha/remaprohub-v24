@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   normalizeLayout,publishedLayout,pageButtons,categoriesForPage,categoryNavigationForPage,categoryScopeIds,configurationForButton,itemForButton,
   modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation
 } from '../src/layout.js';
 
+const appSource=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+assert.ok(appSource.includes('function productVisual('));
+assert.ok(!appSource.includes('function productGlyph('));
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),name:'Produit '+(i+1),category:i<5?'Cuisine':'Bar',
   price:10+i,tax_rate:8.1,recipe_id:i===0?'recipe-1':null,
@@ -44,6 +48,8 @@ assert.equal(standalone.name,'Limonade maison');
 assert.equal(standalone.price,6.5);
 assert.equal(standalone.tax_rate,8.1);
 assert.equal(standalone.production_station,'bar');
+assert.equal(normalizeLayout({buttons:[{id:'photo',photo:'data:image/jpeg;base64,AA==',item:{name:'Photo test',price:2,taxRate:8.1,type:'dish'}}]}).buttons[0].photo,'data:image/jpeg;base64,AA==');
+assert.equal(itemForButton({id:'photo',photo:'data:image/jpeg;base64,AA==',item:{name:'Photo test',price:2,taxRate:8.1,type:'dish'}},catalog).photo,'data:image/jpeg;base64,AA==');
 assert.equal(configurationForButton(standaloneDoc,standaloneDoc.buttons[0],catalog).menu,null);
 
 const layout=publishedLayout({layout:{version:3,schemaVersion:1,checksum:'abc',document:doc}});

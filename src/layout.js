@@ -10,7 +10,7 @@ function normalizeStandaloneItem(item){
   if(!name||!Number.isFinite(price)||price<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100)return null;
   const type=['dish','drink','other'].includes(String(item.type))?String(item.type):'other';
   const station=['kitchen','bar','none'].includes(String(item.station))?String(item.station):(type==='drink'?'bar':type==='dish'?'kitchen':'none');
-  return{name,price:Math.round(price*100)/100,taxRate,sku:String(item.sku||''),type,station};
+  return{name,price:Math.round(price*100)/100,taxRate,sku:String(item.sku||''),type,station,photo:String(item.photo||'')};
 }
 export function normalizeLayout(input){
   const src=input&&typeof input==='object'?clone(input):{};
@@ -47,7 +47,7 @@ export function itemForButton(button,catalog=[]){
   const matched=autoMatchButtonProduct(button,catalog);
   if(matched)return{...matched,layoutStandalone:false,autoMatched:true};
   const item=normalizeStandaloneItem(button?.item);
-  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,layoutStandalone:true,autoMatched:false}:null;
+  return item?{id:'layout:'+String(button?.id||''),name:item.name,price:item.price,tax_rate:item.taxRate,sku:item.sku,production_station:item.station,type:item.type,photo:String(button?.photo||item.photo||''),layoutStandalone:true,autoMatched:false}:null;
 }
 export function availabilityKeyForButton(button,catalog=[]){
   const explicit=button?.productId?productById(catalog,button.productId):null;
