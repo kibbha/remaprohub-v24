@@ -660,3 +660,25 @@ html[data-theme="dark"] .module-section-nav [data-module-section]{background:#1a
 html[data-theme="dark"] .module-section-nav [data-module-section].active{background:#174e96;border-color:#4680ce;color:#fff}
 @media(min-width:1180px){.hub-sidebar{background:#10213c}.hub-sidebar button{color:#d5e0f0}}
 @media(max-width:430px){.hub-classic-home .hub-category-grid{gap:8px}.hub-classic-home .hub-category-card{min-height:106px}}
+
+/* Direction 26 — Hub POS configuration, aligned with the POS category system */
+.pos-admin-page{--pos-ink:#14233d;--pos-deep:#10213c;--pos-blue:#245d9c;--pos-amber:#efa01a;--pos-teal:#12675e;color:var(--pos-ink)}
+.pos-admin-page .artisan-hero{background:linear-gradient(125deg,#10213c 0%,#1d426f 68%,#245d9c 100%);border-color:#183b67;color:#fff;box-shadow:0 14px 32px #10213c28}
+.pos-admin-page .artisan-hero h2,.pos-admin-page .artisan-hero p{color:#fff}
+.pos-admin-page .artisan-hero p{opacity:.82}
+.pos-admin-page .artisan-eyebrow{color:#ffd27b}
+.pos-admin-page .artisan-hero-mark{background:#efa01a;color:#14233d;box-shadow:0 5px 16px #06162c38}
+.pos-admin-page .module-section-nav{padding:6px;background:#eaf0f8;border:1px solid #dbe4f0;border-radius:17px;box-shadow:0 5px 16px #10213c0b}
+.pos-admin-page .module-section-nav button{min-height:42px;border:1px solid transparent;border-radius:12px;background:#fff;color:#30435f;transition:transform .12s ease,background .12s ease,box-shadow .12s ease}
+.pos-admin-page .module-section-nav button.active{background:#10213c;border-color:#10213c;color:#fff;box-shadow:0 5px 13px #10213c22}
+.pos-admin-page .module-section-nav button.active:after{content:"";display:block;width:6px;height:6px;margin:4px auto -7px;border-radius:50%;background:#efa01a}
+.pos-admin-page .module-section-nav button:active{transform:scale(.97)}
+.pos-admin-page .pos-admin-card,.pos-admin-page .pos-layout-editor,.pos-admin-page .floor-plan-editor{border-color:#dbe4f0;box-shadow:0 8px 24px #10213c0c}
+.pos-admin-page .pos-layout-preview{background:linear-gradient(145deg,#f4f7fc,#eaf0f8);border-color:#dbe4f0}
+.pos-admin-page .pos-layout-tile{border-radius:15px;box-shadow:0 4px 12px #10213c13}
+.pos-admin-page .pos-layout-tile.selected{border-color:#efa01a;box-shadow:0 0 0 2px #fff inset,0 0 0 4px #efa01a48}
+.pos-admin-page .pos-layout-pages button.active{background:#10213c;border-color:#10213c;color:#fff}
+.pos-admin-page .pos-layout-create{border-color:#dbe4f0;background:#f8fafd}
+.pos-admin-page .btn.primary{background:linear-gradient(135deg,#174e96,#236ab9);box-shadow:0 6px 16px #174e9630}
+.pos-admin-page #posLayoutPublish{background:linear-gradient(135deg,#efa01a,#ffc14a);color:#14233d;box-shadow:0 6px 16px #efa01a35}
+@media(max-width:699px){.pos-admin-page .module-section-nav{top:62px}.pos-admin-page .module-section-nav button{min-height:42px;padding:9px 13px}}
