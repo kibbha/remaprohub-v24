@@ -766,3 +766,10 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
   .pos-layout-preview-categories button{font-size:11px;padding:7px}
   .pos-layout-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(104px,auto);gap:6px}
 }
+
+
+@media(max-width:700px){
+  .pos-layout-workspace{grid-template-columns:minmax(0,1fr)}
+  .pos-layout-preview{grid-template-columns:96px minmax(0,1fr)}
+  .pos-layout-grid{grid-template-columns:repeat(4,minmax(80px,1fr));grid-auto-rows:minmax(96px,auto);overflow:auto}
+}
