@@ -11,3 +11,4 @@ Run Hub tests and build V27.11.0 test APK.
 Phone layout: stack editor below preview and keep the 4-column canvas scrollable on narrow screens.
 Rebuild Hub V27.11.0 test APK.
 Category delete action with safe reparenting and focused regression coverage.
+Re-run after adding category delete preview fixture.

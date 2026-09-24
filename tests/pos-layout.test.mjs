@@ -80,7 +80,7 @@ const ambiguousButton=normalizePosLayout({...emptyPosLayout(),buttons:[{id:'dup-
 assert.equal(autoMatchLayoutButton(ambiguousButton,ambiguousCatalog),null);
 assert.equal(layoutButtonItem(ambiguousButton,ambiguousCatalog).source,'layout');
 
-const editorHtml=renderPosLayoutEditor({layout:standalone,catalog,sectionNav:'<nav class="module-section-nav"><button>Caisse</button><button>Catégories</button><button>Menus & options</button></nav>'});
+const editorHtml=renderPosLayoutEditor({layout:{...standalone,categories:[{id:'editor-category',name:'Carte',parentId:'',sortOrder:0}]},catalog,sectionNav:'<nav class="module-section-nav"><button>Caisse</button><button>Catégories</button><button>Menus & options</button></nav>'});
 assert.match(editorHtml,/data-module-pane="touches"/);
 assert.match(editorHtml,/data-module-pane="categories"/);
 assert.match(editorHtml,/data-module-pane="menus"/);
