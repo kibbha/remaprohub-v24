@@ -1,5 +1,5 @@
-ReMaPro Hub V27.11.0 — Direction 26 POS configuration
+ReMaPro Hub V27.11.0 — POS organizer tabs
 Requested: 2026-09-24
-Source: e020ffbb788af309664f0304c6bdf3745a16e948
-RC: 35975737875 success
+Source: abc280ec217943635334dbf63146210794d53fc2
+RC: 35980288785 success
 Build current Hub Android test APK
