@@ -59,7 +59,16 @@ const ambiguousButton=normalizePosLayout({...emptyPosLayout(),buttons:[{id:'dup-
 assert.equal(autoMatchLayoutButton(ambiguousButton,ambiguousCatalog),null);
 assert.equal(layoutButtonItem(ambiguousButton,ambiguousCatalog).source,'layout');
 
-const editorHtml=renderPosLayoutEditor({layout:standalone,catalog});
+const editorHtml=renderPosLayoutEditor({layout:standalone,catalog,sectionNav:'<nav class="module-section-nav"><button>Caisse</button><button>Catégories</button><button>Menus & options</button></nav>'});
+assert.match(editorHtml,/data-module-pane="touches"/);
+assert.match(editorHtml,/data-module-pane="categories"/);
+assert.match(editorHtml,/data-module-pane="menus"/);
+assert.match(editorHtml,/<details class="pos-layout-create">/);
+assert.match(editorHtml,/id="posLayoutPageForm"/);
+assert.match(editorHtml,/id="posLayoutCategoryForm"/);
+assert.match(editorHtml,/id="posLayoutModifierForm"/);
+assert.match(editorHtml,/id="posLayoutMenuForm"/);
+assert.match(editorHtml,/id="posLayoutPublish"/);
 assert.match(editorHtml,/Créer une touche de caisse/);
 assert.match(editorHtml,/Aucun — touche autonome/);
 assert.match(editorHtml,/Auto : Caisse/);
@@ -78,6 +87,9 @@ assert.equal(normalized.modifierGroups[0].required,true);
 assert.equal(normalized.menus[0].choices[0].required,true);
 
 const source=fs.readFileSync(new URL('../src/pos-layout.js',import.meta.url),'utf8');
+const appSource=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+assert.ok(appSource.includes("moduleSectionNav([['touches','Caisse'],['categories','Catégories'],['menus','Menus & options']],'pos-layout-editor')"));
+assert.ok(appSource.includes('moduleSectionScopes[scope]'));
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
 assert.ok(source.includes('Remettre la quantité disponible'));

@@ -682,3 +682,33 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
 .pos-admin-page .btn.primary{background:linear-gradient(135deg,#174e96,#236ab9);box-shadow:0 6px 16px #174e9630}
 .pos-admin-page #posLayoutPublish{background:linear-gradient(135deg,#efa01a,#ffc14a);color:#14233d;box-shadow:0 6px 16px #efa01a35}
 @media(max-width:699px){.pos-admin-page .module-section-nav{top:62px}.pos-admin-page .module-section-nav button{min-height:42px;padding:9px 13px}}
+
+/* Compact POS layout organizer with scoped tabs */
+.pos-layout-editor{padding:clamp(14px,2vw,24px);background:#fff;border-color:#dce3ec;color:#18243a}
+.pos-layout-editor .pos-layout-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pos-layout-editor .pos-layout-head h2{font-size:22px}
+.pos-layout-editor .module-section-nav{display:flex;gap:8px;overflow:auto;padding:8px 0 12px;margin:10px 0 12px;border-bottom:1px solid #e1e7ee}
+.pos-layout-editor .module-section-nav button{flex:0 0 auto;border:1px solid #dce3ec;background:#f7f9fc;color:#52627a;border-radius:12px;padding:10px 16px;font-weight:750}
+.pos-layout-editor .module-section-nav button.active{background:#132642;border-color:#132642;color:#fff;box-shadow:0 5px 14px #13264226}
+.pos-layout-editor [data-module-pane][hidden]{display:none!important}
+.pos-layout-editor .module-section-panes{min-height:320px}
+.pos-layout-create{margin:6px 0 16px;border:1px solid #dce3ec;border-radius:15px;background:#f8fafd}
+.pos-layout-create>summary{cursor:pointer;padding:14px 16px;font-weight:800;color:#233650;list-style:none}
+.pos-layout-create>summary::-webkit-details-marker{display:none}
+.pos-layout-create>summary:after{content:"＋";float:right;color:#cc8c12}
+.pos-layout-create[open]>summary:after{content:"−"}
+.pos-layout-create-form{padding:0 14px 12px}
+.pos-layout-create-note{padding:0 14px 12px}
+.pos-layout-workspace{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,.9fr);gap:14px;align-items:start}
+.pos-layout-preview{min-width:0}
+.pos-layout-inspector{min-width:0;max-height:75vh;overflow:auto;background:#fff;border:1px solid #dce3ec;border-radius:16px;padding:16px}
+.pos-layout-meta{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:12px;margin:8px 0 14px}
+.pos-layout-meta form{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pos-layout-meta input,.pos-layout-meta select{flex:1;min-width:150px}
+.pos-layout-order{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.pos-layout-order>div{padding:13px;border:1px solid #dce3ec;border-radius:14px;background:#fff}
+.pos-layout-order span{display:inline-flex;align-items:center;gap:7px;margin:7px 6px 0 0;padding:7px 9px;border:1px solid #e2e8ef;border-radius:10px}
+.pos-layout-order span button{border:0;background:transparent;padding:2px 4px}
+[data-module-pane="menus"] .pos-layout-bottom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+[data-module-pane="menus"] .pos-layout-bottom>section{min-width:0;background:#fff;border:1px solid #dce3ec;border-radius:15px;padding:15px}
+@media(max-width:760px){.pos-layout-editor .pos-layout-head{display:block}.pos-layout-editor .pos-layout-head .actions{margin-top:10px}.pos-layout-workspace,.pos-layout-meta,.pos-layout-order,[data-module-pane="menus"] .pos-layout-bottom{grid-template-columns:1fr}.pos-layout-inspector{max-height:none}.pos-layout-editor .module-section-panes{min-height:0}}
