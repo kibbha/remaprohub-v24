@@ -38,6 +38,7 @@ const standalone=normalizePosLayout({
 assert.equal(standalone.buttons[0].item.name,'Café maison');
 assert.equal(standalone.buttons[0].item.price,4.5);
 assert.equal(standalone.buttons[0].item.type,'drink');
+assert.equal(layoutButtonItem({...standalone.buttons[0],photo:'data:image/jpeg;base64,AA=='},catalog).photo,'data:image/jpeg;base64,AA==');
 assert.equal(layoutButtonItem(standalone.buttons[0],catalog).source,'layout');
 assert.equal(layoutButtonItem(standalone.buttons[0],catalog).production_station,'bar');
 const linkedButton={id:'linked',productId:'p1'};
@@ -69,6 +70,10 @@ assert.match(editorHtml,/id="posLayoutCategoryForm"/);
 assert.match(editorHtml,/id="posLayoutModifierForm"/);
 assert.match(editorHtml,/id="posLayoutMenuForm"/);
 assert.match(editorHtml,/id="posLayoutPublish"/);
+assert.match(editorHtml,/data-layout-preview-category="favorites"/);
+assert.match(editorHtml,/id="posLayoutPhoto"/);
+assert.match(editorHtml,/Photo facultative/);
+assert.match(editorHtml,/pos-layout-tile-visual/);
 assert.match(editorHtml,/Créer une touche de caisse/);
 assert.match(editorHtml,/Aucun — touche autonome/);
 assert.match(editorHtml,/Auto : Caisse/);

@@ -712,3 +712,19 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
 [data-module-pane="menus"] .pos-layout-bottom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 [data-module-pane="menus"] .pos-layout-bottom>section{min-width:0;background:#fff;border:1px solid #dce3ec;border-radius:15px;padding:15px}
 @media(max-width:760px){.pos-layout-editor .pos-layout-head{display:block}.pos-layout-editor .pos-layout-head .actions{margin-top:10px}.pos-layout-workspace,.pos-layout-meta,.pos-layout-order,[data-module-pane="menus"] .pos-layout-bottom{grid-template-columns:1fr}.pos-layout-inspector{max-height:none}.pos-layout-editor .module-section-panes{min-height:0}}
+
+/* POS configuration preview follows the real category and photo flow */
+.pos-layout-preview-categories{display:flex;gap:7px;overflow-x:auto;padding:9px 2px;margin:0 0 12px;border-bottom:1px solid #e3e8ef}
+.pos-layout-preview-categories button{flex:0 0 auto;border:1px solid #dce3ec;border-radius:999px;background:#fff;color:#52627a;padding:8px 12px;font-size:12px;font-weight:750}
+.pos-layout-preview-categories button.active{background:#1d4f91;color:#fff;border-color:#1d4f91;box-shadow:0 4px 12px #1d4f9126}
+.pos-layout-tile{padding:0!important;display:flex;flex-direction:column;cursor:grab}
+.pos-layout-tile-visual{display:grid;place-items:center;position:relative;flex:0 0 52px;width:100%;overflow:hidden;background:linear-gradient(145deg,#e8edf5,#f8f9fc);border-bottom:1px solid #dce3ec}
+.pos-layout-tile-visual img{display:block;width:100%;height:100%;object-fit:cover}
+.pos-layout-photo-placeholder{width:28px;height:28px;border:1px solid #ccd7e5;border-radius:9px;background:linear-gradient(145deg,#fff,#e8edf5);position:relative}
+.pos-layout-photo-placeholder:after{content:"";position:absolute;inset:8px 5px 5px;border-radius:5px;background:linear-gradient(145deg,#d9e3f1,#c7d5e6)}
+.pos-layout-tile-copy{display:grid;gap:3px;min-width:0;padding:7px 9px}
+.pos-layout-tile-copy strong,.pos-layout-tile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pos-layout-tile-copy small{font-size:11px}
+.pos-layout-photo-preview{height:118px;overflow:hidden;border:1px solid #dce3ec;border-radius:12px;background:#f4f7fb}
+.pos-layout-photo-preview img{width:100%;height:100%;object-fit:cover}
+.pos-layout-photo-field input[type=file]{font-size:12px;padding:8px}
