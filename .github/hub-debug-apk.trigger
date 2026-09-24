@@ -1,5 +1,5 @@
-ReMaPro Hub V27.11.0 — POS organizer tabs
+ReMaPro Hub V27.11.0 — POS live category and photo preview
 Requested: 2026-09-24
-Source: abc280ec217943635334dbf63146210794d53fc2
-RC: 35980288785 success
+Source: 58b3e15cafd97d6dec4f9a9e0562955372c1114d
+RC: 35987199174 success
 Build current Hub Android test APK
