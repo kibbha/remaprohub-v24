@@ -553,3 +553,32 @@ html[data-theme="dark"] .hub-category-hero,html[data-theme="dark"] .hub-subcateg
  .module-screen [data-module-pane]{animation:hubPaneIn .16s ease-out}
 }
 @keyframes hubPaneIn{from{opacity:.35;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* Modern light Hub home; keep the ReMaPro icon system */
+.hub-classic-home{--hub-home-bg:#f4f7f6;--hub-home-surface:#fff;--hub-home-ink:#202a30;--hub-home-muted:#687780;--hub-home-line:#e1e8e6;--hub-home-accent:#176b5e;max-width:820px;margin:0 auto;padding:12px 12px 24px;border-radius:28px;background:linear-gradient(180deg,#f3f7f6 0%,#f8faf9 100%);color:var(--hub-home-ink)}
+.hub-classic-home .hub-home-intro{margin:2px 2px 16px}
+.hub-classic-home .hub-home-intro h1{font-size:clamp(24px,6vw,30px);letter-spacing:-.7px;color:#17252b}
+.hub-classic-home .dashboard-modules-link{color:var(--hub-home-accent);background:#fff;border:1px solid var(--hub-home-line);box-shadow:0 4px 12px #173e3210}
+.hub-classic-home .hub-ca-banner{border:1px solid #dce9e5;border-radius:24px;padding:19px;color:#173e38;text-align:left;background:linear-gradient(125deg,#fff 0%,#f0f7f4 100%);box-shadow:0 8px 22px #1f47320d}
+.hub-classic-home .hub-ca-banner:after{background:#a8d9c51c}
+.hub-classic-home .hub-ca-banner>span{color:#59706b;opacity:1}
+.hub-classic-home .hub-ca-banner>strong{font-size:clamp(32px,8vw,40px);color:#173e38}
+.hub-classic-home .hub-ca-stats>span{border:1px solid #dce9e5;background:#ffffffc9;color:#173e38}
+.hub-classic-home .hub-ca-stats small{color:#657872}
+.hub-classic-home .hub-home-section{margin-top:22px}
+.hub-classic-home .hub-home-section h2{color:#202a30;letter-spacing:-.25px}
+.hub-classic-home .hub-home-section small{color:var(--hub-home-muted)}
+.hub-classic-home .hub-category-grid{gap:10px}
+.hub-classic-home .hub-category-card{min-height:108px;padding:13px 11px;border:1px solid var(--hub-home-line);border-radius:18px;color:#26343a;background:var(--hub-home-surface);box-shadow:0 4px 12px #142d2410;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+.hub-classic-home .hub-category-card:hover{transform:translateY(-2px);border-color:#bfd5ce;box-shadow:0 8px 18px #142d2415}
+.hub-classic-home .hub-category-card>.icon{color:var(--hub-home-accent)}
+.hub-classic-home .hub-category-card strong{font-size:13px;color:#243238}
+.hub-classic-home .hub-category-card small{font-size:9px;color:#718087}
+.hub-classic-home .hub-category-card>b{color:#718087}
+.hub-classic-home .hub-low-stock{background:#fff4e7;color:#9b5722;border:1px solid #f3dfc9;border-radius:999px}
+.pos-admin-page .module-section-nav{display:flex;gap:7px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:4px 1px 8px;margin:14px 0 12px;flex-wrap:nowrap}
+.pos-admin-page .module-section-nav::-webkit-scrollbar{display:none}
+.pos-admin-page .module-section-nav [data-module-section]{flex:0 0 auto;min-height:42px;padding:9px 14px;border:1px solid #e0e7e5;border-radius:999px;background:#fff;color:#526168;font-size:13px;font-weight:700;white-space:nowrap}
+.pos-admin-page .module-section-nav [data-module-section].active{border-color:#176b5e;background:#176b5e;color:#fff;box-shadow:0 4px 12px #176b5e24}
+.pos-admin-page [data-module-pane][hidden]{display:none!important}
+@media(max-width:430px){.hub-classic-home{padding:9px 8px 18px;border-radius:22px}.hub-classic-home .hub-category-grid{gap:7px}.hub-classic-home .hub-category-card{min-height:103px;padding:11px 9px}.hub-classic-home .hub-category-card strong{font-size:12px}.hub-classic-home .hub-category-card small{font-size:8px}.pos-admin-page .module-section-nav{margin:10px 0 8px;gap:6px}.pos-admin-page .module-section-nav [data-module-section]{min-height:40px;padding:8px 12px}}

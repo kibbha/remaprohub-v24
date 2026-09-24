@@ -18,6 +18,12 @@ for(const token of [
   "document.querySelectorAll('[data-pos-focus]')",
   'data-pos-section="catalog"',
   'data-pos-section="terminals"',
+  "moduleSectionNav([['layout','Caisse'],['floor','Salle'],['catalog','Catalogue'],['devices','Équipe'],['connections','Intégrations']])",
+  'data-module-pane="layout"',
+  'data-module-pane="floor"',
+  'data-module-pane="catalog"',
+  'data-module-pane="devices"',
+  'data-module-pane="connections"',
   "document.querySelector('.pos-layout-history')",
   "scrollIntoView?.({behavior:'smooth',block:'start'})"
 ]) assert.ok(app.includes(token),token+' missing');
@@ -31,6 +37,9 @@ for(const navEntry of [
 ]) assert.ok(app.includes(navEntry),navEntry+' navigation entry missing');
 assert.equal(app.includes("['documents','documents']"),false);
 
+assert.ok(css.includes('--hub-home-surface:#fff'),'neutral Hub palette missing');
+assert.ok(css.includes('background:linear-gradient(125deg,#fff 0%,#f0f7f4 100%)'),'Hub revenue card palette missing');
+assert.ok(css.includes('.pos-admin-page .module-section-nav'),'POS tabs styling missing');
 for(const token of [
   '.modular-block.pos',
   '.modular-tiles',
