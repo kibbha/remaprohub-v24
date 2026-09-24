@@ -60,6 +60,15 @@ export function seedPosLayoutFromCatalog(catalog=[]){
   }));
   return normalizePosLayout(doc);
 }
+export function removePosLayoutCategory(input,categoryId){
+  const doc=normalizePosLayout(input),category=doc.categories.find(x=>String(x.id)===String(categoryId));
+  if(!category)return{document:doc,category:null,parentId:''};
+  const parentId=doc.categories.some(x=>String(x.id)===String(category.parentId))?String(category.parentId):'';
+  doc.categories=doc.categories.filter(x=>String(x.id)!==String(category.id)).map(x=>String(x.parentId||'')===String(category.id)?{...x,parentId}:x);
+  doc.buttons=doc.buttons.map(x=>String(x.categoryId||'')===String(category.id)?{...x,categoryId:parentId}:x);
+  doc.menus=doc.menus.map(menu=>({...menu,choices:menu.choices.map(choice=>String(choice.categoryId||'')===String(category.id)?{...choice,categoryId:parentId}:choice)}));
+  return{document:normalizePosLayout(doc),category,parentId};
+}
 export function layoutProduct(layout,catalog,id){return(catalog||[]).find(x=>String(x.id)===String(id))||null}
 export function autoMatchLayoutButton(button,catalog=[]){
   if(button?.productId)return null;
@@ -124,7 +133,7 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
   const selectedPhoto=photoSrc(selected?.photo||selectedItem?.photo||selectedItem?.photo_url||selectedItem?.image_url||'');
   const modChecks=selected?doc.modifierGroups.map(g=>'<label class="pos-layout-check"><input type="checkbox" data-layout-button-mod="'+esc(g.id)+'" '+(selected.modifierGroupIds.includes(g.id)?'checked':'')+'> '+esc(g.name)+'</label>').join(''):'';
   const pageOrder=pages.map(p=>'<span><b>'+esc(p.name)+'</b><button type="button" data-layout-page-move="'+esc(p.id)+':-1">↑</button><button type="button" data-layout-page-move="'+esc(p.id)+':1">↓</button></span>').join('');
-  const categoryOrder=categories.map(c=>'<span><b>'+(c.parentId?'↳ ':'')+esc(c.name)+'</b><button type="button" data-layout-category-move="'+esc(c.id)+':-1">↑</button><button type="button" data-layout-category-move="'+esc(c.id)+':1">↓</button></span>').join('');
+  const categoryOrder=categories.map(c=>'<span><b>'+(c.parentId?'↳ ':'')+esc(c.name)+'</b><button type="button" data-layout-category-move="'+esc(c.id)+':-1">↑</button><button type="button" data-layout-category-move="'+esc(c.id)+':1">↓</button><button type="button" class="danger" data-layout-category-delete="'+esc(c.id)+'" aria-label="Supprimer « '+esc(c.name)+' »" title="Supprimer la catégorie">×</button></span>').join('');
   const versions=(Array.isArray(history)?history:[]).slice(0,12);
   const historyHtml=versions.length?'<details class="pos-layout-history"><summary>Historique des publications ('+versions.length+')</summary><div class="pos-layout-list">'+versions.map(v=>'<article><span><strong>Version '+esc(v.version)+'</strong><small>'+esc(v.publishedAt?new Date(v.publishedAt).toLocaleString('fr-CH'):'date inconnue')+' · '+esc(String(v.checksum||'').slice(0,8))+'</small></span>'+(Number(v.version)===Number(published?.version)?'<span class="pill good">Actuelle</span>':'<button type="button" class="btn compact" data-layout-restore-version="'+esc(v.version)+'">Restaurer en brouillon</button>')+'</article>').join('')+'</div><p class="muted">Une restauration ne modifie pas les caisses tant que vous ne republiez pas le brouillon.</p></details>':'';
   return '<section class="card pos-layout-editor" data-module-section-root="pos-layout-editor">'
@@ -158,6 +167,22 @@ export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSel
   root.querySelectorAll('[data-layout-page-select]').forEach(el=>el.addEventListener('click',()=>{setPage?.(el.dataset.layoutPageSelect);setCategory?.('all');const doc=normalizePosLayout(getLayout()),first=doc.buttons.filter(b=>b.pageId===el.dataset.layoutPageSelect).sort((a,b)=>a.sortOrder-b.sortOrder)[0];setSelected(first?.id||'');onRender?.()}));
   root.querySelectorAll('[data-layout-page-move]').forEach(el=>el.addEventListener('click',()=>{const [id,d]=String(el.dataset.layoutPageMove).split(':');mutate(doc=>{doc.pages=move(doc.pages,id,Number(d));})}));
   root.querySelectorAll('[data-layout-category-move]').forEach(el=>el.addEventListener('click',()=>{const [id,d]=String(el.dataset.layoutCategoryMove).split(':');mutate(doc=>{doc.categories=move(doc.categories,id,Number(d));})}));
+  root.querySelectorAll('[data-layout-category-delete]').forEach(el=>el.addEventListener('click',()=>{
+    const id=String(el.dataset.layoutCategoryDelete||''),doc=normalizePosLayout(getLayout()),category=doc.categories.find(x=>String(x.id)===id);
+    if(!category)return;
+    const childCount=doc.categories.filter(x=>String(x.parentId||'')===id).length;
+    const buttonCount=doc.buttons.filter(x=>String(x.categoryId||'')===id).length;
+    const parent=doc.categories.find(x=>String(x.id)===String(category.parentId||''));
+    const destination=parent?parent.name:'aucune catégorie (toutes les touches restent dans la caisse)';
+    const details=[];
+    if(childCount)details.push(childCount+' sous-catégorie(s) seront rattachée(s) à « '+(parent?.name||'la racine')+' »');
+    if(buttonCount)details.push(buttonCount+' touche(s) resteront dans la caisse et seront déplacées vers '+destination);
+    const message='Supprimer la catégorie « '+category.name+' » ?'+(details.length?'\n\n'+details.join('. ')+'.':'');
+    if(typeof globalThis.confirm==='function'&&!globalThis.confirm(message))return;
+    const result=removePosLayoutCategory(doc,id);if(!result.category)return;
+    setCategory?.(result.parentId||'all');
+    mutate(current=>Object.assign(current,result.document));
+  }));
   root.querySelector('#posLayoutPageForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>{const id=uid('page');doc.pages.push({id,name:String(d.get('name')||'Page'),sortOrder:doc.pages.length,color:'#efe5d7'});setPage?.(id);setSelected('')})});
   root.querySelector('#posLayoutCategoryForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>doc.categories.push({id:uid('cat'),name:String(d.get('name')||'Catégorie'),parentId:String(d.get('parentId')||''),sortOrder:doc.categories.length,color:'#d9c4a7'}));});
   root.querySelector('#posLayoutButtonForm')?.addEventListener('submit',e=>{

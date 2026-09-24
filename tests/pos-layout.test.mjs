@@ -1,7 +1,27 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,autoMatchLayoutButton,layoutButtonItem,renderPosLayoutEditor} from '../src/pos-layout.js';
+import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,autoMatchLayoutButton,layoutButtonItem,renderPosLayoutEditor,removePosLayoutCategory} from '../src/pos-layout.js';
 
+
+const categoryDeleteFixture=normalizePosLayout({
+  ...emptyPosLayout(),
+  categories:[
+    {id:'root',name:'Plats',parentId:'',sortOrder:0},
+    {id:'target',name:'Viandes',parentId:'root',sortOrder:1},
+    {id:'child',name:'Bœuf',parentId:'target',sortOrder:2},
+    {id:'grandchild',name:'Grillades',parentId:'child',sortOrder:3}
+  ],
+  buttons:[{id:'target-button',categoryId:'target',label:'Steak'},{id:'child-button',categoryId:'child',label:'Entrecôte'}],
+  menus:[{id:'menu',name:'Menu',choices:[{id:'choice',name:'Plat',categoryId:'target'}]}]
+});
+const deletedCategory=removePosLayoutCategory(categoryDeleteFixture,'target');
+assert.equal(deletedCategory.category.name,'Viandes');
+assert.equal(deletedCategory.parentId,'root');
+assert.deepEqual(deletedCategory.document.categories.map(x=>[x.id,x.parentId]),[['root',''],['child','root'],['grandchild','child']]);
+assert.equal(deletedCategory.document.buttons.find(x=>x.id==='target-button').categoryId,'root');
+assert.equal(deletedCategory.document.buttons.find(x=>x.id==='child-button').categoryId,'child');
+assert.equal(deletedCategory.document.menus[0].choices[0].categoryId,'root');
+assert.equal(removePosLayoutCategory(categoryDeleteFixture,'missing').category,null);
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),
   name:'Produit '+(i+1),
@@ -71,6 +91,7 @@ assert.match(editorHtml,/id="posLayoutModifierForm"/);
 assert.match(editorHtml,/id="posLayoutMenuForm"/);
 assert.match(editorHtml,/id="posLayoutPublish"/);
 assert.match(editorHtml,/data-layout-preview-category="favorites"/);
+assert.match(editorHtml,/data-layout-category-delete=/);
 assert.match(editorHtml,/id="posLayoutPhoto"/);
 assert.match(editorHtml,/Photo facultative/);
 assert.match(editorHtml,/pos-layout-tile-visual/);
