@@ -9,6 +9,7 @@ import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
+import {assertConsistentConfigurationRevision} from './configuration-revision.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
@@ -1756,10 +1757,10 @@ async function refreshHubManagedConfiguration(head=null){
     posFunction({action:'list_printers',restaurantId}),
     posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]}))
   ]);
-  if(head?.revision&&Number(bootstrap.configurationRevision||0)!==Number(head.revision)){
-    bootstrap.configurationRevision=Number(head.revision)||0;
-    bootstrap.configurationUpdatedAt=head.updatedAt||bootstrap.configurationUpdatedAt||null;
-  }
+  // These endpoints are separate reads. A publication during the fetch can mix
+  // two revisions, so keep the previous offline snapshot and retry next poll.
+  const after=await posFunction({action:'configuration_head',restaurantId});
+  assertConsistentConfigurationRevision(head,bootstrap,after);
   state.bootstrap=bootstrap;
   state.tables=tables.rows||[];
   state.terminals=terminals.rows||[];
