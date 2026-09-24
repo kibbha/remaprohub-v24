@@ -65,7 +65,34 @@ export function pageButtons(doc,pageId){
 }
 export function categoriesForPage(doc,pageId){
   const d=normalizeLayout(doc),ids=new Set(pageButtons(d,pageId).map(x=>String(x.categoryId||'')).filter(Boolean));
+  const byId=new Map(d.categories.map(category=>[String(category.id),category]));
+  for(const id of [...ids]){
+    let category=byId.get(id),guard=0;
+    while(category?.parentId&&guard++<d.categories.length){
+      const parent=byId.get(String(category.parentId));
+      if(!parent||ids.has(String(parent.id)))break;
+      ids.add(String(parent.id));category=parent;
+    }
+  }
   return d.categories.filter(x=>ids.has(String(x.id))).sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
+}
+export function categoryNavigationForPage(doc,pageId,selectedId='all'){
+  const categories=categoriesForPage(doc,pageId),byId=new Map(categories.map(x=>[String(x.id),x]));
+  const roots=categories.filter(x=>!byId.has(String(x.parentId||'')));
+  const selected=byId.get(String(selectedId||''));
+  let root=selected,guard=0;
+  while(root?.parentId&&byId.has(String(root.parentId))&&guard++<categories.length)root=byId.get(String(root.parentId));
+  const selectedHasChildren=selected&&categories.some(x=>String(x.parentId)===String(selected.id));
+  const branch=selectedHasChildren?selected:(selected?.parentId?byId.get(String(selected.parentId)):selected);
+  return {categories,roots,activeRootId:String(root?.id||''),branchId:String(branch?.id||''),subcategories:branch?categories.filter(x=>String(x.parentId)===String(branch.id)):[]};
+}
+export function categoryScopeIds(doc,pageId,categoryId){
+  const categories=categoriesForPage(doc,pageId),byParent=new Map();
+  for(const category of categories){const key=String(category.parentId||'');if(!byParent.has(key))byParent.set(key,[]);byParent.get(key).push(String(category.id))}
+  const root=String(categoryId||'');if(!categories.some(x=>String(x.id)===root))return [];
+  const result=new Set([root]),queue=[root];
+  while(queue.length){for(const child of byParent.get(queue.shift())||[])if(!result.has(child)){result.add(child);queue.push(child)}}
+  return [...result];
 }
 export function modifierGroupsForButton(doc,button){
   const d=normalizeLayout(doc);

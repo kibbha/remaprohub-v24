@@ -320,3 +320,11 @@ body{color:var(--ink);background:linear-gradient(145deg,#f7f9fd,#edf2f9)}
   .payments{background:#fff}
   .cart-panel{background:#fff}
 }
+
+/* Direction 26: POS category to subcategory navigation */
+.layout-subcategory-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding:3px 1px 10px;margin:-2px 0 5px}
+.layout-subcategory-tabs::-webkit-scrollbar{display:none}
+.layout-subcategory-tabs button{flex:0 0 auto;min-height:38px;padding:8px 14px;border:1px solid #dbe4f0;border-radius:999px;background:#fff;color:#30435f;font-size:12px;font-weight:800;white-space:nowrap;transition:transform .12s ease,background .12s ease,box-shadow .12s ease}
+.layout-subcategory-tabs button.active{background:#10213c;border-color:#10213c;color:#fff;box-shadow:0 5px 13px #10213c24}
+.layout-subcategory-tabs button:active{transform:scale(.97)}
+@media(max-width:820px){.layout-subcategory-tabs{position:sticky;top:61px;z-index:7;background:#f3f6fb;padding:8px 2px}.layout-subcategory-tabs button{min-height:40px}}

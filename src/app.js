@@ -1,7 +1,7 @@
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
-import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
+import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,categoryScopeIds,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
@@ -1592,10 +1592,11 @@ function ensureLayoutSelection(layout){
 function layoutVisibleButtons(layout){
   const doc=layout?.document;if(!doc)return[];
   ensureLayoutSelection(layout);
+  const categoryIds=new Set(categoryScopeIds(doc,state.layoutPageId,state.layoutCategoryId));
   return pageButtons(doc,state.layoutPageId).filter(b=>{
     if(b.hidden)return false;
     if(state.layoutCategoryId==='favorites')return !!b.favorite;
-    if(state.layoutCategoryId!=='all')return String(b.categoryId||'')===String(state.layoutCategoryId);
+    if(state.layoutCategoryId!=='all')return categoryIds.has(String(b.categoryId||''));
     return true;
   });
 }
@@ -2234,10 +2235,12 @@ function mainView(){
   if(layout?.document?.buttons?.length){
     ensureLayoutSelection(layout);
     const doc=layout.document,pages=[...(doc.pages||[])].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
-    const cats=categoriesForPage(doc,state.layoutPageId),allButtons=layoutVisibleButtons(layout);
+    const navigation=categoryNavigationForPage(doc,state.layoutPageId,state.layoutCategoryId),cats=navigation.categories,allButtons=layoutVisibleButtons(layout);
     const buttons=allButtons.filter(b=>{const p=itemForButton(b,catalog);return matchesSearch(b.label||p?.name,p?.category)});
-    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button><button class="category '+(state.layoutCategoryId==='favorites'?'active':'')+'" data-layout-category="favorites">★ Favoris</button>'+cats.map(c=>'<button class="category '+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+(c.parentId?'↳ ':'')+esc(c.name)+'</button>').join('')+'</nav>';
-    productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div><div class="product-toolbar"><div><strong>'+buttons.length+' article'+(buttons.length>1?'s':'')+'</strong><small> · implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'
+    const branch=cats.find(c=>String(c.id)===navigation.branchId);
+    const subcategoryArea=navigation.subcategories.length?'<nav class="layout-subcategory-tabs" aria-label="Sous-catégories"><button type="button" class="'+(state.layoutCategoryId===navigation.branchId?'active':'')+'" data-layout-category="'+esc(navigation.branchId)+'">Tout '+esc(branch?.name||'')+'</button>'+navigation.subcategories.map(c=>'<button type="button" class="'+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>':'';
+    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button><button class="category '+(state.layoutCategoryId==='favorites'?'active':'')+'" data-layout-category="favorites">★ Favoris</button>'+navigation.roots.map(c=>'<button class="category '+(String(c.id)===navigation.activeRootId?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>';
+    productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div>'+subcategoryArea+'<div class="product-toolbar"><div><strong>'+buttons.length+' article'+(buttons.length>1?'s':'')+'</strong><small> · implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'
       +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null,a=availabilityForButton(b,catalog),remaining=a.availableNow,badge=remaining==null?'':remaining<=0?'<span class="availability-badge soldout">Épuisé</span>':'<span class="availability-badge '+(remaining<=a.lowThreshold?'low':'ok')+'">'+remaining+' dispo</span>',searchText=esc(((b.label||p.name)+' '+(p.category||'')).toLocaleLowerCase());return '<button class="product layout-product '+(b.unavailable||a.soldOut?'unavailable':'')+'" data-product-search="'+searchText+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable||a.soldOut?'disabled':'')+' style="--pos-color:'+esc(b.color||'#f2e5d8')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'"><span class="product-visual"><b>'+productGlyph(p)+'</b>'+badge+'</span><span class="product-copy"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.favorite?'★ · ':'')+esc(p.category||b.station||p.production_station||'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
   }else{
     const cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];

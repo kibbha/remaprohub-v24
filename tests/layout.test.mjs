@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  normalizeLayout,publishedLayout,pageButtons,categoriesForPage,configurationForButton,itemForButton,
+  normalizeLayout,publishedLayout,pageButtons,categoriesForPage,categoryNavigationForPage,categoryScopeIds,configurationForButton,itemForButton,
   modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation
 } from '../src/layout.js';
 
@@ -67,4 +67,25 @@ assert.ok(productionModifierSummary(mods,'kitchen').includes('Saignant'));
 assert.equal(modifierRoutesToStation(mods,'bar'),true);
 assert.equal(modifierRoutesToStation(mods,'kitchen'),true);
 
-console.log('ReMaPro POS layout issue #6 runtime checks passed');
+const hierarchy=normalizeLayout({
+  pages:[{id:'menu',name:'Menu'}],
+  categories:[
+    {id:'food',name:'Cuisine',sortOrder:0},
+    {id:'mains',name:'Plats',parentId:'food',sortOrder:0},
+    {id:'burgers',name:'Burgers',parentId:'mains',sortOrder:0},
+    {id:'drinks',name:'Boissons',sortOrder:1}
+  ],
+  buttons:[
+    {id:'burger',pageId:'menu',categoryId:'burgers',label:'Burger'},
+    {id:'soda',pageId:'menu',categoryId:'drinks',label:'Soda'}
+  ]
+});
+assert.deepEqual(categoriesForPage(hierarchy,'menu').map(x=>x.id),['food','mains','burgers','drinks']);
+const hierarchyNav=categoryNavigationForPage(hierarchy,'menu','burgers');
+assert.deepEqual(hierarchyNav.roots.map(x=>x.id),['food','drinks']);
+assert.equal(hierarchyNav.activeRootId,'food');
+assert.equal(hierarchyNav.branchId,'mains');
+assert.deepEqual(hierarchyNav.subcategories.map(x=>x.id),['burgers']);
+assert.deepEqual(categoryScopeIds(hierarchy,'menu','mains'),['mains','burgers']);
+assert.deepEqual(categoryScopeIds(hierarchy,'menu','food'),['food','mains','burgers']);
+console.log('ReMaPro POS layout hierarchy checks passed');
