@@ -1,6 +1,3 @@
-RC POS audited validation — rerun 6
-Availability runtime assertion aligned with current UI.
-2026-09-23
-Direction 26 visual theme validation.
+RC POS test suite — category and subcategory navigation
 2026-09-24
-5d8f5a0
+8c35dbd
