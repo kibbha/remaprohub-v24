@@ -33,6 +33,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dateKey=()=>new Intl.DateTimeFormat('en-CA',{timeZone:state.restaurant?.timezone||'Europe/Zurich',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const sessionKey=id=>'cashSession:'+id;
 const catalogKey=id=>'catalog:'+id;
+const configurationSnapshotKey=id=>'hubConfiguration:'+id;
 const receiptsKey=id=>'receipts:'+id;
 const tablesKey=id=>'tables:'+id;
 const openOrdersKey=id=>'openOrders:'+id;
@@ -794,6 +795,16 @@ async function bootstrapRestaurant(restaurant){
   state.availabilityRows=await kvGet(availabilityCacheKey(restaurant.id))||[];
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   state.configurationBundle=null;
+  const managed=await kvGet(configurationSnapshotKey(restaurant.id));
+  if(managed?.bootstrap&&Number.isSafeInteger(Number(managed.bootstrap.configurationRevision))){
+    state.bootstrap=managed.bootstrap;
+    state.tables=Array.isArray(managed.tables)?managed.tables:state.tables;
+    state.terminals=Array.isArray(managed.terminals)?managed.terminals:state.terminals;
+    state.printers=Array.isArray(managed.printers)?managed.printers:state.printers;
+    state.providerConnections=Array.isArray(managed.providers)?managed.providers:[];
+    state.configurationBundle=Number(managed.bundle?.version)===Number(managed.bootstrap.configurationBundleVersion)?managed.bundle:null;
+    if(state.configurationBundle?.document?.floorPlan)state.floorPlan=state.configurationBundle.document.floorPlan;
+  }
   render();
   const device=await ensureDevice();
   if(state.online){
@@ -811,7 +822,12 @@ async function bootstrapRestaurant(restaurant){
         await kvSet(sessionKey(restaurant.id),state.cashSession);
       }
       await refreshOperators();
-      await Promise.all([refreshOperationalData(),refreshAvailability()]);startDirectOrderPolling()
+      await Promise.all([refreshOperationalData(),refreshAvailability()]);
+      await kvSet(configurationSnapshotKey(restaurant.id),{
+        bootstrap:state.bootstrap,tables:state.tables,terminals:state.terminals,
+        printers:state.printers,providers:state.providerConnections,bundle:state.configurationBundle
+      });
+      startDirectOrderPolling()
     }catch(error){state.error=error.message||String(error)}
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
@@ -1771,13 +1787,21 @@ async function refreshHubManagedConfiguration(head=null){
   const after=await posFunction({action:'configuration_head',restaurantId});
   assertConsistentConfigurationRevision(head,bootstrap,after);
   const bundle=await readPublishedBundle(bundleResult,after);
+  if(state.restaurant?.id!==restaurantId)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+  const nextBootstrap=applyPublishedBundle(bootstrap,bundle);
+  const nextTables=bundle?.document.tables||tables.rows||[];
+  const nextTerminals=terminals.rows||[],nextPrinters=printers.rows||[],nextProviders=providers.rows||[];
+  await kvSet(configurationSnapshotKey(restaurantId),{
+    bootstrap:nextBootstrap,tables:nextTables,terminals:nextTerminals,
+    printers:nextPrinters,providers:nextProviders,bundle
+  });
   state.configurationBundle=bundle;
-  state.bootstrap=applyPublishedBundle(bootstrap,bundle);
-  state.tables=bundle?.document.tables||tables.rows||[];
+  state.bootstrap=nextBootstrap;
+  state.tables=nextTables;
   if(bundle?.document.floorPlan)state.floorPlan=bundle.document.floorPlan;
-  state.terminals=terminals.rows||[];
-  state.printers=printers.rows||[];
-  state.providerConnections=providers.rows||[];
+  state.terminals=nextTerminals;
+  state.printers=nextPrinters;
+  state.providerConnections=nextProviders;
   await Promise.all([
     kvSet(catalogKey(restaurantId),state.bootstrap),
     kvSet(tablesKey(restaurantId),state.tables),
