@@ -18,3 +18,6 @@ Dark POS approved design with Tables and New order shortcuts
 Requested: 2026-09-25
 Source branch: pos/remapro-pos
 Run POS tests and build one debug APK for phone testing.
+
+Build POS test APK without Favorites and with modifier guard
+Requested: 2026-09-25
