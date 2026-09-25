@@ -41,7 +41,13 @@ assert.match(nestedHtml,/data-layout-category-parent="fish"[^>]*>[\s\S]*?Viandes
 const fishPreview=renderPosLayoutEditor({layout:nestedFixture,selectedCategoryId:'fish'});
 assert.match(fishPreview,/data-layout-preview-category="root"[^>]*>Plats<\/button>/);
 assert.match(fishPreview,/data-layout-preview-category="fish"[^>]*>Poissons<\/button>/);
+assert.equal((fishPreview.match(/<nav class="pos-layout-preview-categories"/g)||[]).length,1,'category roots and subcategories share one sidebar');
 assert.doesNotMatch(fishPreview,/data-layout-preview-category="all"|>Tous<\/button>|>Tout Plats<\/button>/);
+const drinksPreview=renderPosLayoutEditor({layout:{...emptyPosLayout(),pages:[{id:'caisse',name:'Caisse'}],categories:[
+  {id:'drinks',name:'Boissons',sortOrder:0},{id:'soft',name:'Softs',parentId:'drinks',sortOrder:1}
+],buttons:[{id:'coca',pageId:'caisse',categoryId:'soft',label:'Coca cola',item:{name:'Coca cola',type:'drink',price:5}}]},selectedCategoryId:'soft'});
+assert.match(drinksPreview,/data-layout-preview-category="drinks"[^>]*>Boissons<\/button>[\s\S]*data-layout-preview-category="soft"[^>]*>Softs<\/button>/);
+assert.match(drinksPreview,/data-layout-button="coca"/);
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),
   name:'Produit '+(i+1),
