@@ -25,3 +25,6 @@ Build one updated Hub debug APK for phone verification.
 Clarify category nesting and reparenting
 Requested: 2026-09-25
 Build Hub debug APK to verify Plats > Poissons hierarchy on device.
+
+Build Hub test APK with direct search, no Favorites and modifier validation
+Requested: 2026-09-25
