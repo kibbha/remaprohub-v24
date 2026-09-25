@@ -12,3 +12,8 @@ Phone layout: stack editor below preview and keep the 4-column canvas scrollable
 Rebuild Hub V27.11.0 test APK.
 Category delete action with safe reparenting and focused regression coverage.
 Re-run after adding category delete preview fixture.
+
+Hub and POS configuration integration verification
+Requested: 2026-09-25
+Source branch: rebuild/remaprohub-clean
+Build one debug APK for phone testing of payment policy and KDS publication.
