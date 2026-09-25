@@ -488,7 +488,23 @@ async function savePosBundleSettings(form){
   if(!Object.values(payments).some(Boolean)||!Number.isInteger(settings.kdsWarningMinutes)||!Number.isInteger(settings.kdsCriticalMinutes)||settings.kdsCriticalMinutes<=settings.kdsWarningMinutes){
     posAdminState={...posAdminState,error:'Gardez au moins un moyen de paiement et une alerte critique après l’alerte initiale.'};render();return;
   }
-  try{await updatePosBundleSettings(rid,Number(draft.source_revision),settings);await loadPosAdminData(false);render()}
+  const refreshDraft=async()=>{
+    const response=await savePosBundleDraft(rid);
+    const revision=Number(response?.result?.sourceRevision??response?.sourceRevision);
+    if(!Number.isSafeInteger(revision)||revision<1)throw new Error('Impossible d’actualiser l’aperçu POS. Réessayez.');
+    return revision;
+  };
+  try{
+    let revision=Number(draft.source_revision);
+    if(revision!==Number(posAdminState.bundle.currentRevision))revision=await refreshDraft();
+    try{await updatePosBundleSettings(rid,revision,settings)}
+    catch(error){
+      if(!String(error?.message||error).includes('BUNDLE_DRAFT_STALE'))throw error;
+      revision=await refreshDraft();
+      await updatePosBundleSettings(rid,revision,settings);
+    }
+    await loadPosAdminData(false);render();
+  }
   catch(error){posAdminState={...posAdminState,error:error?.message||String(error)};render()}
 }
 function posBundleCard(){
