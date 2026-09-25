@@ -166,8 +166,10 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
   let previewRoot=activeCategory;
   while(previewRoot?.parentId&&pageCategories.some(c=>String(c.id)===String(previewRoot.parentId)))previewRoot=pageCategories.find(c=>String(c.id)===String(previewRoot.parentId));
   const subcategories=pageCategories.filter(c=>String(c.parentId)===String(activeCategory?.parentId||activeCategory?.id));
-  const previewCategoryNav='<nav class="pos-layout-preview-categories" aria-label="Catégories caisse">'+roots.map(c=>'<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(String(previewRoot?.id)===String(c.id)?'active':'')+'">'+esc(c.name)+'</button>').join('')+'</nav>'
-    +(subcategories.length?'<nav class="pos-layout-preview-categories" aria-label="Sous-catégories caisse">'+subcategories.map(c=>'<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(activePreviewCategory===String(c.id)?'active':'')+'">'+esc(c.name)+'</button>').join('')+'</nav>':'');
+  const previewCategoryNav='<nav class="pos-layout-preview-categories" aria-label="Catégories caisse">'+roots.map(c=>
+    '<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(String(previewRoot?.id)===String(c.id)?'active':'')+'">'+esc(c.name)+'</button>'
+    +(String(previewRoot?.id)===String(c.id)?subcategories.map(child=>'<button type="button" data-layout-preview-category="'+esc(child.id)+'" class="subcategory '+(activePreviewCategory===String(child.id)?'active':'')+'">'+esc(child.name)+'</button>').join(''):''))
+    .join('')+'</nav>';
   const photoSrc=value=>{const src=String(value||'').trim();return /^(https?:\/\/|data:image\/(?:jpeg|png|webp);base64,)/i.test(src)?src:''};
   const selectedPhoto=photoSrc(selected?.photo||selectedItem?.photo||selectedItem?.photo_url||selectedItem?.image_url||'');
   const modChecks=selected?doc.modifierGroups.map(g=>'<label class="pos-layout-check"><input type="checkbox" data-layout-button-mod="'+esc(g.id)+'" '+(selected.modifierGroupIds.includes(g.id)?'checked':'')+'> '+esc(g.name)+(g.type!=='notes'&&!g.options.length?' · Ajouter une option pour l’utiliser':'')+'</label>').join(''):'';
