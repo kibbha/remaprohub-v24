@@ -17,3 +17,7 @@ Hub and POS configuration integration verification
 Requested: 2026-09-25
 Source branch: rebuild/remaprohub-clean
 Build one debug APK for phone testing of payment policy and KDS publication.
+
+Fix empty category assignment in POS layout editor
+Requested: 2026-09-25
+Build one updated Hub debug APK for phone verification.
