@@ -7,3 +7,8 @@ Run POS tests, package runtime, build verification APK
 Reference layout: order panel left, category rail, photo tiles; blue terminal styling.
 CSS commit: 82baa0e54038c7873b75e8c7a37b55fd2a9ca5d3
 Run POS tests and build V0.27.0 beta APK.
+
+Hub configuration and payment policy integration verification
+Requested: 2026-09-25
+Source branch: pos/remapro-pos
+Run one debug APK build for phone testing of published payment methods and KDS thresholds.
