@@ -155,11 +155,19 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
   const categoryById=new Map(categories.map(c=>[String(c.id),c])),pageCategoryIds=new Set();
   for(const button of buttons){let category=categoryById.get(String(button.categoryId||'')),guard=0;while(category&&guard++<=categories.length){pageCategoryIds.add(String(category.id));category=category.parentId?categoryById.get(String(category.parentId)):null}}
   const pageCategories=categories.filter(c=>pageCategoryIds.has(String(c.id))||!doc.buttons.some(b=>String(b.categoryId||'')===String(c.id)));
-  const categoryIsValid=selectedCategoryId==='all'||pageCategories.some(c=>String(c.id)===String(selectedCategoryId));
-  const activePreviewCategory=categoryIsValid?String(selectedCategoryId||'all'):'all',previewScope=new Set();
-  if(activePreviewCategory!=='all'){const queue=[activePreviewCategory];while(queue.length){const id=queue.shift();if(previewScope.has(id))continue;previewScope.add(id);for(const child of pageCategories)if(String(child.parentId||'')===id)queue.push(String(child.id))}}
-  const previewButtons=buttons.filter(b=>activePreviewCategory==='all'||previewScope.has(String(b.categoryId||'')));
-  const previewCategoryNav='<nav class="pos-layout-preview-categories" aria-label="Catégories caisse"><button type="button" data-layout-preview-category="all" class="'+(activePreviewCategory==='all'?'active':'')+'">Tous</button>'+pageCategories.map(c=>'<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(activePreviewCategory===String(c.id)?'active':'')+'">'+esc(categoryPath(c))+'</button>').join('')+'</nav>';
+  const roots=pageCategories.filter(c=>!pageCategories.some(parent=>String(parent.id)===String(c.parentId)));
+  const requested=pageCategories.find(c=>String(c.id)===String(selectedCategoryId))||roots[0];
+  const activeCategory=requested&&!buttons.some(b=>String(b.categoryId)===String(requested.id)
+    ||(String(requested.id)===String(roots[0]?.id)&&!pageCategories.some(c=>String(c.id)===String(b.categoryId||''))))
+    ?pageCategories.find(c=>String(c.parentId)===String(requested.id))||requested:requested;
+  const activePreviewCategory=String(activeCategory?.id||'');
+  const previewButtons=buttons.filter(b=>!pageCategories.length||String(b.categoryId||'')===activePreviewCategory
+    ||(activePreviewCategory===String(roots[0]?.id)&&!pageCategories.some(c=>String(c.id)===String(b.categoryId||''))));
+  let previewRoot=activeCategory;
+  while(previewRoot?.parentId&&pageCategories.some(c=>String(c.id)===String(previewRoot.parentId)))previewRoot=pageCategories.find(c=>String(c.id)===String(previewRoot.parentId));
+  const subcategories=pageCategories.filter(c=>String(c.parentId)===String(activeCategory?.parentId||activeCategory?.id));
+  const previewCategoryNav='<nav class="pos-layout-preview-categories" aria-label="Catégories caisse">'+roots.map(c=>'<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(String(previewRoot?.id)===String(c.id)?'active':'')+'">'+esc(c.name)+'</button>').join('')+'</nav>'
+    +(subcategories.length?'<nav class="pos-layout-preview-categories" aria-label="Sous-catégories caisse">'+subcategories.map(c=>'<button type="button" data-layout-preview-category="'+esc(c.id)+'" class="'+(activePreviewCategory===String(c.id)?'active':'')+'">'+esc(c.name)+'</button>').join('')+'</nav>':'');
   const photoSrc=value=>{const src=String(value||'').trim();return /^(https?:\/\/|data:image\/(?:jpeg|png|webp);base64,)/i.test(src)?src:''};
   const selectedPhoto=photoSrc(selected?.photo||selectedItem?.photo||selectedItem?.photo_url||selectedItem?.image_url||'');
   const modChecks=selected?doc.modifierGroups.map(g=>'<label class="pos-layout-check"><input type="checkbox" data-layout-button-mod="'+esc(g.id)+'" '+(selected.modifierGroupIds.includes(g.id)?'checked':'')+'> '+esc(g.name)+(g.type!=='notes'&&!g.options.length?' · Ajouter une option pour l’utiliser':'')+'</label>').join(''):'';
