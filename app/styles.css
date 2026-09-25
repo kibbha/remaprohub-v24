@@ -784,3 +784,13 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
 .hub-search-results button:hover,.hub-search-results button:focus-visible{background:#eef5fd}
 .hub-search-results button span{flex:1}.hub-search-results svg{width:19px;height:19px}
 @media(max-width:760px){.hub-global-search{display:flex;align-items:center;gap:8px;min-width:0;border:1px solid #e7ddd3;background:#fff;color:#243449;border-radius:10px;padding:9px}.hub-global-search b{font-size:11px}.hub-search-panel{max-height:85vh}}
+
+/* Service preparation: compact, role-filtered shortcuts. */
+.service-start{margin:16px 0;padding:18px;border:1px solid var(--line,#ddd);border-radius:18px;background:var(--paper,#fff)}
+.service-start-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.service-start h2{margin:0;font-size:18px}.service-start p{margin:6px 0;color:var(--muted,#666);font-size:13px}
+.service-start-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:14px 0}
+.service-start-checks button{display:grid;gap:4px;text-align:left;padding:12px;border:1px solid var(--line,#ddd);border-radius:12px;background:transparent;color:inherit;cursor:pointer;min-height:80px}
+.service-start-checks strong{font-size:24px}.service-start-checks small{color:var(--muted,#666)}
+.service-start-actions{display:flex;flex-wrap:wrap;gap:8px}.service-sales-status{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media(max-width:560px){.service-start{padding:12px}.service-start-checks{grid-template-columns:repeat(3,minmax(0,1fr))}.service-start-checks button{padding:8px;font-size:12px}.service-start-head{align-items:flex-start}.service-start-actions .btn{flex:1 1 40%;min-height:44px}}

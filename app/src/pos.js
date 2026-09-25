@@ -1,12 +1,24 @@
 import { cloudFunction } from './cloud.js';
 
-export const POS_BRIDGE_VERSION='21';
+export const POS_BRIDGE_VERSION='22';
 
 const n=value=>Number.isFinite(Number(value))?Number(value):0;
 const sourceKey=(kind,item,index)=>kind+':'+String(item?.id||item?.sku||item?.name||index).trim();
 const stockById=(state,id)=>(state?.stock||[]).find(x=>String(x?.id||'')===String(id||''));
+const stockAvailableLocal=(state,item)=>{
+  if(!item)return 0;
+  const received=(state?.deliveries||[]).reduce((sum,row)=>sum+(item.id&&row.status==='accepted'&&row.stockId===item.id?(+row.qty||0):0),0);
+  const lost=(state?.waste||[]).reduce((sum,row)=>sum+(item.id&&row.stockId===item.id?(+row.qty||0):0),0);
+  const movements=(state?.stockMoves||[]).reduce((sum,row)=>sum+(row?.affectsStock===true&&row.stockId===item.id&&Number.isFinite(+row.delta)?+row.delta:0),0);
+  return Math.max(0,(+item.qty||0)+received-lost+movements);
+};
 const stockComponentsOf=(item,state)=>{
-  const rows=Array.isArray(item?.posStockComponents)?item.posStockComponents:[];
+  const explicit=Array.isArray(item?.posStockComponents)?item.posStockComponents:[];
+  const portions=Math.max(1,n(item?.portions)||1);
+  const recipeRows=!explicit.length&&Array.isArray(item?.ingredients)
+    ?item.ingredients.map(row=>({stockId:row?.stockId,quantity:Math.max(0,n(row?.quantity))/portions}))
+    :[];
+  const rows=explicit.length?explicit:recipeRows;
   return rows.map(row=>{
     const stock=stockById(state,row?.stockId);
     const quantity=Math.max(0,n(row?.quantity));
@@ -20,6 +32,18 @@ const stockComponentsOf=(item,state)=>{
       unitCost:Math.max(0,n(stock.price))
     };
   }).filter(Boolean);
+};
+const availabilityOf=(item,state,components)=>{
+  const configured=['unlimited','manual','stock'].includes(String(item?.posAvailabilityMode))?String(item.posAvailabilityMode):'';
+  const mode=configured||(components.length?'stock':'unlimited');
+  const manualQuantity=Math.max(0,Math.floor(n(item?.posManualAvailability)));
+  const lowThreshold=Math.max(0,Math.floor(n(item?.posLowStockThreshold)||3));
+  let availablePortions=null;
+  if(mode==='manual')availablePortions=manualQuantity;
+  if(mode==='stock'&&components.length){
+    availablePortions=Math.max(0,Math.floor(Math.min(...components.map(row=>stockAvailableLocal(state,stockById(state,row.stockId))/row.quantity))));
+  }
+  return{mode,manualQuantity,lowThreshold,availablePortions,resetAt:String(item?.posAvailabilityResetAt||'')};
 };
 const itemUnitCost=(item,state)=>{
   const direct=Math.max(0,n(item?.cost));
@@ -35,6 +59,7 @@ export function buildPosCatalogFromHubState(state){
   products.forEach((item,index)=>{
     const name=String(item?.name||'').trim();
     if(!name)return;
+    const components=stockComponentsOf(item,state),availability=availabilityOf(item,state,components);
     out.push({
       sourceKey:sourceKey('product',item,index),
       sku:String(item?.sku||item?.code||'').trim(),
@@ -46,13 +71,13 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:index,
-      metadata:{hubSource:'products',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
+      metadata:{hubSource:'products',unitCost:itemUnitCost(item,state),stockComponents:components,availability}
     });
   });
   recipes.forEach((item,index)=>{
     const name=String(item?.name||'').trim();
     if(!name)return;
-    const id=String(item?.id||'');
+    const id=String(item?.id||''),components=stockComponentsOf(item,state),availability=availabilityOf(item,state,components);
     out.push({
       sourceKey:sourceKey('recipe',item,index),
       recipeId:/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)?id:undefined,
@@ -65,7 +90,7 @@ export function buildPosCatalogFromHubState(state){
       productionStation:stationOf(item),
       active:item?.active!==false,
       sortOrder:10000+index,
-      metadata:{hubSource:'recipes',unitCost:itemUnitCost(item,state),stockComponents:stockComponentsOf(item,state)}
+      metadata:{hubSource:'recipes',unitCost:itemUnitCost(item,state),stockComponents:components,availability}
     });
   });
   return out;
@@ -201,7 +226,7 @@ export async function savePosOperator(restaurantId,operator){
 }
 export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
   const date=businessDate||new Date().toISOString().slice(0,10);
-  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers,layoutAdmin]=await Promise.all([
+  const [bootstrap,tables,operators,printers,terminals,movements,foodCost,providers,layoutAdmin,floorPlanAdmin]=await Promise.all([
     loadPosBootstrap(restaurantId),
     loadPosTables(restaurantId),
     loadPosOperators(restaurantId),
@@ -210,7 +235,8 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     loadPosInventoryMovements(restaurantId,{unacknowledged:true,limit:500}),
     loadPosFoodCostReport(restaurantId,date),
     loadPosProviderConnections(restaurantId),
-    loadPosLayoutAdmin(restaurantId)
+    loadPosLayoutAdmin(restaurantId),
+    loadPosFloorPlanAdmin(restaurantId)
   ]);
   return {
     bootstrap,
@@ -226,9 +252,17 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
     paymentOfficialPaths:providers?.officialPaths||{},
     automaticTransactions:providers?.automaticTransactions===true,
     layoutDraft:layoutAdmin?.draft||null,
-    layoutPublished:layoutAdmin?.published||null
+    layoutPublished:layoutAdmin?.published||null,
+    layoutHistory:Array.isArray(layoutAdmin?.history)?layoutAdmin.history:[],
+    floorPlans:Array.isArray(floorPlanAdmin?.plans)?floorPlanAdmin.plans:[]
   };
 }
+
+export const loadPosBundleHistory=restaurantId=>cloudFunction('remapro-pos-sync',{action:'bundle_history',restaurantId});
+export const savePosBundleDraft=restaurantId=>cloudFunction('remapro-pos-sync',{action:'bundle_save_draft',restaurantId});
+export const updatePosBundleSettings=(restaurantId,expectedRevision,settings)=>cloudFunction('remapro-pos-sync',{action:'bundle_update_settings',restaurantId,expectedRevision,settings});
+export const publishPosBundle=(restaurantId,expectedRevision)=>cloudFunction('remapro-pos-sync',{action:'bundle_publish',restaurantId,expectedRevision});
+export const restorePosBundle=(restaurantId,version)=>cloudFunction('remapro-pos-sync',{action:'bundle_restore',restaurantId,version});
 
 export async function loadPosInventoryMovements(restaurantId,{after=0,unacknowledged=true,limit=300}={}){
   return cloudFunction('remapro-pos-sync',{action:'inventory_movements',restaurantId,after,unacknowledged,limit});
@@ -238,6 +272,9 @@ export async function ackPosInventoryMovements(restaurantId,movementIds){
 }
 export async function loadPosFoodCostReport(restaurantId,businessDate){
   return cloudFunction('remapro-pos-sync',{action:'food_cost_report',restaurantId,businessDate});
+}
+export async function loadPosAccountingExport(restaurantId,{from,to}={}){
+  return cloudFunction('remapro-pos-sync',{action:'accounting_export',restaurantId,from,to});
 }
 
 export async function loadPosProviderConnections(restaurantId){
@@ -250,11 +287,30 @@ export async function savePosProviderConnection(restaurantId,connection){
 export async function loadPosLayoutAdmin(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'layout_admin',restaurantId});
 }
+export async function loadPosFloorPlanAdmin(restaurantId){
+  return cloudFunction('remapro-pos-sync',{action:'floor_plan_admin',restaurantId});
+}
+export async function savePosFloorPlan(restaurantId,plan){
+  return cloudFunction('remapro-pos-sync',{action:'save_floor_plan',restaurantId,plan});
+}
+export async function publishPosFloorPlan(restaurantId,planId,{activate=true}={}){
+  return cloudFunction('remapro-pos-sync',{action:'publish_floor_plan',restaurantId,planId,activate});
+}
+export async function activatePosFloorPlan(restaurantId,planId){
+  return cloudFunction('remapro-pos-sync',{action:'activate_floor_plan',restaurantId,planId});
+}
+export async function restorePosFloorPlanVersion(restaurantId,planId,version){
+  return cloudFunction('remapro-pos-sync',{action:'restore_floor_plan_version',restaurantId,planId,version:Number(version)});
+}
+
 export async function savePosLayoutDraft(restaurantId,document){
   return cloudFunction('remapro-pos-sync',{action:'save_layout_draft',restaurantId,document});
 }
 export async function publishPosLayout(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'publish_layout',restaurantId});
+}
+export async function restorePosLayoutVersionToDraft(restaurantId,version){
+  return cloudFunction('remapro-pos-sync',{action:'restore_layout_version',restaurantId,version:Number(version)});
 }
 export async function loadPosCurrentLayout(restaurantId){
   return cloudFunction('remapro-pos-sync',{action:'layout_current',restaurantId});

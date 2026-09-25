@@ -56,7 +56,7 @@ assert.equal(state.financeHistory[0].revenue,0);
 assert.equal(state.financeHistory[0].expenses,0);
 
 const financeUi=readFileSync('src/app.js','utf8');
-for(const token of ['loadPosDailySummary','financeStateWithPos','posFinanceRefreshTimer','remote?.net_sales','loadPosFinanceData(today(),{force:true})']) assert.ok(financeUi.includes(token),token+' missing');
+for(const token of ['loadPosDailySummary','financeStateWithPos','posFinanceRefreshTimer','mergePosFinance','loadPosFinanceData(today(),{force:true})']) assert.ok(financeUi.includes(token),token+' missing');
 assert.match(restoredUi,/posRevenue=n\(day\.posRevenue\)/);
 assert.match(restoredUi,/money\(orderTotal\+posRevenue\)/);
 const posEdge=readFileSync('supabase/functions/remapro-pos-sync/index.ts','utf8');

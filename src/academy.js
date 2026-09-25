@@ -43,7 +43,7 @@ export function academyContextTopics(application,context){
       more:['hub-dashboard'],help:['hub-account-security']
     },
     pos:{
-      login:['pos-first-use'],setup:['pos-first-use'],picker:['pos-first-use'],operator:['pos-operator'],session:['pos-cash-session'],
+      login:['pos-first-use'],setup:['pos-first-use'],picker:['pos-first-use'],operator:['pos-operator'],session:['pos-cash-session'],closing:['pos-cash-session'],
       sale:['pos-ordering','pos-modifiers-menus','pos-payments','pos-split-payments'],floor:['pos-floor'],production:['pos-production'],
       tickets:['pos-tickets','pos-refunds'],report:['pos-reports'],terminals:['pos-terminals'],printers:['pos-printers'],
       team:['pos-operator'],sync:['pos-offline-sync'],academy:['pos-training'],training:['pos-training']

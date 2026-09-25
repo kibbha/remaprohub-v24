@@ -1,3 +1,5 @@
+import{recordDiagnostic}from'./telemetry.js';
+const cloudDiag=(type,error,details={})=>recordDiagnostic(type,{...details,message:error?.message||String(error||'unknown')});
 const URL_KEY='remaprohub-sb-url';
 const KEY_KEY='remaprohub-sb-key';
 const SESSION_KEY='remaprohub-sb-session';
@@ -5,17 +7,24 @@ const IDENTITY_KEY='remaprohub-cloud-identity';
 let SESSION_CACHE=null,SESSION_READY=false;
 const secureStorage=()=>globalThis.Capacitor?.isNativePlatform?.()?globalThis.Capacitor?.Plugins?.SecureStoragePlugin:null;
 function parseSession(raw){try{const value=typeof raw==='string'?JSON.parse(raw):raw;return value&&typeof value==='object'&&value.access_token&&value.refresh_token?value:null}catch{return null}}
-async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){try{await plugin.remove({key:SESSION_KEY})}catch{}try{await plugin.remove({key:IDENTITY_KEY})}catch{}}}
+async function removeStoredSession(){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){try{await plugin.remove({key:SESSION_KEY})}catch(error){cloudDiag('cloud.secure_storage_remove_error',error,{key:'session'})}try{await plugin.remove({key:IDENTITY_KEY})}catch(error){cloudDiag('cloud.secure_storage_remove_error',error,{key:'identity'})}}}
 async function persistCloudIdentity(identity){if(!identity||typeof identity!=='object')return false;const raw=JSON.stringify(identity),plugin=secureStorage();if(plugin){await plugin.set({key:IDENTITY_KEY,value:raw});localStorage.removeItem(IDENTITY_KEY)}else localStorage.setItem(IDENTITY_KEY,raw);return identity}
-export async function loadCachedCloudIdentity(){const plugin=secureStorage();let raw='';if(plugin)try{raw=String((await plugin.get({key:IDENTITY_KEY}))?.value||'')}catch{};if(!raw)raw=String(localStorage.getItem(IDENTITY_KEY)||'');try{const value=JSON.parse(raw||'null');return value&&typeof value==='object'?value:null}catch{return null}}
+export async function loadCachedCloudIdentity(){const plugin=secureStorage();let raw='';if(plugin)try{raw=String((await plugin.get({key:IDENTITY_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'identity'})};if(!raw)raw=String(localStorage.getItem(IDENTITY_KEY)||'');try{const value=JSON.parse(raw||'null');return value&&typeof value==='object'?value:null}catch{return null}}
 async function persistStoredSession(session){SESSION_CACHE=session;SESSION_READY=true;const plugin=secureStorage();if(plugin){await plugin.set({key:SESSION_KEY,value:JSON.stringify(session)});localStorage.removeItem(SESSION_KEY)}else localStorage.setItem(SESSION_KEY,JSON.stringify(session));return session}
-export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch{}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch{}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
+export async function initializeCloudSessionStorage(){if(SESSION_READY)return SESSION_CACHE;const legacy=localStorage.getItem(SESSION_KEY),plugin=secureStorage();if(plugin){let secureRaw='';try{secureRaw=String((await plugin.get({key:SESSION_KEY}))?.value||'')}catch(error){cloudDiag('cloud.secure_storage_read_error',error,{key:'session'})}SESSION_CACHE=parseSession(secureRaw||legacy);if(SESSION_CACHE&&!secureRaw)try{await plugin.set({key:SESSION_KEY,value:JSON.stringify(SESSION_CACHE)})}catch(error){cloudDiag('cloud.secure_storage_write_error',error,{key:'session'})}localStorage.removeItem(SESSION_KEY)}else SESSION_CACHE=parseSession(legacy);SESSION_READY=true;return SESSION_CACHE}
 
 function runtimeCloudConfig(){
   return {
     url:String(globalThis.REMAPRO_SUPABASE_URL||'').trim().replace(/\/+$/,''),
     key:String(globalThis.REMAPRO_SUPABASE_PUBLISHABLE_KEY||'').trim()
   };
+}
+const NETWORK_TIMEOUT_MS=20000;
+async function fetchWithTimeout(url,options={},timeoutMs=NETWORK_TIMEOUT_MS){
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),Math.max(1000,Number(timeoutMs)||NETWORK_TIMEOUT_MS));
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  catch(error){if(error?.name==='AbortError')throw new Error('NETWORK_TIMEOUT');throw error}
+  finally{clearTimeout(timer)}
 }
 const customBackendAllowed=()=>globalThis.REMAPRO_ALLOW_CUSTOM_BACKEND===true;
 export function cloudConfig(){
@@ -41,13 +50,13 @@ export function saveCloudConfig(url,key){
   const previous=cloudConfig();
   localStorage.setItem(URL_KEY,cleanUrl);
   localStorage.setItem(KEY_KEY,cleanKey);
-  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}}
+  if(previous.url!==cleanUrl||previous.key!==cleanKey){SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error));plugin.remove({key:IDENTITY_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error))}}
   return true;
 }
 export function disconnectCloud(){
   localStorage.removeItem(URL_KEY);
   localStorage.removeItem(KEY_KEY);
-  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(()=>{});plugin.remove({key:IDENTITY_KEY}).catch(()=>{})}
+  SESSION_CACHE=null;SESSION_READY=true;localStorage.removeItem(SESSION_KEY);localStorage.removeItem(IDENTITY_KEY);const plugin=secureStorage();if(plugin){plugin.remove({key:SESSION_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error));plugin.remove({key:IDENTITY_KEY}).catch(error=>cloudDiag('cloud.background_operation_error',error))}
 }
 export function cloudSession(){return SESSION_READY?SESSION_CACHE:parseSession(localStorage.getItem(SESSION_KEY))}
 async function saveSession(data){if(!data?.access_token||!data?.refresh_token)return false;const expiresAt=Number(data.expires_at)||Math.floor(Date.now()/1000)+(Number(data.expires_in)||3600);return persistStoredSession({...data,expires_at:expiresAt})}
@@ -56,7 +65,7 @@ async function authRequest(path,{body,token}={}){
   if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
   const headers={'Content-Type':'application/json','apikey':key};
   if(token)headers.Authorization='Bearer '+token;
-  const response=await fetch(url+path,{method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetchWithTimeout(url+path,{method:'POST',headers,body:body===undefined?undefined:JSON.stringify(body)});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data?.msg||data?.message||data?.error_description||data?.error||'AUTH_REQUEST_FAILED');
   return data;
@@ -98,7 +107,7 @@ export async function ensureFreshCloudSession(){
 export async function signOutCloud(){
   const session=cloudSession(),{url,key}=cloudConfig();
   try{
-    if(session?.access_token&&url&&key)await fetch(url+'/auth/v1/logout',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+session.access_token}});
+    if(session?.access_token&&url&&key)await fetchWithTimeout(url+'/auth/v1/logout',{method:'POST',headers:{'apikey':key,'Authorization':'Bearer '+session.access_token}},10000);
   }finally{await removeStoredSession()}
 }
 async function dataRequest(path,{method='GET',body,retry=true}={}){
@@ -108,7 +117,7 @@ async function dataRequest(path,{method='GET',body,retry=true}={}){
   if(!session?.access_token)throw new Error('AUTH_REQUIRED');
   const headers={'apikey':key,'Authorization':'Bearer '+session.access_token,'Accept':'application/json'};
   if(body!==undefined)headers['Content-Type']='application/json';
-  const response=await fetch(url+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
+  const response=await fetchWithTimeout(url+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)});
   if(response.status===401&&retry){
     session=await refreshCloudSession();
     return dataRequest(path,{method,body,retry:false});
@@ -132,26 +141,26 @@ export async function loadCloudIdentity(){
   const identity={user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};await persistCloudIdentity(identity);return identity;
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
-const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','expenseEntries','cashChecks','weeklyKpis','managerTasks','stockMoves','complianceItems','priceHistory','stock','temps','haccpAudit','suppliers','purchases','team','shifts','incidents','waste','reservations','customers','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
+const CLOUD_WORKSPACE_KEYS=['revenue','covers','expenses','recipeTarget','recipeWarning','payrollSettings','sales','orders','products','loyalty','briefings','invoices','checklists','alerts','goals','training','leave','leaveHolidays','equipment','audits','cleaning','deliveries','allergens','recalls','financeHistory','expenseEntries','cashChecks','weeklyKpis','managerTasks','stockMoves','complianceItems','priceHistory','stock','temps','haccpAudit','suppliers','purchases','purchaseOrders','productionBatches','inventoryCounts','team','shifts','timeClock','availability','shiftSwaps','incidents','waste','reservations','forecastSignals','customers','giftCards','loyaltyTransactions','reservationSettings','recipes','maintenance','handover','categories','tasksDate','tasks','documentEntries'];
 const WORKSPACE_READ_BY_PERMISSION={
   operations:['tasksDate','tasks','briefings','handover','maintenance','equipment'],
   finance:['revenue','covers','expenses','sales','financeHistory','expenseEntries','cashChecks','weeklyKpis','goals','alerts'],
   haccp:['temps','haccpAudit','cleaning','allergens','recalls','incidents','waste','complianceItems','audits'],
-  stock:['stock','stockMoves','products','categories','priceHistory'],
+  stock:['stock','stockMoves','products','categories','priceHistory','inventoryCounts','productionBatches'],
   deliveries:['deliveries','stock','suppliers'],
   checklists:['checklists'],
-  planning:['shifts','team','leave','leaveHolidays','training','managerTasks'],
-  reservations:['reservations'],
-  recipes:['recipes','stock','products','categories','recipeTarget','recipeWarning'],
+  planning:['shifts','team','leave','leaveHolidays','training','managerTasks','timeClock','availability','shiftSwaps','forecastSignals'],
+  reservations:['reservations','customers','reservationSettings'],
+  recipes:['recipes','stock','products','categories','recipeTarget','recipeWarning','productionBatches'],
   documents:['documentEntries'],
   hr:['team','shifts','leave','leaveHolidays','training','documentEntries','payrollSettings'],
-  team:['team','shifts','leave','training','tasks','managerTasks'],
+  team:['team','shifts','leave','training','tasks','managerTasks','timeClock','availability','shiftSwaps'],
   orders:['orders','sales'],
   suppliers:['suppliers'],
-  purchases:['purchases','suppliers','stock','priceHistory'],
+  purchases:['purchases','suppliers','stock','priceHistory','purchaseOrders'],
   invoices:['invoices','suppliers','purchases','priceHistory'],
-  customers:['customers','reservations'],
-  loyalty:['loyalty','customers'],
+  customers:['customers','reservations','loyalty','giftCards','loyaltyTransactions'],
+  loyalty:['loyalty','customers','giftCards','loyaltyTransactions'],
   ai:[]
 };
 const WORKSPACE_WRITE_BY_PERMISSION={
@@ -161,7 +170,7 @@ const WORKSPACE_WRITE_BY_PERMISSION={
   stock:['stock','stockMoves','products','categories','priceHistory'],
   deliveries:['deliveries','stock'],
   checklists:['checklists'],
-  planning:['shifts','leave','leaveHolidays','training','tasks','managerTasks'],
+  planning:['shifts','leave','leaveHolidays','training','tasks','managerTasks','timeClock','availability','shiftSwaps','forecastSignals'],
   reservations:['reservations'],
   recipes:['recipes','recipeTarget','recipeWarning'],
   documents:['documentEntries'],
@@ -169,7 +178,7 @@ const WORKSPACE_WRITE_BY_PERMISSION={
   team:['team','shifts','leave','training','tasks','managerTasks'],
   orders:['orders','sales'],
   suppliers:['suppliers'],
-  purchases:['purchases','stock','priceHistory'],
+  purchases:['purchases','stock','priceHistory','purchaseOrders'],
   invoices:['invoices','purchases','priceHistory'],
   customers:['customers','reservations'],
   loyalty:['loyalty'],
@@ -230,13 +239,13 @@ export async function cloudFunction(path,payload,{attempts=3}={}){
     if(!session?.access_token)throw new Error('AUTH_REQUIRED');
     let response;
     try{
-      response=await fetch(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
-    }catch(error){lastError=error;if(attempt+1<tries){await sleep(250*(2**attempt));continue}throw error}
+      response=await fetchWithTimeout(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+    }catch(error){lastError=error;recordDiagnostic('edge.function_network_error',{path,attempt:attempt+1,message:error?.message||String(error)});if(attempt+1<tries){recordDiagnostic('edge.function_retry',{path,attempt:attempt+1,reason:'network'});await sleep(250*(2**attempt));continue}throw error}
     const data=await response.json().catch(()=>({}));
     if(response.ok)return data;
-    if(response.status===401&&attempt+1<tries){try{await refreshCloudSession()}catch{}await sleep(100);continue}
-    const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;lastError=error;
-    if(RETRYABLE_FUNCTION_STATUS.has(response.status)&&attempt+1<tries){await sleep(250*(2**attempt));continue}
+    if(response.status===401&&attempt+1<tries){try{await refreshCloudSession()}catch(error){cloudDiag('cloud.refresh_session_error',error)}await sleep(100);continue}
+    const error=new Error(data?.error||'FUNCTION_REQUEST_FAILED');error.status=response.status;error.payload=data;lastError=error;recordDiagnostic('edge.function_error',{path,status:response.status,attempt:attempt+1,message:error.message});
+    if(RETRYABLE_FUNCTION_STATUS.has(response.status)&&attempt+1<tries){recordDiagnostic('edge.function_retry',{path,status:response.status,attempt:attempt+1,reason:'status'});await sleep(250*(2**attempt));continue}
     throw error;
   }
   throw lastError||new Error('FUNCTION_REQUEST_FAILED');
@@ -252,17 +261,23 @@ export async function uploadStorageObject(bucket,path,blob,{attempts=3,upsert=tr
   for(let attempt=0;attempt<tries;attempt++){
     const session=await ensureFreshCloudSession();if(!session?.access_token)throw new Error('AUTH_REQUIRED');
     try{
-      const response=await fetch(url+'/storage/v1/object/'+safeBucket+'/'+safePath,{
+      const response=await fetchWithTimeout(url+'/storage/v1/object/'+safeBucket+'/'+safePath,{
         method:'POST',
         headers:{apikey:key,Authorization:'Bearer '+session.access_token,'Content-Type':blob.type||'application/octet-stream','x-upsert':upsert?'true':'false'},
         body:blob
-      });
+      },30000);
       const data=await response.json().catch(()=>({}));
       if(response.ok)return data;
-      const error=new Error(data?.message||data?.error||'STORAGE_UPLOAD_FAILED');error.status=response.status;last=error;
-      if((response.status===401||RETRYABLE_FUNCTION_STATUS.has(response.status))&&attempt+1<tries){if(response.status===401)try{await refreshCloudSession()}catch{}await sleep(300*(2**attempt));continue}
+      const error=new Error(data?.message||data?.error||'STORAGE_UPLOAD_FAILED');error.status=response.status;last=error;recordDiagnostic('storage.upload_error',{bucket:safeBucket,status:response.status,attempt:attempt+1,message:error.message});
+      if((response.status===401||RETRYABLE_FUNCTION_STATUS.has(response.status))&&attempt+1<tries){if(response.status===401)try{await refreshCloudSession()}catch(error){cloudDiag('cloud.refresh_session_error',error)}await sleep(300*(2**attempt));continue}
       throw error;
-    }catch(error){last=error;if(attempt+1<tries){await sleep(300*(2**attempt));continue}throw error}
+    }catch(error){
+      last=error;
+      if(error?.status&&error.status!==401&&!RETRYABLE_FUNCTION_STATUS.has(error.status))throw error;
+      recordDiagnostic('storage.upload_transport_error',{bucket:safeBucket,attempt:attempt+1,message:error?.message||String(error)});
+      if(attempt+1<tries){await sleep(300*(2**attempt));continue}
+      throw error;
+    }
   }
   throw last||new Error('STORAGE_UPLOAD_FAILED');
 }

@@ -16,13 +16,75 @@ export function plannedLabor(state,now=new Date(),days=7){
   return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),weeklyLimit,byEmployee,overWeeklyHours,missingRates:[...missingRates].filter(Boolean),shifts:rows.length,rows};
 }
 
+function clockWorkedHours(row,now=new Date()){
+  const clockIn=new Date(row?.clockIn||''),stop=row?.clockOut?new Date(row.clockOut):new Date(now);
+  if(Number.isNaN(clockIn.getTime())||Number.isNaN(stop.getTime())||stop<=clockIn)return 0;
+  let breakMinutes=0;for(const pause of row?.breaks||[]){const pa=new Date(pause?.start||''),pb=pause?.end?new Date(pause.end):new Date(now);if(!Number.isNaN(pa.getTime())&&!Number.isNaN(pb.getTime())&&pb>pa)breakMinutes+=(pb-pa)/60000}
+  return Math.max(0,(stop-clockIn)/3600000-breakMinutes/60);
+}
+function shiftBounds(shift){
+  const start=new Date(String(shift?.date||'')+'T'+String(shift?.start||'00:00')+':00'),end=new Date(String(shift?.date||'')+'T'+String(shift?.end||'00:00')+':00');
+  if(Number.isNaN(start.getTime())||Number.isNaN(end.getTime()))return null;if(end<=start)end.setDate(end.getDate()+1);return{start,end};
+}
+export function actualLabor(state,now=new Date(),days=7){
+  const end=new Date(now),start=new Date(end);start.setDate(start.getDate()-Math.max(1,Math.trunc(days))+1);start.setHours(0,0,0,0);
+  const members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x]));let hours=0,cost=0;const rows=[];
+  for(const row of state?.timeClock||[]){const clockIn=new Date(row?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;
+    const worked=clockWorkedHours(row,end),grossWithoutBreak=clockWorkedHours({...row,breaks:[]},end),member=members.get(String(row.employee||'').trim().toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),amount=worked*rate;
+    hours+=worked;cost+=amount;rows.push({employee:String(row.employee||''),clockIn:clockIn.toISOString(),clockOut:row.clockOut||'',hours:round(worked,2),breakHours:round(Math.max(0,grossWithoutBreak-worked),2),rate,cost:round(amount,2),open:row.status==='open'});
+  }
+  return{days:Math.max(1,Math.trunc(days)),hours:round(hours,2),cost:round(cost,2),rows:rows.sort((x,y)=>y.clockIn.localeCompare(x.clockIn)),open:rows.filter(x=>x.open).length}
+}
+
+export function workforceVariance(state,now=new Date(),days=7){
+  const end=new Date(now),start=new Date(end);start.setDate(start.getDate()-Math.max(1,Math.trunc(days))+1);start.setHours(0,0,0,0);
+  const members=new Map((state?.team||[]).map(x=>[String(x.name||'').trim().toLocaleLowerCase(),x])),groups=new Map();
+  const keyOf=(employee,date)=>String(employee||'').trim().toLocaleLowerCase()+'|'+date;
+  for(const shift of state?.shifts||[]){const bounds=shiftBounds(shift);if(!bounds||bounds.start<start||bounds.start>end)continue;const employee=String(shift.employee||'').trim(),date=String(shift.date||''),key=keyOf(employee,date),group=groups.get(key)||{employee,date,shifts:[],clocks:[]};group.shifts.push({...shift,bounds});groups.set(key,group)}
+  for(const clock of state?.timeClock||[]){const clockIn=new Date(clock?.clockIn||'');if(Number.isNaN(clockIn.getTime())||clockIn<start||clockIn>end)continue;const employee=String(clock.employee||'').trim(),date=localDate(clockIn),key=keyOf(employee,date),group=groups.get(key)||{employee,date,shifts:[],clocks:[]};group.clocks.push(clock);groups.set(key,group)}
+  const rows=[];for(const group of groups.values()){
+    group.shifts.sort((x,y)=>x.bounds.start-y.bounds.start);group.clocks.sort((x,y)=>new Date(x.clockIn)-new Date(y.clockIn));
+    const plannedHours=group.shifts.reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),actualHours=group.clocks.reduce((sum,x)=>sum+clockWorkedHours(x,end),0),member=members.get(group.employee.toLocaleLowerCase()),rate=n(member?.hourlyRate||member?.hourlyCost),startedShifts=group.shifts.filter(x=>x.bounds.start<=end),firstShift=startedShifts[0],firstClock=group.clocks[0],lateMinutes=firstShift&&firstClock?Math.max(0,Math.round((new Date(firstClock.clockIn)-firstShift.bounds.start)/60000)):0,missingClockIn=!!firstShift&&!firstClock&&end-firstShift.bounds.start>15*60000;
+    rows.push({employee:group.employee,date:group.date,plannedHours:round(plannedHours,2),actualHours:round(actualHours,2),varianceHours:round(actualHours-plannedHours,2),extraVsPlanHours:round(Math.max(0,actualHours-plannedHours),2),lateMinutes,missingClockIn,plannedCost:round(plannedHours*rate,2),actualCost:round(actualHours*rate,2),rate});
+  }
+  rows.sort((x,y)=>y.date.localeCompare(x.date)||x.employee.localeCompare(y.employee));
+  const weeklyLimit=Math.max(1,n(state?.payrollSettings?.ccnt?.weeklyHours)||42),employeeActual=new Map();
+  for(const row of rows)employeeActual.set(row.employee,round((employeeActual.get(row.employee)||0)+row.actualHours,2));
+  const weeklyOvertime=[...employeeActual].map(([employee,hours])=>({employee,hours,overtimeHours:round(Math.max(0,hours-weeklyLimit),2)})).filter(x=>x.overtimeHours>0).sort((x,y)=>y.overtimeHours-x.overtimeHours);
+  const sum=key=>round(rows.reduce((total,row)=>total+n(row[key]),0),2);
+  return{days:Math.max(1,Math.trunc(days)),weeklyLimit,rows,plannedHours:sum('plannedHours'),actualHours:sum('actualHours'),varianceHours:sum('varianceHours'),extraVsPlanHours:sum('extraVsPlanHours'),plannedCost:sum('plannedCost'),actualCost:sum('actualCost'),lateArrivals:rows.filter(x=>x.lateMinutes>=5).length,missingClockIns:rows.filter(x=>x.missingClockIn).length,weeklyOvertimeHours:round(weeklyOvertime.reduce((s,x)=>s+x.overtimeHours,0),2),weeklyOvertime}
+}
+
+export function laborForecast(state,now=new Date(),days=7){
+  const history=(state?.financeHistory||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x?.date||''))).sort((x,y)=>String(x.date).localeCompare(String(y.date))),byDow=new Map(),byMonth=new Map();
+  let allCovers=0,allRevenue=0,allCount=0;
+  for(const row of history){const d=new Date(String(row.date)+'T12:00:00');if(Number.isNaN(d.getTime()))continue;const sample={covers:n(row.covers),revenue:n(row.revenue),date:String(row.date)},dow=d.getDay(),month=d.getMonth(),dowBucket=byDow.get(dow)||[],monthBucket=byMonth.get(month)||[];dowBucket.push(sample);monthBucket.push(sample);byDow.set(dow,dowBucket);byMonth.set(month,monthBucket);allCovers+=sample.covers;allRevenue+=sample.revenue;allCount++}
+  const overallCovers=allCount?allCovers/allCount:0,signals=Array.isArray(state?.forecastSignals)?state.forecastSignals:[];
+  const rows=[];for(let i=0;i<Math.max(1,Math.trunc(days));i++){
+    const day=new Date(now);day.setHours(12,0,0,0);day.setDate(day.getDate()+i);const date=localDate(day),hist=(byDow.get(day.getDay())||[]).slice(-12),monthHist=byMonth.get(day.getMonth())||[],histCovers=hist.length?hist.reduce((sum,x)=>sum+x.covers,0)/hist.length:0,histRevenue=hist.length?hist.reduce((sum,x)=>sum+x.revenue,0)/hist.length:0,monthCovers=monthHist.length?monthHist.reduce((sum,x)=>sum+x.covers,0)/monthHist.length:0,seasonFactor=monthHist.length>=3&&overallCovers>0?Math.max(.75,Math.min(1.35,monthCovers/overallCovers)):1,reservations=(state?.reservations||[]).filter(x=>String(x.time||'').slice(0,10)===date&&!['cancelled','noShow'].includes(x.status)),reservedCovers=reservations.reduce((sum,x)=>sum+n(x.covers),0),daySignals=signals.filter(x=>x.date===date),signalFactor=Math.max(.5,Math.min(1.75,daySignals.reduce((factor,x)=>factor*(1+n(x.impactPct)/100),1))),adjustedHistorical=Math.max(0,histCovers*seasonFactor*signalFactor),forecastCovers=Math.max(Math.round(adjustedHistorical),reservedCovers),avgSpend=histCovers>0?histRevenue/histCovers:(allCovers>0?allRevenue/allCovers:0),forecastRevenue=round(forecastCovers*avgSpend,2),recommendedHours=round(Math.max(forecastCovers?4:0,forecastCovers*.22),1),recommendedStaff=forecastCovers?Math.max(1,Math.ceil(recommendedHours/6)):0,scheduled=(state?.shifts||[]).filter(x=>x.date===date).reduce((sum,x)=>sum+shiftDurationHours(x.start,x.end),0),gap=round(recommendedHours-scheduled,1);
+    rows.push({date,forecastCovers,forecastRevenue,reservedCovers,recommendedHours,recommendedStaff,scheduledHours:round(scheduled,1),gap,historySamples:hist.length,seasonFactor:round(seasonFactor,2),signalFactor:round(signalFactor,2),signals:daySignals.map(x=>({type:String(x.type||'manual'),impactPct:n(x.impactPct),note:String(x.note||'')})),confidence:hist.length>=6?'high':hist.length>=3?'medium':'low'})
+  }
+  return{rows,understaffed:rows.filter(x=>x.gap>1).length,overstaffed:rows.filter(x=>x.gap<-2).length}
+}
+
+export function availabilityConflicts(state,now=new Date(),days=14){
+  const start=localDate(now),endDate=new Date(now);endDate.setDate(endDate.getDate()+Math.max(1,Math.trunc(days)));const end=localDate(endDate),rows=[];
+  for(let index=0;index<(state?.shifts||[]).length;index++){const shift=state.shifts[index];if(String(shift.date||'')<start||String(shift.date||'')>=end)continue;const blocks=(state?.availability||[]).filter(x=>x.employee===shift.employee&&x.date===shift.date&&x.status==='unavailable');if(blocks.length)rows.push({index,shift,blocks})}
+  return{rows,count:rows.length}
+}
+
 export function recipePortfolio(state){
   const target=Math.max(0,n(state?.recipeTarget)||30),warning=Math.max(target,n(state?.recipeWarning)||35),items=[];
   for(const recipe of state?.recipes||[]){const metrics=calculateRecipeCost(state,recipe)||null,costPerPortion=metrics?metrics.costPerPortion:n(recipe?.costPerPortion??recipe?.cost),netPrice=metrics?metrics.netPrice:n(recipe?.price),foodCostPercent=metrics?metrics.foodCostPercent:(netPrice?costPerPortion/netPrice*100:0),margin=metrics?metrics.margin:netPrice-costPerPortion,vatRate=n(recipe?.vatRate),suggestedNet=target>0?costPerPortion/(target/100):0,suggestedPrice=suggestedNet*(1+vatRate/100);items.push({name:String(recipe?.name||''),foodCostPercent:round(foodCostPercent,1),costPerPortion:round(costPerPortion,2),netPrice:round(netPrice,2),margin:round(margin,2),suggestedPrice:round(suggestedPrice,2),status:foodCostPercent<=target?'good':foodCostPercent<=warning?'warning':'bad'})}
   const average=items.length?items.reduce((sum,x)=>sum+x.foodCostPercent,0)/items.length:0;return{target,warning,averageFoodCost:round(average,1),aboveTarget:items.filter(x=>x.foodCostPercent>target).length,critical:items.filter(x=>x.foodCostPercent>warning).length,items};
 }
 
-export function reorderSuggestions(state){return(state?.stock||[]).map(item=>{const available=n(stockAvailable(state,item)),minimum=Math.max(0,n(item?.min));if(minimum<=0||available>minimum)return null;const target=Math.max(minimum*2,n(item?.reorderTarget)||0),quantity=Math.max(0,target-available);return{stockId:String(item?.id||''),name:String(item?.name||''),unit:String(item?.unit||''),available:round(available,3),minimum:round(minimum,3),target:round(target,3),quantity:round(quantity,3),estimatedCost:round(quantity*n(item?.price),2)}}).filter(Boolean).sort((a,b)=>(a.available-a.minimum)-(b.available-b.minimum))}
+export function stockConsumptionRate(state,stockId,now=new Date(),days=28){
+  const id=String(stockId||''),span=Math.max(1,Math.trunc(days)),start=new Date(now);start.setDate(start.getDate()-span);let consumed=0,samples=0;
+  for(const move of state?.stockMoves||[]){if(String(move?.stockId||'')!==id)continue;const raw=move?.at||move?.createdAt||move?.created_at||move?.date,when=raw?new Date(raw):null;if(!when||Number.isNaN(when.getTime())||when<start||when>now)continue;const delta=n(move?.delta);if(delta<0){consumed+=Math.abs(delta);samples++}else if(String(move?.type||move?.kind||'')==='exit'){const q=n(move?.quantity||move?.quantity_delta);if(q>0){consumed+=q;samples++}}}
+  return{days:span,consumed:round(consumed,3),avgDaily:round(consumed/span,4),samples}
+}
+export function reorderSuggestions(state,now=new Date()){return(state?.stock||[]).map(item=>{const available=n(stockAvailable(state,item)),minimum=Math.max(0,n(item?.min)),consumption=stockConsumptionRate(state,item?.id,now,28),supplierName=latestSupplierForStock(state,item?.id),supplier=(state?.suppliers||[]).find(x=>String(x.name||'')===supplierName),leadTimeDays=Math.max(0,Math.min(90,n(supplier?.leadTimeDays)||3)),safetyDays=Math.max(0,Math.min(60,n(item?.safetyDays)||2)),dynamicPoint=consumption.avgDaily*(leadTimeDays+safetyDays),reorderPoint=Math.max(minimum,dynamicPoint);if(reorderPoint<=0||available>reorderPoint)return null;const cycleDays=7,target=Math.max(n(item?.reorderTarget),minimum*2,reorderPoint+consumption.avgDaily*cycleDays),quantity=Math.max(0,target-available),daysCover=consumption.avgDaily>0?available/consumption.avgDaily:null;return{stockId:String(item?.id||''),name:String(item?.name||''),unit:String(item?.unit||''),available:round(available,3),minimum:round(minimum,3),reorderPoint:round(reorderPoint,3),target:round(target,3),quantity:round(quantity,3),estimatedCost:round(quantity*n(item?.price),2),avgDaily:consumption.avgDaily,consumption28d:consumption.consumed,consumptionSamples:consumption.samples,leadTimeDays,safetyDays,daysCover:daysCover==null?null:round(daysCover,1)}}).filter(Boolean).sort((a,b)=>(a.daysCover??9999)-(b.daysCover??9999)||(a.available-a.reorderPoint)-(b.available-b.reorderPoint))}
 
 export function supplierPriceAlerts(state,threshold=.08){
   const grouped=new Map();for(const point of state?.priceHistory||[]){const key=String(point?.stockId||point?.product||'').trim();if(!key)continue;const list=grouped.get(key)||[];list.push(point);grouped.set(key,list)}
@@ -160,9 +222,9 @@ export function rejectedDeliveryTaskDrafts(state,now=new Date()){
 }
 
 export function reservationAttention(state,now=new Date(),hours=24){
-  const start=now.getTime(),end=start+Math.max(1,n(hours))*3600000,rows=[];
-  for(let index=0;index<(state?.reservations||[]).length;index++){const item=state.reservations[index],status=String(item?.status||'booked');if(status!=='booked')continue;const when=new Date(String(item?.time||''));if(Number.isNaN(when.getTime())||when.getTime()<start||when.getTime()>end)continue;rows.push({index,name:String(item?.name||''),time:String(item?.time||''),covers:n(item?.covers),hoursUntil:round((when.getTime()-start)/3600000,1),status})}
-  return{hours:Math.max(1,n(hours)),rows,count:rows.length,covers:round(rows.reduce((sum,x)=>sum+x.covers,0),0)};
+  const configured=Math.max(1,n(state?.reservationSettings?.reminderHours)||n(hours)||24),start=now.getTime(),end=start+configured*3600000,rows=[];
+  for(let index=0;index<(state?.reservations||[]).length;index++){const item=state.reservations[index],status=String(item?.status||'booked');if(status!=='booked')continue;const when=new Date(String(item?.time||''));if(Number.isNaN(when.getTime())||when.getTime()<start||when.getTime()>end)continue;rows.push({index,id:String(item?.id||''),name:String(item?.name||''),time:String(item?.time||''),covers:n(item?.covers),hoursUntil:round((when.getTime()-start)/3600000,1),status,reminderSentAt:String(item?.reminderSentAt||''),needsReminder:!item?.reminderSentAt})}
+  return{hours:configured,rows,count:rows.length,needsReminder:rows.filter(x=>x.needsReminder).length,covers:round(rows.reduce((sum,x)=>sum+x.covers,0),0)};
 }
 
 export function serviceReadiness(state,now=new Date(),days=7){
@@ -272,8 +334,71 @@ export function managerReadyActions(state,now=new Date()){
 export function onboardingHealth(state){const checks=[{key:'restaurant',done:!!String(state?.preferences?.restaurant||'').trim()},{key:'team',done:(state?.team||[]).length>0},{key:'stock',done:(state?.stock||[]).length>0},{key:'recipes',done:(state?.recipes||[]).length>0},{key:'haccp',done:(state?.temps||[]).length>0},{key:'finance',done:(state?.financeHistory||[]).some(x=>n(x?.revenue)>0||n(x?.covers)>0)}],done=checks.filter(x=>x.done).length;return{score:Math.round(done/checks.length*100),done,total:checks.length,missing:checks.filter(x=>!x.done).map(x=>x.key)}}
 export function onboardingNextSteps(state){const health=onboardingHealth(state),routes={restaurant:'settings',stock:'purchases',team:'team',finance:'finance',haccp:'haccp',recipes:'recipes'},order=['restaurant','stock','team','finance','haccp','recipes'];return order.filter(key=>health.missing.includes(key)).map(key=>({key,page:routes[key]}))}
 
+export function profitLeakCockpit(state,now=new Date()){
+  const revenue=Math.max(0,n(financeTotals(state,'month',now).revenue)),menu=menuEngineering(state,now),labor=workforceVariance(state,now,30),waste=wasteInsights(state,now,30),suppliers=supplierPriceOpportunities(state),forecast=laborForecast(state,now,7);
+  const target=Math.max(0,n(state?.recipeTarget)||30),foodCostExposure=round(menu.items.reduce((sum,item)=>{
+    if(item.quantity<=0||item.netPrice<=0||item.foodCostPercent<=target)return sum;
+    const targetCost=item.netPrice*(target/100),actualCost=Math.max(0,n(item.costPerPortion));return sum+Math.max(0,actualCost-targetCost)*item.quantity;
+  },0),2);
+  const laborOverrun=round(Math.max(0,labor.actualCost-labor.plannedCost),2);
+  const inventoryVariance=round((state?.inventoryCounts||[]).filter(x=>x?.status==='closed'&&String(x.closedAt||'')>=new Date(now.getTime()-30*86400000).toISOString()).reduce((sum,x)=>sum+Math.max(0,n(x.absoluteVarianceValue)),0),2);
+  const supplierOpportunity=round(suppliers.reduce((sum,x)=>sum+Math.max(0,n(x.potentialSaving)),0),2);
+  const avgRate=(state?.team||[]).map(x=>n(x.hourlyRate||x.hourlyCost)).filter(x=>x>0),rate=avgRate.length?avgRate.reduce((a,b)=>a+b,0)/avgRate.length:0;
+  const forecastStaffGap=round(forecast.rows.reduce((sum,x)=>sum+Math.max(0,n(x.gap))*rate,0),2);
+  const signals=[
+    {code:'foodCost',amount:foodCostExposure,count:menu.items.filter(x=>x.foodCostPercent>target&&x.quantity>0).length},
+    {code:'laborOverrun',amount:laborOverrun,count:labor.rows.filter(x=>x.extraVsPlanHours>0).length},
+    {code:'inventoryVariance',amount:inventoryVariance,count:(state?.inventoryCounts||[]).filter(x=>x?.status==='closed'&&n(x.absoluteVarianceValue)>0).length},
+    {code:'supplierOpportunity',amount:supplierOpportunity,count:suppliers.length},
+    {code:'waste',amount:round(waste.totalCost,2),count:waste.count},
+    {code:'forecastStaffGap',amount:forecastStaffGap,count:forecast.rows.filter(x=>x.gap>1).length}
+  ].map(x=>({...x,shareOfRevenue:revenue>0?round(x.amount/revenue*100,1):0,severity:x.amount<=0?'good':x.shareOfRevenue>=5?'urgent':x.shareOfRevenue>=2?'warning':'info'}));
+  const totalExposure=round(signals.reduce((sum,x)=>sum+x.amount,0),2);
+  return{windowDays:30,revenue,totalExposure,exposurePct:revenue>0?round(totalExposure/revenue*100,1):0,signals:signals.sort((a,b)=>b.amount-a.amount),components:{foodCostExposure,laborOverrun,inventoryVariance,supplierOpportunity,wasteCost:waste.totalCost,forecastStaffGap}};
+}
+
+function benchmarkWorkspaceState(root,restaurant){
+  const workspace=restaurant?.id===root?.activeRestaurantId?root:(restaurant?.workspace&&typeof restaurant.workspace==='object'?restaurant.workspace:{});
+  const arrays=['financeHistory','waste','stock','team','shifts','recipes','sales','orders','priceHistory','inventoryCounts','reservations','forecastSignals'];const normalized={...workspace};for(const key of arrays)if(!Array.isArray(normalized[key]))normalized[key]=[];return{...normalized,payrollSettings:normalized.payrollSettings||root?.payrollSettings||{},recipeTarget:normalized.recipeTarget??root?.recipeTarget,recipeWarning:normalized.recipeWarning??root?.recipeWarning};
+}
+export function multiRestaurantBenchmark(state,now=new Date()){
+  const restaurants=Array.isArray(state?.restaurants)?state.restaurants:[],rows=[];
+  for(const restaurant of restaurants){
+    const site=benchmarkWorkspaceState(state,restaurant),finance=financeTotals(site,'week',now),waste=wasteInsights(site,now,7),labor=plannedLabor(site,now,7),recipes=recipePortfolio(site),result=finance.revenue-finance.expenses,avgTicket=finance.covers?finance.revenue/finance.covers:0;
+    rows.push({id:String(restaurant.id||''),name:String(restaurant.name||'Restaurant'),revenue:round(finance.revenue,2),expenses:round(finance.expenses,2),result:round(result,2),covers:round(finance.covers,0),avgTicket:round(avgTicket,2),expenseRatio:finance.revenue?round(finance.expenses/finance.revenue*100,1):0,waste:round(waste.totalCost,2),plannedLaborCost:round(labor.cost,2),foodCost:round(recipes.averageFoodCost,1)});
+  }
+  const avg=key=>rows.length?round(rows.reduce((sum,x)=>sum+n(x[key]),0)/rows.length,key==='covers'?0:2):0,network={restaurants:rows.length,revenue:avg('revenue'),result:avg('result'),covers:avg('covers'),avgTicket:avg('avgTicket'),expenseRatio:avg('expenseRatio'),waste:avg('waste'),plannedLaborCost:avg('plannedLaborCost'),foodCost:avg('foodCost')};
+  return{network,rows:rows.map(x=>({...x,revenueVsNetwork:network.revenue?round((x.revenue-network.revenue)/network.revenue*100,1):0,resultVsNetwork:network.result?round((x.result-network.result)/Math.abs(network.result)*100,1):0})).sort((a,b)=>b.revenue-a.revenue)};
+}
+
 export function managerSnapshot(state,now=new Date()){
   const supplierOpportunities=supplierPriceOpportunities(state),equipment=equipmentAttention(state,now),trainingRenewals=trainingRenewalAlerts(state,now),allergenStatus=allergenCoverage(state),reservationFollowUp=reservationAttention(state,now,24),rejectedDeliveries=rejectedDeliveryAttention(state),waste=wasteInsights(state,now,7),closing=closingControl(state,now),serviceReadiness7d=serviceReadiness(state,now,7),scheduleConflicts=planningConflicts(state,now,14),weeklyReview=weeklyManagerReviewData(state,now),readyActions=managerReadyActions(state,now),serviceBriefing=serviceBriefingData(state,now),trend=financeTrend(state,now),trendAlerts=trendSignals(state,now),finance={day:financeTotals(state,'day',now),week:financeTotals(state,'week',now),month:financeTotals(state,'month',now)},reorder=reorderSuggestions(state),priceAlerts=supplierPriceAlerts(state),purchases=purchasePlan(state),recipeImpacts=recipeSupplierImpacts(state),outlook=managementOutlook(state,now),haccp=openHaccpIssues(state),labor=plannedLabor(state,now,7),recipes=recipePortfolio(state),setup=onboardingHealth(state),setupSteps=onboardingNextSteps(state),today=localDate(now),payables=invoicePayables(state,now,7),overdueInvoices=payables.rows.filter(x=>x.overdue),tasks=(state?.tasks||[]).filter(x=>!x[1]),managerTasks=(state?.managerTasks||[]).filter(x=>x.status!=='done'),priorities=[];
   if(haccp.length)priorities.push({code:'haccp',severity:'urgent',count:haccp.length});if(rejectedDeliveries.count)priorities.push({code:'rejectedDelivery',severity:'warning',count:rejectedDeliveries.count});if(reservationFollowUp.count)priorities.push({code:'reservationConfirmation',severity:'info',count:reservationFollowUp.count});if(allergenStatus.issues)priorities.push({code:'allergenCoverage',severity:'warning',count:allergenStatus.issues});if(trainingRenewals.length)priorities.push({code:'trainingRenewal',severity:trainingRenewals.some(x=>x.expired)?'urgent':trainingRenewals.some(x=>x.days<=7)?'warning':'info',count:trainingRenewals.length});if(scheduleConflicts.count)priorities.push({code:'planningConflict',severity:'urgent',count:scheduleConflicts.count});if(serviceReadiness7d.uncoveredCount)priorities.push({code:'serviceCoverage',severity:'warning',count:serviceReadiness7d.uncoveredCount});if(equipment.length)priorities.push({code:'equipment',severity:equipment.some(x=>x.severity==='urgent')?'urgent':equipment.some(x=>x.severity==='warning')?'warning':'info',count:equipment.length});if(overdueInvoices.length)priorities.push({code:'overdueInvoices',severity:'warning',count:overdueInvoices.length});if(reorder.length)priorities.push({code:'stock',severity:'warning',count:reorder.length,value:round(reorder.reduce((sum,x)=>sum+x.estimatedCost,0),2)});const rising=priceAlerts.filter(x=>x.changePct>0);if(rising.length)priorities.push({code:'supplierPrice',severity:'warning',count:rising.length,value:rising[0]?.changePct||0});if(recipes.critical)priorities.push({code:'foodCost',severity:'warning',count:recipes.critical,value:recipes.averageFoodCost});const urgentManager=managerTasks.filter(x=>x.priority==='urgent').length;if(urgentManager)priorities.push({code:'managerTasks',severity:'urgent',count:urgentManager});if(tasks.length)priorities.push({code:'dailyTasks',severity:'info',count:tasks.length});if(labor.missingRates.length)priorities.push({code:'laborRate',severity:'info',count:labor.missingRates.length});if(setup.score<100)priorities.push({code:'setup',severity:'info',count:setup.score});
   return{generatedAt:now.toISOString(),readyActions,serviceBriefing,serviceReadiness:serviceReadiness7d,planningConflicts:scheduleConflicts,trainingRenewals,allergenCoverage:allergenStatus,reservationAttention:reservationFollowUp,rejectedDeliveries,weeklyReview,closing,equipment,waste,supplierOpportunities,trend,trendAlerts,finance,reorder,priceAlerts,purchases,recipeImpacts,outlook,haccp,labor,recipes,setup,setupSteps,payables,overdueInvoices:overdueInvoices.length,openDailyTasks:tasks.length,openManagerTasks:managerTasks.length,priorities:priorities.slice(0,8)};
+}
+
+export function menuEngineering(state,now=new Date()){
+  const demand=new Map();
+  const sources=[...(state?.sales||[]),...(state?.orders||[])];
+  for(const sale of sources)for(const line of Array.isArray(sale?.items)?sale.items:[]){const key=String(line.recipeId||line.name||line.name_snapshot||'').trim().toLocaleLowerCase();if(!key)continue;const row=demand.get(key)||{quantity:0,revenue:0};row.quantity+=Math.max(0,n(line.quantity||line.qty)||1);row.revenue+=Math.max(0,n(line.lineTotal||line.total||line.amount));demand.set(key,row)}
+  const wasteByStock=new Map(),since=new Date(now);since.setDate(since.getDate()-30);
+  for(const row of state?.waste||[]){const when=new Date(String(row?.date||row?.recordedAt||''));if(Number.isNaN(when.getTime())||when<since||when>now)continue;const id=String(row?.stockId||''),item=(state?.stock||[]).find(x=>String(x.id)===id),cost=Math.max(0,n(row?.qty))*Math.max(0,n(row?.unitPrice)||n(item?.price));if(id)wasteByStock.set(id,(wasteByStock.get(id)||0)+cost)}
+  const portfolio=recipePortfolio(state),items=portfolio.items.map((item,index)=>{const recipe=state?.recipes?.[index]||{},keys=[String(recipe.id||'').toLocaleLowerCase(),String(recipe.name||'').trim().toLocaleLowerCase()].filter(Boolean),sales=keys.map(k=>demand.get(k)).find(Boolean)||{quantity:0,revenue:0},contribution=round(item.margin*sales.quantity,2),wasteCost=round((recipe.ingredients||[]).reduce((sum,line)=>sum+(wasteByStock.get(String(line.stockId||''))||0),0),2);return{...item,index,quantity:round(sales.quantity,2),revenue:round(sales.revenue,2),contribution,wasteCost,status:sales.quantity===0?'no_data':item.foodCostPercent>portfolio.warning?'cost_risk':item.margin<=0?'negative':item.foodCostPercent>portfolio.target?'watch':'healthy'}}),sold=items.filter(x=>x.quantity>0),avgQty=sold.length?sold.reduce((sum,x)=>sum+x.quantity,0)/sold.length:0,avgMargin=sold.length?sold.reduce((sum,x)=>sum+x.margin,0)/sold.length:0;
+  for(const item of items){item.popularity=item.quantity===0?'unknown':item.quantity>=avgQty?'high':'low';item.marginBand=item.quantity===0?'unknown':item.margin>=avgMargin?'high':'low';item.classification=item.quantity===0?'no_data':item.popularity==='high'&&item.marginBand==='high'?'star':item.popularity==='high'?'plowhorse':item.marginBand==='high'?'puzzle':'dog';const wasteRisk=item.wasteCost>Math.max(5,item.contribution*.08);item.action=wasteRisk?'reduce_waste':item.status==='cost_risk'?'review_cost':item.status==='negative'?'raise_price':item.classification==='star'?'protect_star':item.classification==='puzzle'?'promote':item.classification==='dog'?'retire':'monitor'}
+  return{target:portfolio.target,warning:portfolio.warning,avgQuantity:round(avgQty,1),avgMargin:round(avgMargin,2),items:items.sort((a,b)=>b.contribution-a.contribution||b.quantity-a.quantity)}
+}
+export function inventoryVariance(state,countId){
+  const count=(state?.inventoryCounts||[]).find(x=>x.id===countId);if(!count)return{count:null,rows:[],absoluteValue:0};
+  const rows=(count.lines||[]).map(line=>{const item=state.stock?.find(x=>x.id===line.stockId),theoretical=item?stockAvailable(state,item):0,counted=n(line.quantity),delta=round(counted-theoretical,3),unitCost=n(item?.price),value=round(delta*unitCost,2);return{stockId:line.stockId,product:line.product||item?.name||'',unit:line.unit||item?.unit||'',theoretical:round(theoretical,3),counted:round(counted,3),delta,value}}).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value));return{count,rows,absoluteValue:round(rows.reduce((sum,x)=>sum+Math.abs(x.value),0),2)}
+}
+export function purchaseOrderSummary(state){
+  const rows=state?.purchaseOrders||[],open=rows.filter(x=>!['received','cancelled'].includes(x.status)),committed=open.reduce((sum,po)=>sum+(po.items||[]).reduce((s,x)=>s+Math.max(0,(n(x.quantity)-n(x.receivedQty))*n(x.unitPrice)),0),0);return{open:open.length,disputed:open.filter(x=>x.status==='disputed').length,partial:open.filter(x=>x.status==='partial').length,committed:round(committed,2),rows:open}
+}
+
+export function customerInsights(state,now=new Date()){
+  const rows=[];for(const customer of state?.customers||[]){const name=String(customer?.name||'').trim(),key=name.toLocaleLowerCase(),reservations=(state?.reservations||[]).filter(x=>String(x.name||'').trim().toLocaleLowerCase()===key),orders=(state?.orders||[]).filter(x=>String(x.customer||'').trim().toLocaleLowerCase()===key&&x.status==='paid'),completed=reservations.filter(x=>['completed','seated'].includes(x.status)),visits=completed.length+orders.length,revenue=orders.reduce((sum,x)=>sum+n(x.amount),0),dates=[...reservations.map(x=>String(x.time||'').slice(0,10)),...orders.map(x=>String(x.date||''))].filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x)).sort(),lastVisit=dates.at(-1)||'',daysSince=lastVisit?Math.floor((atMidnight(now)-atMidnight(lastVisit))/dayMs):null,segment=visits>=5?'vip':daysSince!=null&&daysSince>60?'lapsed':visits<=1?'new':'regular',loyalty=(state?.loyalty||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===key),points=n(loyalty?.points),tiers=Array.isArray(state?.loyaltySettings?.tiers)?state.loyaltySettings.tiers:[],loyaltyTier=[...tiers].filter(x=>points>=n(x.minPoints)).sort((a,b)=>n(b.minPoints)-n(a.minPoints))[0]?.code||'member';rows.push({name,phone:String(customer?.phone||''),email:String(customer?.email||''),visits,revenue:round(revenue,2),avgSpend:orders.length?round(revenue/orders.length,2):0,lastVisit,daysSince,segment,points,loyaltyTier,marketingConsent:!!customer?.consent?.marketing,profilingConsent:!!customer?.consent?.profiling})}
+  return{rows:rows.sort((a,b)=>b.revenue-a.revenue||b.visits-a.visits),vip:rows.filter(x=>x.segment==='vip').length,lapsed:rows.filter(x=>x.segment==='lapsed').length,consented:rows.filter(x=>x.marketingConsent).length}
+}
+export function reservationLoad(state,now=new Date(),days=7){
+  const rows=[];for(let i=0;i<Math.max(1,Math.trunc(days));i++){const d=new Date(now);d.setHours(12,0,0,0);d.setDate(d.getDate()+i);const date=localDate(d),bookings=(state?.reservations||[]).filter(x=>String(x.time||'').slice(0,10)===date&&!['cancelled','noShow','completed'].includes(x.status)),covers=bookings.reduce((sum,x)=>sum+n(x.covers),0),deposits=bookings.reduce((sum,x)=>sum+(x.depositStatus==='paid'?n(x.depositAmount):0),0);rows.push({date,bookings:bookings.length,covers,waitlist:bookings.filter(x=>x.status==='waitlist').length,deposits:round(deposits,2)})}return rows
 }

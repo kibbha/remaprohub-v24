@@ -1,3 +1,4 @@
+import {mergePosFinance,todayTicketCount} from './service-overview.js';
 import{cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,buildAiContext,callRemaproAi,fileToDataUrl}from'./ai.js';import{cloudSession,initializeCloudSessionStorage,loadCachedCloudIdentity,signInCloud,signUpCloud,signOutCloud,requestPasswordReset,loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,cloudWorkspaceReadKeys,cloudWorkspaceWriteKeys,cloudFunction}from'./cloud.js';import{LANGS,language,setLanguage,t}from'./i18n.js';import{securitySettings,updateSecuritySettings,rememberedSecurityEmail,rememberSecurityEmail,loadDeveloperAccess,saveDeveloperAccess,clearDeveloperAccess,developerAliasMatches,validDeveloperAlias,biometricAvailability,verifyBiometric,shouldRelock}from'./security.js';import{billingAvailable,configureBilling,purchasePlan,restorePurchases,customerInfo,entitlementPlan}from'./billing.js';import{LEGAL_COUNTRIES,legalPack,legalFieldsFor,isLegalHrDocument}from'./legal.js';import{load,save,restoreStateMirror,storageScope,setStorageScope,exportWorkspace,applyWorkspaceData,restrictWorkspace,resetWorkspaceKeys,recordFinance,financeTotals,financeDayTotals,revenueSeries,localDate,recordRegistry,recordValidated,setStockPreferredSupplier,stockAvailable,recordStockMovement,createPurchaseOrder,transitionPurchaseOrder,receivePurchaseOrder,createInventoryCount,countInventoryItem,finalizeInventoryCount,recordProductionBatch,applyDeliveryAiReceiving,recordWaste,updateWaste,recordDelivery,ensureDailyTasks,setDailyTaskCompletion,dailyRoutineStatus,updateRecord,removeRecord,updatePreferences,exportData,importData,resetState,saveDocument,updateDocument,recordOrder,updateOrder,removeOrder,recordInvoice,markInvoicePaid,integrateInvoiceReceipt,recordPurchase,updatePurchase,removePurchase,recordShift,copyPreviousWeekSchedule,clockIn,toggleBreak,clockOut,recordAvailability,recordForecastSignal,requestShiftSwap,resolveShiftSwap,recordLeave,recordTraining,leaveBusinessDays,calculateSwissPayroll,swissPayrollVerification,ccntMinimum,PLAN_CONFIG,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan,STAFF_PERMISSIONS,multiFeaturesEnabled,activeRestaurant,mergeCloudRestaurants,switchRestaurant,recordRestaurant,removeRestaurant,recordManager,removeManager,recordStaffAccess,removeStaffAccess,recordAdvancedReservation,reservationTableConflicts,updateReservationStatus,markReservationReminder,updateReservationSettings,updateCustomerConsent,createGiftCard,redeemGiftCard,loyaltyTransaction,updateLoyaltySettings}from'./store.js';
 import{publishPosCatalog,loadPosAdminSnapshot,loadPosBundleHistory,savePosBundleDraft,updatePosBundleSettings,publishPosBundle,restorePosBundle,loadPosAccountingExport,loadPosDailySummary,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout,restorePosLayoutVersionToDraft,savePosFloorPlan,publishPosFloorPlan,restorePosFloorPlanVersion,activatePosFloorPlan}from'./pos.js';
 import{accountingIntegrationProfiles,accountingCsv}from'./accounting.js';
@@ -42,9 +43,9 @@ const remoteRevision=Math.max(0,Math.trunc(Number(error?.payload?.revision)||0))
 function syncCurrentWorkspaceOnOpen(showError=false){const current=activeRestaurant(state);return current?.cloudDirty?pushCloudWorkspace(showError):pullCloudWorkspace(showError)}
 function dashboard(){
   const financeAccess=canPage('finance'),stockAccess=canPage('stock');
-  const totals=financeAccess?financeTotals(state,'day'):{revenue:0,covers:0,expenses:0};
+  const totals=financeAccess?financeTotals(financeStateWithPos(),'day'):{revenue:0,covers:0,expenses:0};
   const avg=totals.covers?totals.revenue/totals.covers:0;
-  const paidOrders=(state.orders||[]).filter(x=>x.status==='paid').length;
+  const paidOrders=todayTicketCount(state,posFinanceState,cloudRestaurantId(),today());
   const low=stockAccess?(state.stock||[]).filter(x=>stockAvailable(state,x)<=+(x.min||0)&&+(x.min||0)>0).length:0;
   const venue=state.preferences?.restaurant||activeRestaurant(state)?.name||'ReMaPro Hub';
   const categories=[
@@ -61,9 +62,24 @@ function dashboard(){
   return `<section class="artisan-page dashboard-artisan hub-classic-home">
     <div class="hub-home-intro"><div><span class="artisan-eyebrow">${esc(venue)}</span><h1>ReMaPro Hub</h1></div><button class="dashboard-modules-link" data-page="more">${icon('more')}<span>${t('allTools')}</span></button></div>
     ${financeAccess?`<button class="hub-ca-banner" data-page="finance"><span>${t('todayRevenue')}</span><strong>${money(totals.revenue)}</strong><div class="hub-ca-stats"><span><b>${paidOrders}</b><small>${t('tickets')}</small></span><span><b>${money(avg)}</b><small>${t('avg')}</small></span><span><b>${totals.covers}</b><small>${t('covers')}</small></span></div></button>`:''}
+    ${serviceStartCard()}
     <div class="hub-home-section"><div><h2>${t('quickActions')}</h2><small>${t('hubCategoryHint')}</small></div>${low?`<button class="hub-low-stock" data-page="stock">!${low}</button>`:''}</div>
     <div class="hub-category-grid">${categories.map(([key,ic,label,sub],index)=>`<button class="hub-category-card hub-category-${index%6}" data-hub-category="${key}">${icon(ic)}<span><strong>${label}</strong><small>${sub}</small></span><b>›</b></button>`).join('')}</div>
   </section>`;
+}
+function serviceStartCard(){
+  const briefing=serviceBriefingData(state),routine=dailyRoutineStatus(state);
+  const checks=[
+    {page:'operations',label:'serviceOpening',value:routine.opening.pending,detail:'servicePending'},
+    {page:'stock',label:'serviceStock',value:briefing.lowStock,detail:'serviceToCheck'},
+    {page:'reservations',label:'reservations',value:briefing.covers,detail:'covers'},
+    {page:'planning',label:'planning',value:briefing.shifts.length,detail:'serviceShifts'},
+    {page:'haccp',label:'haccp',value:briefing.haccpIssues,detail:'serviceToCheck'}
+  ].filter(x=>canPage(x.page));
+  if(!checks.length)return '';
+  const current=posFinanceState.restaurantId===cloudRestaurantId(),at=current&&posFinanceState.loadedAt;
+  const status=!networkOnline()?t('serviceOffline'):current&&posFinanceState.error?t('serviceRefreshFailed'):at?t('serviceSalesUpdated')+' '+new Date(at).toLocaleTimeString(language(),{hour:'2-digit',minute:'2-digit'}):t('serviceSalesPending');
+  return `<section class="service-start"><div class="service-start-head"><div><h2>${t('serviceStart')}</h2><p>${t('serviceStartHint')}</p></div>${canPage('briefing')?`<button class="btn compact" data-page="briefing">${t('briefing')}</button>`:''}</div><div class="service-start-checks">${checks.map(x=>`<button data-page="${x.page}"><span>${t(x.label)}</span><strong>${x.value}</strong><small>${t(x.detail)}</small></button>`).join('')}</div><div class="service-start-actions">${canPage('posAdmin')?`<button class="btn" data-pos-focus="catalog">${t('serviceCheckPos')}</button><button class="btn" data-pos-focus="floor">${t('floorPlan')}</button>`:''}${canPage('deliveries')?`<button class="btn" data-page="deliveries">${t('deliveries')}</button>`:''}${canPage('ai')?`<button class="btn" data-page="ai">${t('ai')}</button>`:''}</div>${cloudSession()&&cloudManager()&&canPage('finance')?`<p class="service-sales-status" role="status">${esc(status)} <button class="btn compact" id="service-refresh-sales" ${posFinanceState.loading||!networkOnline()?'disabled':''}>${t('serviceRefresh')}</button></p>`:''}</section>`;
 }
 function categoryHub(){
   const groups={
@@ -389,27 +405,15 @@ function posFinanceRange(anchor=today()){
   start.setDate(start.getDate()-20);
   return{from:localDate(start),to};
 }
-function financeStateWithPos(){
-  const rows=Array.isArray(posFinanceState.rows)?posFinanceState.rows:[],history=(state.financeHistory||[]).map(row=>({...row})),byDate=new Map(history.map(row=>[String(row.date||''),row]));
-  for(const remote of rows){
-    const date=String(remote?.business_date||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(date))continue;
-    const posRevenue=Math.max(0,Number(remote?.net_sales)||0),posCovers=Math.max(0,Number(remote?.covers)||0);
-    let row=byDate.get(date);
-    if(!row){row={date,revenue:0,covers:0,expenses:0};history.push(row);byDate.set(date,row)}
-    row.posRevenue=posRevenue;row.posCovers=posCovers;
-    row.revenue=(Number(row.revenue)||0)+posRevenue;
-    row.covers=(Number(row.covers)||0)+posCovers;
-  }
-  history.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-  return{...state,financeHistory:history,__posFinance:{...posFinanceState}};
-}
+function financeStateWithPos(){return mergePosFinance(state,posFinanceState,cloudRestaurantId())}
+const financeScreen=()=>['dashboard','finance'].includes(page)&&canPage('finance');
 function schedulePosFinanceRefresh(){
   clearTimeout(posFinanceRefreshTimer);posFinanceRefreshTimer=null;
-  if(page!=='finance')return;
-  posFinanceRefreshTimer=setTimeout(()=>{posFinanceRefreshTimer=null;if(page==='finance')loadPosFinanceData(today(),{force:true})},10000);
+  if(!financeScreen()||document.hidden||!networkOnline())return;
+  posFinanceRefreshTimer=setTimeout(()=>{posFinanceRefreshTimer=null;if(financeScreen()&&!document.hidden)loadPosFinanceData(today(),{force:true})},10000);
 }
 function ensurePosFinanceData(){
-  if(page!=='finance')return;
+  if(!financeScreen()||document.hidden||!networkOnline())return;
   const restaurantId=cloudRestaurantId(),range=posFinanceRange(today()),same=posFinanceState.restaurantId===restaurantId&&posFinanceState.from===range.from&&posFinanceState.to===range.to;
   if(!restaurantId||!cloudSession()||!cloudManager())return;
   if(!same&&!posFinanceState.loading)setTimeout(()=>loadPosFinanceData(today()),0);
@@ -422,18 +426,22 @@ async function loadPosFinanceData(anchor=today(),{force=false}={}){
     return false;
   }
   const same=posFinanceState.restaurantId===restaurantId&&posFinanceState.from===range.from&&posFinanceState.to===range.to;
+  if(posFinanceState.loading)return false;
+  if(!networkOnline())return false;
   if(!force&&same&&(posFinanceState.loading||Date.now()-Number(posFinanceState.loadedAt||0)<10000))return true;
-  posFinanceState={...posFinanceState,restaurantId,from:range.from,to:range.to,loading:true,error:''};
-  if(page==='finance')render();
+  posFinanceState={...posFinanceState,rows:same?posFinanceState.rows:[],restaurantId,from:range.from,to:range.to,loading:true,error:''};
+  if(financeScreen())render();
   try{
     const result=await loadPosDailySummary(restaurantId,range);
+    if(cloudRestaurantId()!==restaurantId){posFinanceState.loading=false;ensurePosFinanceData();return false}
     posFinanceState={restaurantId,from:range.from,to:range.to,loading:false,error:'',rows:Array.isArray(result?.rows)?result.rows:[],loadedAt:Date.now()};
-    if(page==='finance')render();
+    if(financeScreen())render();
     schedulePosFinanceRefresh();
     return true;
   }catch(error){
+    if(cloudRestaurantId()!==restaurantId){posFinanceState.loading=false;ensurePosFinanceData();return false}
     posFinanceState={...posFinanceState,restaurantId,from:range.from,to:range.to,loading:false,error:error?.message||String(error),loadedAt:Date.now()};
-    if(page==='finance')render();
+    if(financeScreen())render();
     schedulePosFinanceRefresh();
     return false;
   }
@@ -955,7 +963,7 @@ function serviceBriefingText(data){const lines=[];if(data.shifts.length)lines.pu
 function managerFocusCard(){const snapshot=managerSnapshot(state),priorityPage=item=>managerPriorityPage(item.code),items=snapshot.priorities.filter(item=>canPage(priorityPage(item))).slice(0,5),lines=items.map(item=>`<button class="manager-priority ${esc(item.severity)}" data-page="${priorityPage(item)}"><span><strong>${esc(managerPriorityLabel(item))}</strong><small>${esc(item.code==='setup'?snapshot.setup.score+'%':item.count)}</small></span><b>›</b></button>`).join(''),ready=snapshot.readyActions||{purchaseOrders:[],haccpTasks:[],maintenanceTasks:[],trainingTasks:[],deliveryTasks:[],supplierPayments:{count:0,amount:0,overdueCount:0},supplierSavings:[],briefingNeeded:false,dailyReportNeeded:false,recipePriceUpdates:[]},readyRows=[ready.haccpTasks.length&&canPage('haccp')?`<button class="manager-priority urgent" data-page="haccp"><span><strong>${t('createCorrectiveTasks')}</strong><small>${ready.haccpTasks.length}</small></span><b>›</b></button>`:'',ready.maintenanceTasks.length&&canPage('equipment')?`<button class="manager-priority warning" data-page="equipment"><span><strong>${t('createMaintenanceTasks')}</strong><small>${ready.maintenanceTasks.length}</small></span><b>›</b></button>`:'',(ready.trainingTasks||[]).length&&canPage('training')?`<button class="manager-priority warning" data-page="training"><span><strong>${t('createTrainingTasks')}</strong><small>${(ready.trainingTasks||[]).length}</small></span><b>›</b></button>`:'',(ready.deliveryTasks||[]).length&&canPage('deliveries')?`<button class="manager-priority warning" data-page="deliveries"><span><strong>${t('createDeliveryTasks')}</strong><small>${(ready.deliveryTasks||[]).length}</small></span><b>›</b></button>`:'',ready.purchaseOrders.length&&canPage('purchases')?`<button class="manager-priority warning" data-page="purchases"><span><strong>${t('createPurchaseOrder')}</strong><small>${ready.purchaseOrders.length}</small></span><b>›</b></button>`:'',ready.supplierPayments?.count&&canPage('invoices')?`<button class="manager-priority ${ready.supplierPayments.overdueCount?'urgent':'warning'}" data-page="invoices"><span><strong>${t('supplierPaymentsDue')}</strong><small>${money(ready.supplierPayments.amount)}</small></span><b>›</b></button>`:'',ready.supplierSavings.length&&canPage('purchases')?`<button class="manager-priority info" data-page="purchases"><span><strong>${t('supplierSavings')}</strong><small>${ready.supplierSavings.length}</small></span><b>›</b></button>`:'',ready.briefingNeeded&&canPage('briefing')?`<button class="manager-priority info" data-page="briefing"><span><strong>${t('prepareServiceBriefing')}</strong><small>${t('today')}</small></span><b>›</b></button>`:'',ready.dailyReportNeeded&&canPage('finance')?`<button class="manager-priority info" data-page="finance"><span><strong>${t('prepareDailyManagementReport')}</strong><small>${t('today')}</small></span><b>›</b></button>`:'',ready.recipePriceUpdates.length&&canPage('recipes')?`<button class="manager-priority warning" data-page="recipes"><span><strong>${t('applySuggestedPrice')}</strong><small>${ready.recipePriceUpdates.length}</small></span><b>›</b></button>`:''].filter(Boolean).join(''),setupSteps=(snapshot.setupSteps||[]).filter(step=>step?.page&&canPage(step.page)).slice(0,3),setupLinks=setupSteps.map(step=>`<button class="btn compact" data-page="${step.page}">${setupStepLabel(step.key)}</button>`).join(''),trend=snapshot.trend||{},trendStrip=canPage('finance')&&trend.comparable?`<div class="manager-trends"><span><small>${t('weekRevenue')}</small><strong>${money(trend.current.revenue)}</strong><b class="${(trend.delta.revenuePct||0)>=0?'good-text':'bad-text'}">${trend.delta.revenuePct>0?'+':''}${trend.delta.revenuePct??0}%</b></span><span><small>${t('avgTicket')}</small><strong>${money(trend.current.avgTicket)}</strong><b class="${(trend.delta.avgTicketPct||0)>=0?'good-text':'bad-text'}">${trend.delta.avgTicketPct>0?'+':''}${trend.delta.avgTicketPct??0}%</b></span></div>`:'',aiButton=canPage('ai')?`<button class="btn compact" data-page="ai">${t('ai')}</button>`:'';if(!lines&&!readyRows&&!setupLinks&&!trendStrip&&!aiButton)return'';return `<section class="card manager-focus"><div class="manager-focus-head"><div><span class="artisan-eyebrow">${t('managerCopilot')}</span><h2>${t('managerFocus')}</h2></div>${aiButton}</div>${trendStrip}${lines||(!readyRows&&!setupLinks?`<p class="muted">✓ ${t('noPriority')}</p>`:'')}${readyRows?`<div class="manager-subsection"><small class="artisan-eyebrow">${t('readyActions')}</small>${readyRows}</div>`:''}${setupLinks?`<div class="manager-setup"><span>${t('quickSetup')} · ${snapshot.setup.score}%</span><small class="muted">${t('quickSetupHint')}</small><div class="quick-prompts">${setupLinks}</div></div>`:''}</section>`}
 function customizedDashboard(){let html=dashboard();let title=String(state.preferences?.dashboardTitle||'').trim(),subtitle=String(state.preferences?.dashboardSubtitle||'').trim();if(title)html=html.replace(`<h1>${t('home')}</h1>`,`<h1>${esc(title)}</h1>`);if(subtitle)html=html.replace(t('dashboardSub'),esc(subtitle));if(state.preferences?.dashboardCompact)html=html.replace('dashboard-artisan modular-dashboard','dashboard-artisan modular-dashboard dashboard-compact');return html}
 function cloudGate(){return `<section>${head(t('cloudAccount'))}${card(t('cloudAccount'),`<p class="muted">${cloudIdentityError||t('identityLoading')}</p><button class="btn primary" data-page="settings">${t('settings')}</button>`)}</section>`}
-function view(){if(cloudSession()&&page!=='settings'&&(!cloudIdentity||!cloudRestaurantAllowed(activeRestaurant(state))))return cloudGate();if(!canPage(page))page='dashboard';if(page==='finance')ensurePosFinanceData();const viewState=page==='finance'?financeStateWithPos():state,restored=restoredView(page,{s:viewState,money,head});if(restored!==null)return restored;return({dashboard:customizedDashboard,category:categoryHub,operations,products,documents,stock,suppliers,purchases,invoices,categories,planning,reservations,customers,loyalty,waste,recalls,allergens,deliveries,cleaning,audits,equipment,leave,training,goals,alerts,checklists,briefing,maintenance,handover,organization,posAdmin,ai,help,more,settings}[page]||customizedDashboard)()}
+function view(){if(cloudSession()&&page!=='settings'&&(!cloudIdentity||!cloudRestaurantAllowed(activeRestaurant(state))))return cloudGate();if(!canPage(page))page='dashboard';if(financeScreen())ensurePosFinanceData();const viewState=page==='finance'?financeStateWithPos():state,restored=restoredView(page,{s:viewState,money,head});if(restored!==null)return restored;return({dashboard:customizedDashboard,category:categoryHub,operations,products,documents,stock,suppliers,purchases,invoices,categories,planning,reservations,customers,loyalty,waste,recalls,allergens,deliveries,cleaning,audits,equipment,leave,training,goals,alerts,checklists,briefing,maintenance,handover,organization,posAdmin,ai,help,more,settings}[page]||customizedDashboard)()}
 function focusPosAdminSection(){
   if(page!=='posAdmin'||!posAdminFocus)return;
   const focus=posAdminFocus;
@@ -985,7 +993,7 @@ function hubSidebar(){
 }
 function render(){const l=language();
 document.documentElement.lang=l;
-if(page!=='finance'&&posFinanceRefreshTimer){clearTimeout(posFinanceRefreshTimer);posFinanceRefreshTimer=null}
+if(!financeScreen()&&posFinanceRefreshTimer){clearTimeout(posFinanceRefreshTimer);posFinanceRefreshTimer=null}
 if(securityBooting||(cloudConfigured()&&(!cloudSession()||!appUnlocked))){
   document.getElementById('app').innerHTML=securityGate();bindSecurityGate();return;
 }
@@ -1029,7 +1037,8 @@ function openHubGlobalSearch(){
   overlay.addEventListener('keydown',e=>{if(e.key==='Escape')close();if(e.key==='Enter'&&e.target===input){const first=results.querySelector('[data-search-page]');first?.click()}});
   update();input.focus();
 }
-function bind(){const invoiceDate=document.querySelector('#invoiceForm [name="date"]'),invoiceDue=document.querySelector('#invoiceForm [name="dueDate"]'),invoiceSupplier=document.querySelector('#invoiceForm [name="supplier"]');if(invoiceDate&&invoiceDue){const suggestDue=()=>{if(invoiceDue.dataset.manual)return;const supplier=state.suppliers.find(x=>x.name===invoiceSupplier?.value),days=Number.isInteger(+supplier?.paymentDays)?+supplier.paymentDays:30,d=new Date(String(invoiceDate.value||today())+'T12:00:00');if(Number.isNaN(d.getTime()))return;d.setDate(d.getDate()+days);invoiceDue.value=localDate(d)};invoiceDue.addEventListener('input',()=>{invoiceDue.dataset.manual='1'});invoiceDate.addEventListener('change',suggestDue);invoiceSupplier?.addEventListener('change',()=>{invoiceDue.dataset.manual='';suggestDue()});suggestDue()}
+function bind(){
+document.getElementById('service-refresh-sales')?.addEventListener('click',()=>loadPosFinanceData(today(),{force:true}));const invoiceDate=document.querySelector('#invoiceForm [name="date"]'),invoiceDue=document.querySelector('#invoiceForm [name="dueDate"]'),invoiceSupplier=document.querySelector('#invoiceForm [name="supplier"]');if(invoiceDate&&invoiceDue){const suggestDue=()=>{if(invoiceDue.dataset.manual)return;const supplier=state.suppliers.find(x=>x.name===invoiceSupplier?.value),days=Number.isInteger(+supplier?.paymentDays)?+supplier.paymentDays:30,d=new Date(String(invoiceDate.value||today())+'T12:00:00');if(Number.isNaN(d.getTime()))return;d.setDate(d.getDate()+days);invoiceDue.value=localDate(d)};invoiceDue.addEventListener('input',()=>{invoiceDue.dataset.manual='1'});invoiceDate.addEventListener('change',suggestDue);invoiceSupplier?.addEventListener('change',()=>{invoiceDue.dataset.manual='';suggestDue()});suggestDue()}
 const deliveryStock=document.getElementById('deliveryStock'),deliverySupplier=document.getElementById('deliverySupplier');if(deliveryStock&&deliverySupplier){const autofill=()=>{const supplier=suggestedSupplierForStock(state,deliveryStock.value);deliverySupplier.value=supplier||'';deliverySupplier.dataset.smart=supplier?'1':''};deliveryStock.addEventListener('change',autofill);deliverySupplier.addEventListener('input',()=>{deliverySupplier.dataset.smart=''})}
 document.getElementById('hubGlobalSearch')?.addEventListener('click',openHubGlobalSearch);
 bindHubAcademy();
@@ -1254,7 +1263,7 @@ document.querySelectorAll('[data-pos-provider-edit]').forEach(b=>b.addEventListe
     await loadPosAdminData(false);
   }catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
-document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{const next=b.dataset.page;if(b.classList?.contains('back')){if(globalThis.history?.state?.remaproPage){globalThis.history.back();return}if(next===page&&editing){editing=null;render();return}}if(next===page)return;if(!canPage(next)){alert(t('accessDenied'));return}editing=null;page=next;globalThis.history?.pushState?.({remaproPage:page},'');render();if(page==='finance')loadPosFinanceData(today(),{force:true})}));
+document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{const next=b.dataset.page;if(b.classList?.contains('back')){if(globalThis.history?.state?.remaproPage){globalThis.history.back();return}if(next===page&&editing){editing=null;render();return}}if(next===page)return;if(!canPage(next)){alert(t('accessDenied'));return}editing=null;page=next;globalThis.history?.pushState?.({remaproPage:page},'');render();if(financeScreen()&&!document.hidden)loadPosFinanceData(today(),{force:true})}));
 document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;render()}));
 document.querySelectorAll('[data-smart-po]').forEach(b=>b.addEventListener('click',()=>{const group=buildPurchasePlan(state).groups[+b.dataset.smartPo];if(!group?.supplier)return;const po=createPurchaseOrder(state,{supplier:group.supplier,items:group.items.map(x=>({stockId:x.stockId,name:x.name,quantity:x.quantity,unit:x.unit,unitPrice:state.stock.find(i=>i.id===x.stockId)?.price||0}))});if(po){persist();render()}}));
 document.querySelectorAll('[data-po-transition]').forEach(b=>b.addEventListener('click',()=>{if(transitionPurchaseOrder(state,b.dataset.poTransition,b.dataset.poStatus)){persist();render()}}));
@@ -1293,10 +1302,10 @@ window.addEventListener('popstate',e=>{page=e.state?.remaproPage||'dashboard';ed
 window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
 window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
 window.addEventListener('offline',()=>{recordDiagnostic('network.offline');paintCloudSyncStatus()});
-window.addEventListener('online',()=>{recordDiagnostic('network.online');paintCloudSyncStatus();if(cloudSyncDirty||activeRestaurant(state)?.cloudDirty)scheduleCloudSync()});
+window.addEventListener('online',()=>{recordDiagnostic('network.online');ensurePosFinanceData();schedulePosFinanceRefresh();paintCloudSyncStatus();if(cloudSyncDirty||activeRestaurant(state)?.cloudDirty)scheduleCloudSync()});
 
 document.addEventListener?.('visibilitychange',()=>{
   if(document.hidden){backgroundAt=Date.now();return}
   if(cloudSession()&&shouldRelock(backgroundAt)){appUnlocked=false;render();return}
-  backgroundAt=0;if(ensureDailyTasks(state))persist();if(networkOnline()&&(cloudSyncDirty||activeRestaurant(state)?.cloudDirty))scheduleCloudSync();paintCloudSyncStatus()
+  backgroundAt=0;ensurePosFinanceData();if(ensureDailyTasks(state))persist();if(networkOnline()&&(cloudSyncDirty||activeRestaurant(state)?.cloudDirty))scheduleCloudSync();paintCloudSyncStatus()
 });
