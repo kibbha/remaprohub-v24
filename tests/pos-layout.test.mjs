@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,autoMatchLayoutButton,layoutButtonItem,renderPosLayoutEditor,removePosLayoutCategory,setPosLayoutCategoryParent,posLayoutCategoryTree} from '../src/pos-layout.js';
+import {emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,autoMatchLayoutButton,layoutButtonItem,renderPosLayoutEditor,removePosLayoutCategory,setPosLayoutCategoryParent,posLayoutCategoryTree,emptyAssignedModifierGroups} from '../src/pos-layout.js';
+
+const cuissonFixture={...emptyPosLayout(),buttons:[{id:'entrecote',modifierGroupIds:['cooking']}],modifierGroups:[{id:'cooking',name:'Cuisson',type:'cooking',options:[]}]};
+assert.deepEqual(emptyAssignedModifierGroups(cuissonFixture).map(g=>g.name),['Cuisson']);
+cuissonFixture.modifierGroups[0].options=[{id:'bleu',name:'Bleu'}];
+assert.deepEqual(emptyAssignedModifierGroups(cuissonFixture),[]);
 
 
 const categoryDeleteFixture=normalizePosLayout({
@@ -105,7 +110,7 @@ assert.match(editorHtml,/id="posLayoutCategoryForm"/);
 assert.match(editorHtml,/id="posLayoutModifierForm"/);
 assert.match(editorHtml,/id="posLayoutMenuForm"/);
 assert.match(editorHtml,/id="posLayoutPublish"/);
-assert.match(editorHtml,/data-layout-preview-category="favorites"/);
+assert.doesNotMatch(editorHtml,/data-layout-preview-category="favorites"/);
 assert.match(editorHtml,/data-layout-category-delete=/);
 assert.match(editorHtml,/id="posLayoutPhoto"/);
 assert.match(editorHtml,/Photo facultative/);
