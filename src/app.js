@@ -10,7 +10,7 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
-import {readPublishedBundle,applyPublishedBundle} from './configuration-bundle.js';
+import {readPublishedBundle,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
@@ -117,7 +117,7 @@ async function refreshTerminals(){
       posFunction({action:'list_terminal_intents',restaurantId:state.restaurant.id,limit:30}),
       posFunction({action:'list_provider_connections',restaurantId:state.restaurant.id}).catch(()=>({rows:[]}))
     ]);
-    state.terminals=terminals.rows||[];
+    state.terminals=publishedDeviceProfiles(terminals.rows||[],state.configurationBundle,'terminals');
     state.terminalIntents=intents.rows||[];
     state.providerConnections=providers.rows||[];
     await Promise.all([
@@ -480,7 +480,7 @@ async function refreshPrinters(){
   }
   try{
     const r=await posFunction({action:'list_printers',restaurantId:state.restaurant.id});
-    state.printers=r.rows||[];
+    state.printers=publishedDeviceProfiles(r.rows||[],state.configurationBundle,'printers');
     await kvSet(printersKey(state.restaurant.id),state.printers);
   }catch(error){state.error=error.message||String(error)}
 }
@@ -1790,7 +1790,9 @@ async function refreshHubManagedConfiguration(head=null){
   if(state.restaurant?.id!==restaurantId)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
   const nextBootstrap=applyPublishedBundle(bootstrap,bundle);
   const nextTables=bundle?.document.tables||tables.rows||[];
-  const nextTerminals=terminals.rows||[],nextPrinters=printers.rows||[],nextProviders=providers.rows||[];
+  const nextTerminals=publishedDeviceProfiles(terminals.rows||[],bundle,'terminals');
+  const nextPrinters=publishedDeviceProfiles(printers.rows||[],bundle,'printers');
+  const nextProviders=providers.rows||[];
   await kvSet(configurationSnapshotKey(restaurantId),{
     bootstrap:nextBootstrap,tables:nextTables,terminals:nextTerminals,
     printers:nextPrinters,providers:nextProviders,bundle

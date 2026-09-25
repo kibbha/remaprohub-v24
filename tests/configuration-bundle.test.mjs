@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readPublishedBundle,applyPublishedBundle} from '../src/configuration-bundle.js';
+import {readPublishedBundle,applyPublishedBundle,publishedDeviceProfiles} from '../src/configuration-bundle.js';
 
 const document={schemaVersion:1,catalog:[{id:'a',name:'Plat'}],layout:{version:2},tables:[{id:'t',label:'1'}],floorPlan:null};
 const payload=JSON.stringify(document),checksum=createHash('sha256').update(payload).digest('hex');
@@ -11,4 +11,10 @@ assert.deepEqual(applyPublishedBundle({restaurant:{id:'r'},catalog:[]},bundle).c
 assert.equal(await readPublishedBundle(result,{revision:14}),null,'a direct update supersedes the published snapshot');
 assert.equal(await readPublishedBundle({bundle:null},{revision:13}),null,'legacy backend remains usable');
 await assert.rejects(readPublishedBundle({bundle:{...result.bundle,payload:payload+' '}},{revision:13}),/BUNDLE_CHECKSUM_INVALID/);
+const configured={document:{printers:[{id:'p',label:'Cuisine',role:'kitchen',address:'10.0.0.2',active:true}],terminals:[{id:'t',label:'Carte',supports_card:true,active:true}]}};
+assert.deepEqual(publishedDeviceProfiles([{id:'p',label:'Ancien',status:'offline',last_tested_at:'now'}],configured,'printers'),
+  [{id:'p',label:'Cuisine',role:'kitchen',address:'10.0.0.2',active:true,status:'offline',last_tested_at:'now'}]);
+assert.deepEqual(publishedDeviceProfiles([{id:'t',label:'Ancien',connection_status:'online'}],configured,'terminals'),
+  [{id:'t',label:'Carte',supports_card:true,active:true,connection_status:'online'}]);
+assert.deepEqual(publishedDeviceProfiles([{id:'p',status:'online'}],{document:{}},'printers'),[{id:'p',status:'online'}]);
 console.log('configuration-bundle.test.mjs: OK');

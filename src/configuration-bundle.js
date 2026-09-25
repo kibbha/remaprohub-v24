@@ -17,3 +17,15 @@ export function applyPublishedBundle(bootstrap,bundle) {
   if(!bundle)return bootstrap;
   return{...bootstrap,catalog:bundle.document.catalog,layout:bundle.document.layout,configurationBundleVersion:bundle.version};
 }
+
+export function publishedDeviceProfiles(live,bundle,kind) {
+  const published=bundle?.document?.[kind];
+  if(!Array.isArray(published))return live;
+  const dynamic=kind==='printers'?['status','last_tested_at','created_at','updated_at']:['connection_status','last_seen_at','created_at','updated_at'];
+  const liveById=new Map((live||[]).map(row=>[String(row.id),row]));
+  return published.map(profile=>{
+    const current=liveById.get(String(profile.id))||{};
+    const status=Object.fromEntries(dynamic.filter(key=>Object.hasOwn(current,key)).map(key=>[key,current[key]]));
+    return{...profile,...status};
+  });
+}
