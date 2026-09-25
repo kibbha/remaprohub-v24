@@ -11,12 +11,13 @@ import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
 import {readPublishedBundle,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
+import {normalizePosSettings,paymentAllowed} from './payment-policy.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
 const APP_VERSION='0.27.0';
 const state={
-  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,category:'Tous',productSearch:'',cart:[],
+  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,posSettings:normalizePosSettings(null),category:'Tous',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',view:'sale',activeOrderId:null,activeTableId:null,
@@ -45,6 +46,11 @@ const printersKey=id=>'printers:'+id;
 const operatorsKey=id=>'operators:'+id;
 const providersKey=id=>'providers:'+id;
 const availabilityCacheKey=id=>'availability:'+id;
+function applyPosSettings(settings){
+  state.posSettings=normalizePosSettings(settings);
+  state.kdsWarnMinutes=state.posSettings.kdsWarningMinutes;
+  state.kdsCriticalMinutes=state.posSettings.kdsCriticalMinutes;
+}
 
 async function ensureDevice(){
   let d=await kvGet('device');
@@ -354,6 +360,7 @@ async function guardedPayment(task){
   try{return await task()}finally{state.paymentBusy=false}
 }
 async function payByMethod(method){
+  if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
   if(method==='cash')return checkout(method);
   if(!['card','twint'].includes(method))return checkout(method);
   const matching=connectedTerminal(method);
@@ -778,7 +785,7 @@ async function queueCommand(action,payload,options={}){
   await queuePut(item);await updateQueueCount();return item;
 }
 async function bootstrapRestaurant(restaurant){
-  state.restaurant=restaurant;state.error='';
+  state.restaurant=restaurant;state.error='';applyPosSettings(null);
   state.receipts=await kvGet(receiptsKey(restaurant.id))||[];
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
@@ -803,6 +810,7 @@ async function bootstrapRestaurant(restaurant){
     state.printers=Array.isArray(managed.printers)?managed.printers:state.printers;
     state.providerConnections=Array.isArray(managed.providers)?managed.providers:[];
     state.configurationBundle=Number(managed.bundle?.version)===Number(managed.bootstrap.configurationBundleVersion)?managed.bundle:null;
+    applyPosSettings(managed.settings);
     if(state.configurationBundle?.document?.floorPlan)state.floorPlan=state.configurationBundle.document.floorPlan;
   }
   render();
@@ -815,6 +823,7 @@ async function bootstrapRestaurant(restaurant){
         posFunction({action:'bundle_current',restaurantId:restaurant.id}).catch(()=>({bundle:null})),
         posFunction({action:'configuration_head',restaurantId:restaurant.id}).catch(()=>null)
       ]);
+      if(head?.settings)applyPosSettings(head.settings);
       state.configurationBundle=Number(data.configurationRevision)===Number(head?.revision)?await readPublishedBundle(bundleResult,head):null;
       state.bootstrap=applyPublishedBundle(data,state.configurationBundle);await kvSet(catalogKey(restaurant.id),state.bootstrap);
       if(data.openSession){
@@ -825,7 +834,7 @@ async function bootstrapRestaurant(restaurant){
       await Promise.all([refreshOperationalData(),refreshAvailability()]);
       await kvSet(configurationSnapshotKey(restaurant.id),{
         bootstrap:state.bootstrap,tables:state.tables,terminals:state.terminals,
-        printers:state.printers,providers:state.providerConnections,bundle:state.configurationBundle
+        printers:state.printers,providers:state.providerConnections,bundle:state.configurationBundle,settings:state.posSettings
       });
       startDirectOrderPolling()
     }catch(error){state.error=error.message||String(error)}
@@ -1120,6 +1129,11 @@ function normalizePaymentMethod(value){
   if(v==='other')return'other';
   return'';
 }
+function paymentMethodOptions(){
+  return[['cash','Espèces'],['card','Carte'],['twint','TWINT'],['voucher','Bon'],['invoice','Facture']]
+    .filter(([method])=>paymentAllowed(state.posSettings,method))
+    .map(([method,label])=>'<option value="'+method+'">'+label+'</option>').join('');
+}
 function currentServerOrder(){return state.openOrders.find(o=>o.id===state.activeOrderId)||null}
 function orderLocked(){const o=currentServerOrder();return !!o&&o.status!=='open'}
 function paymentBlockedByDelta(){return orderLocked()&&hasPendingDelta()}
@@ -1283,6 +1297,7 @@ function collectAllocatedGroups(){
 }
 async function settleAllocatedSplit(order){
   const groups=collectAllocatedGroups();if(!groups.length)return;
+  if(groups.some(g=>!paymentAllowed(state.posSettings,g.method))){uiAlert('Un moyen de paiement est désactivé dans le Hub.');return}
   const modal=document.querySelector('#allocated-split-modal');
   const submit=modal?.querySelector('#allocated-split-submit');
   if(submit)submit.disabled=true;
@@ -1317,7 +1332,7 @@ async function openAllocatedSplit(){
   closeAllocatedSplit();
   const modal=document.createElement('div');
   modal.id='allocated-split-modal';modal.className='modal-overlay';modal.dataset.groups=String(groupCount);
-  const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="" placeholder="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
+  const groupHeads=Array.from({length:groupCount},(_,gi)=>'<th><input data-group-label="'+gi+'" class="split-label" value="Personne '+(gi+1)+'"><select data-group-method="'+gi+'" class="split-method">'+paymentMethodOptions()+'</select><label class="split-tip">Tip <input data-group-tip="'+gi+'" inputmode="decimal" value="" placeholder="0.00"></label><strong data-split-total="'+gi+'">'+money(0)+'</strong></th>').join('');
   const itemRows=items.map(item=>'<tr data-split-item-row data-item-id="'+esc(item.id)+'" data-qty="'+Number(item.quantity||0)+'" data-total="'+Number(item.line_total||0)+'"><td><strong>'+esc(item.name_snapshot)+'</strong><small>'+Number(item.quantity||0)+' × '+money(item.unit_price)+'</small></td>'+Array.from({length:groupCount},(_,gi)=>'<td><input class="split-qty-input" data-split-group="'+gi+'" type="number" min="0" max="'+Number(item.quantity||0)+'" step="0.001" value="'+(gi===0?Number(item.quantity||0):0)+'"></td>').join('')+'<td><span class="split-remaining" data-split-remaining>OK</span></td></tr>').join('');
   modal.innerHTML='<div class="split-dialog"><div class="split-dialog-head"><div><h2>Partager par articles</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · '+money(order.total)+'</p></div><button class="split-close" id="allocated-split-close">×</button></div><div class="split-toolbar"><button class="secondary" id="allocated-auto">Répartir par unité</button><span>Chaque quantité doit être attribuée entièrement.</span></div><div class="split-table-wrap"><table class="split-table"><thead><tr><th>Article</th>'+groupHeads+'<th>Contrôle</th></tr></thead><tbody>'+itemRows+'</tbody></table></div><div class="split-footer"><button class="secondary" id="allocated-split-cancel">Annuler</button><button class="primary" id="allocated-split-submit">Encaisser la répartition</button></div></div>';
   document.body.appendChild(modal);translateDom(modal);document.body.classList.add('modal-open');
@@ -1401,7 +1416,7 @@ async function openProgressivePayment(){
   const rows=remainingItems.map(i=>'<div class="progressive-item" data-progress-item-row data-item-id="'+esc(i.id)+'" data-remaining-qty="'+Number(i.remainingQty||0)+'" data-remaining-amount="'+Number(i.remainingAmount||0)+'"><div><strong>'+esc(i.name_snapshot)+'</strong><small>Reste '+Number(i.remainingQty||0)+' · '+money(i.remainingAmount)+'</small></div><input data-progress-qty type="number" min="0" max="'+Number(i.remainingQty||0)+'" step="0.001" value="0"></div>').join('');
   modal.innerHTML='<div class="progressive-dialog"><div class="split-dialog-head"><div><h2>Encaisser une personne</h2><p>'+esc(order.table_label||order.service_type||'Commande')+' · reste '+money(progress.remainingAmount)+'</p></div><button class="split-close" id="progressive-close">×</button></div>'
     +previousHtml
-    +'<div class="progressive-form"><label>Nom / repère<input id="progressive-label" value="Personne '+(previous.length+1)+'"></label><label>Paiement<select id="progressive-method"><option value="cash">Espèces</option><option value="card">Carte</option><option value="twint">TWINT</option><option value="voucher">Bon</option><option value="invoice">Facture</option></select></label><label>Pourboire<input id="progressive-tip" inputmode="decimal" value="" placeholder="0.00"></label><button class="secondary" id="progressive-take-rest">Prendre tout le reste</button></div>'
+    +'<div class="progressive-form"><label>Nom / repère<input id="progressive-label" value="Personne '+(previous.length+1)+'"></label><label>Paiement<select id="progressive-method">'+paymentMethodOptions()+'</select></label><label>Pourboire<input id="progressive-tip" inputmode="decimal" value="" placeholder="0.00"></label><button class="secondary" id="progressive-take-rest">Prendre tout le reste</button></div>'
     +'<div class="progressive-items">'+rows+'</div>'
     +'<div class="progressive-summary"><div><span>Cette personne</span><strong id="progressive-selected-total">'+money(0)+'</strong></div><div><span>Restera après paiement</span><strong id="progressive-after-total">'+money(progress.remainingAmount)+'</strong></div></div>'
     +'<div class="split-footer"><button class="secondary" id="progressive-cancel">Annuler</button><button class="primary" id="progressive-submit" disabled>Encaisser cette personne</button></div></div>';
@@ -1423,6 +1438,7 @@ async function openProgressivePayment(){
     if(!selections.length)return;
     const label=modal.querySelector('#progressive-label')?.value?.trim()||('Personne '+(previous.length+1));
     const method=modal.querySelector('#progressive-method')?.value||'cash';
+    if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
     const tip=parseMoneyInput(modal.querySelector('#progressive-tip')?.value||'0');
     const submit=modal.querySelector('#progressive-submit');if(submit){submit.disabled=true;submit.textContent='Encaissement…'}
     try{
@@ -1459,10 +1475,10 @@ async function splitCheckout(){
     const suggested=i===count-1?remaining:Math.floor((total/count)*100)/100;
     const part=await uiFields({title:t('splitCount')+' '+(i+1)+'/'+count,message:money(remaining),fields:[
       {name:'amount',label:t('partAmount'),value:suggested.toFixed(2),type:'number',inputMode:'decimal',min:'0.01',max:String(remaining),step:'0.01',required:true},
-      {name:'method',label:t('paymentMethod'),type:'select',value:i===0?'cash':'card',options:[{value:'cash',label:t('cashMethod')},{value:'card',label:t('cardMethod')},{value:'twint',label:t('twintMethod')}]}
+      {name:'method',label:t('paymentMethod'),type:'select',value:['cash','card','twint'].find(method=>paymentAllowed(state.posSettings,method))||'',options:[{value:'cash',label:t('cashMethod')},{value:'card',label:t('cardMethod')},{value:'twint',label:t('twintMethod')}].filter(option=>paymentAllowed(state.posSettings,option.value))}
     ]});if(!part)return;
     const amount=parseMoneyInput(part.amount);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){uiAlert(t('invalidAmount'));return}
-    const method=normalizePaymentMethod(part.method);if(!method){uiAlert(t('paymentMethod'));return}
+    const method=normalizePaymentMethod(part.method);if(!method||!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
     const tip=await askTip();if(tip===null)return;
     payments.push({method,amount,tipAmount:tip,provider:'',providerReference:''});
     remaining=Math.round((remaining-amount)*100)/100;
@@ -1795,8 +1811,9 @@ async function refreshHubManagedConfiguration(head=null){
   const nextProviders=providers.rows||[];
   await kvSet(configurationSnapshotKey(restaurantId),{
     bootstrap:nextBootstrap,tables:nextTables,terminals:nextTerminals,
-    printers:nextPrinters,providers:nextProviders,bundle
+    printers:nextPrinters,providers:nextProviders,bundle,settings:normalizePosSettings(after.settings)
   });
+  applyPosSettings(after.settings);
   state.configurationBundle=bundle;
   state.bootstrap=nextBootstrap;
   state.tables=nextTables;
@@ -1853,6 +1870,7 @@ function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)r
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
+  if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
   const tip=await askTip();if(tip===null)return;
@@ -2114,6 +2132,7 @@ function productionPriority(order){return Math.max(0,Math.min(2,Math.trunc(Numbe
 function nextProductionPriority(order){const current=productionPriority(order);return current===0?1:current===1?2:0}
 function priorityLabel(priority){return priority===2?t('kdsRush'):priority===1?t('kdsPriority'):t('kdsNormal')}
 async function updateKdsThresholds(warn,critical){
+  if(state.configurationBundle){uiAlert('Réglez les seuils KDS dans le Hub puis publiez la configuration.');return}
   const w=Math.max(1,Math.min(120,Math.trunc(Number(warn)||12))),c=Math.max(w+1,Math.min(180,Math.trunc(Number(critical)||20)));
   state.kdsWarnMinutes=w;state.kdsCriticalMinutes=c;
   localStorage.setItem('remapro-kds-warn',String(w));localStorage.setItem('remapro-kds-critical',String(c));render();
@@ -2190,8 +2209,8 @@ function productionView(){
           <div class="station-tabs"><button data-station="all" class="${station==='all'?'active':''}">${t('all')}</button><button data-station="kitchen" class="${station==='kitchen'?'active':''}">${t('kitchen')}</button><button data-station="bar" class="${station==='bar'?'active':''}">${t('bar')}</button><button data-station="expo" class="${station==='expo'?'active':''}">Expo</button></div>
           ${courses.length?`<label>${t('kdsCourse')}<select id="kds-course"><option value="all">${t('kdsAllCourses')}</option>${courses.map(c=>`<option value="${esc(c)}" ${state.kdsCourse===c?'selected':''}>${esc(c)}</option>`).join('')}</select></label>`:''}
           <label>${t('kdsSort')}<select id="kds-sort"><option value="oldest" ${state.productionSort==='oldest'?'selected':''}>${t('kdsOldest')}</option><option value="newest" ${state.productionSort==='newest'?'selected':''}>${t('kdsNewest')}</option></select></label>
-          <label>${t('kdsWarn')}<input id="kds-warn" type="number" min="1" max="120" value="${state.kdsWarnMinutes}"></label>
-          <label>${t('kdsCriticalAt')}<input id="kds-critical" type="number" min="2" max="180" value="${state.kdsCriticalMinutes}"></label>
+          <label>${t('kdsWarn')}<input id="kds-warn" type="number" min="1" max="120" value="${state.kdsWarnMinutes}" ${state.configurationBundle?'disabled title="Géré dans le Hub"':''}></label>
+          <label>${t('kdsCriticalAt')}<input id="kds-critical" type="number" min="2" max="180" value="${state.kdsCriticalMinutes}" ${state.configurationBundle?'disabled title="Géré dans le Hub"':''}></label>
           ${advanced&&state.kdsLastBumped?`<button class="secondary kds-recall" id="kds-recall">↶ ${t('kdsRecall')}</button>`:''}
           <button class="secondary" id="refresh-production" ${!state.online?'disabled':''}>${t('refresh')}</button>
         </div>
@@ -2304,7 +2323,7 @@ function mainView(){
       </div>
       <div class="checkout-summary"><span>Sous-total</span><strong>${money(cartTotal())}</strong></div>
       <div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
-      <div class="payments"><button data-pay="cash" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Espèces</button><button class="payment-primary" data-pay="card" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>Carte / Tap to Pay<br><strong>${money(cartTotal())}</strong></button><button data-pay="twint" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>TWINT</button></div>
+      <div class="payments"><button data-pay="cash" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'cash')?'disabled':''}>Espèces</button><button class="payment-primary" data-pay="card" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'card')?'disabled':''}>Carte / Tap to Pay<br><strong>${money(cartTotal())}</strong></button><button data-pay="twint" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'twint')?'disabled':''}>TWINT</button></div>
       ${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}
     </div>
   </aside></main></div>`;
