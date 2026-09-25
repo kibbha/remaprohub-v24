@@ -11,14 +11,15 @@ Hub owns restaurant configuration. Supabase stores the shared state; POS reads i
 | Floor plan | `save_floor_plan`, `publish_floor_plan`, `restore_floor_plan_version` | `floor_plan_current`, `list_tables` | Per-plan version history |
 | Tables, operators, printers, terminals and providers | Individual management actions | Dedicated list actions | Direct writes; no shared draft or rollback yet |
 
-`pos_configuration_revisions` is a per-restaurant change counter, bumped by configuration table triggers. POS polls `configuration_head`; after a change, it fetches the managed resources and persists them locally. The counter is a change signal, not an immutable published bundle. POS checks the counter before and after a refresh and retains its previous offline copy if publication overlaps its reads. An update may therefore take another polling cycle to appear.
+`pos_configuration_revisions` is a per-restaurant change counter, bumped by configuration table triggers. POS polls `configuration_head`; after a change, it fetches the managed resources and persists them locally. POS checks the counter before and after a refresh and retains its previous offline copy if publication overlaps its reads. An update may therefore take another polling cycle to appear.
+
+Hub can now prepare an immutable bundle snapshot containing the active catalog (including prices and tax), published layout, tables and active floor plan. The manager sees a preview count, publishes one version in a database transaction, and can restore an older version by creating a new version. POS verifies the SHA-256 checksum and schema before applying the bundle to its local catalog/layout/tables/floor plan. The head revision increments at publication; a subsequent direct configuration edit supersedes the bundle and POS resumes live reads. Open orders, reservations, receipts, payments and offline queues remain outside the bundle. A rollback is refused if its catalog or active tables no longer exist in the live database.
 
 ## Next contract milestone
 
-1. Introduce one draft bundle per restaurant with a schema version and an optimistic draft revision. Cover catalog, prices and tax, layout, floor plan, payment methods, printers and KDS routing, permissions and settings. Keep provider credentials in server-side secret storage and reference them by ID only.
-2. Validate references and constraints on the server; provide a Hub preview of the exact bundle POS would receive. Reject missing products, invalid tax and price values, dangling table IDs and incompatible schema versions.
-3. Publish through one transaction that inserts an immutable bundle, advances one published pointer and its revision, and records actor, time and checksum. POS must fetch the bundle by published revision, verify schema and checksum, then replace its local configuration snapshot as one unit.
-4. Rollback by publishing a new version copied from a previous bundle. Preserve every version and the audit trail; never rewrite an earlier publication.
-5. Keep operational records, open orders, payment state, device settings and offline queue outside the bundle. Specify safe migration behavior for a removed product or table still referenced by an open order.
+1. Move the remaining direct-write domains into the bundle: payment methods, printers/KDS routing, permissions and settings. Keep provider credentials in server-side secret storage and reference them by ID only.
+2. Add cross-reference and tax validation to the server-side preview, including standalone layout buttons, table IDs, routing and incompatible schemas.
+3. Replace the transitional mixed endpoint refresh and separate local cache writes with one server response and one atomic local snapshot write.
+4. Preserve operational records, open orders, payment state, device settings and offline queue outside the bundle; make the behavior of historical prices and removed items explicit in the checkout API.
 
-The current UI and API support versioned publication for layout and floor plans only. Do not label other domains as draft or rollback capable until the bundle transaction and POS reader are implemented and tested against a real database.
+The current bundle covers catalog, layout and floor plan, with tables. The older direct publication controls remain available; their edits supersede a published bundle. This transitional behavior is displayed in Hub so the manager can prepare a fresh bundle after a direct change.

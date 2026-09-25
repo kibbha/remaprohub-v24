@@ -1,5 +1,5 @@
 import{cloudConfig,cloudConfigured,saveCloudConfig,disconnectCloud,buildAiContext,callRemaproAi,fileToDataUrl}from'./ai.js';import{cloudSession,initializeCloudSessionStorage,loadCachedCloudIdentity,signInCloud,signUpCloud,signOutCloud,requestPasswordReset,loadCloudIdentity,cloudPageAllowed,cloudMultiAccess,cloudWorkspaceReadKeys,cloudWorkspaceWriteKeys,cloudFunction}from'./cloud.js';import{LANGS,language,setLanguage,t}from'./i18n.js';import{securitySettings,updateSecuritySettings,rememberedSecurityEmail,rememberSecurityEmail,loadDeveloperAccess,saveDeveloperAccess,clearDeveloperAccess,developerAliasMatches,validDeveloperAlias,biometricAvailability,verifyBiometric,shouldRelock}from'./security.js';import{billingAvailable,configureBilling,purchasePlan,restorePurchases,customerInfo,entitlementPlan}from'./billing.js';import{LEGAL_COUNTRIES,legalPack,legalFieldsFor,isLegalHrDocument}from'./legal.js';import{load,save,restoreStateMirror,storageScope,setStorageScope,exportWorkspace,applyWorkspaceData,restrictWorkspace,resetWorkspaceKeys,recordFinance,financeTotals,financeDayTotals,revenueSeries,localDate,recordRegistry,recordValidated,setStockPreferredSupplier,stockAvailable,recordStockMovement,createPurchaseOrder,transitionPurchaseOrder,receivePurchaseOrder,createInventoryCount,countInventoryItem,finalizeInventoryCount,recordProductionBatch,applyDeliveryAiReceiving,recordWaste,updateWaste,recordDelivery,ensureDailyTasks,setDailyTaskCompletion,dailyRoutineStatus,updateRecord,removeRecord,updatePreferences,exportData,importData,resetState,saveDocument,updateDocument,recordOrder,updateOrder,removeOrder,recordInvoice,markInvoicePaid,integrateInvoiceReceipt,recordPurchase,updatePurchase,removePurchase,recordShift,copyPreviousWeekSchedule,clockIn,toggleBreak,clockOut,recordAvailability,recordForecastSignal,requestShiftSwap,resolveShiftSwap,recordLeave,recordTraining,leaveBusinessDays,calculateSwissPayroll,swissPayrollVerification,ccntMinimum,PLAN_CONFIG,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan,STAFF_PERMISSIONS,multiFeaturesEnabled,activeRestaurant,mergeCloudRestaurants,switchRestaurant,recordRestaurant,removeRestaurant,recordManager,removeManager,recordStaffAccess,removeStaffAccess,recordAdvancedReservation,reservationTableConflicts,updateReservationStatus,markReservationReminder,updateReservationSettings,updateCustomerConsent,createGiftCard,redeemGiftCard,loyaltyTransaction,updateLoyaltySettings}from'./store.js';
-import{publishPosCatalog,loadPosAdminSnapshot,loadPosAccountingExport,loadPosDailySummary,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout,restorePosLayoutVersionToDraft,savePosFloorPlan,publishPosFloorPlan,activatePosFloorPlan,restorePosFloorPlanVersion}from'./pos.js';
+import{publishPosCatalog,loadPosAdminSnapshot,loadPosBundleHistory,savePosBundleDraft,publishPosBundle,restorePosBundle,loadPosAccountingExport,loadPosDailySummary,syncPosTables,savePosOperator,savePosPrinter,savePosPaymentTerminal,ackPosInventoryMovements,savePosProviderConnection,savePosLayoutDraft,publishPosLayout,restorePosLayoutVersionToDraft,savePosFloorPlan,publishPosFloorPlan,restorePosFloorPlanVersion,activatePosFloorPlan}from'./pos.js';
 import{accountingIntegrationProfiles,accountingCsv}from'./accounting.js';
 import{integrationAdapterRegistry,integrationAdapterSummary}from'./integrations.js';
 import{emptyPosLayout,normalizePosLayout,seedPosLayoutFromCatalog,renderPosLayoutEditor,bindPosLayoutEditor}from'./pos-layout.js';
@@ -360,11 +360,12 @@ async function loadPosAdminData(showError=false){
   posAdminState={...posAdminState,restaurantId,loading:true,error:''};
   if(showError)render();
   try{
-    const [snapshot,direct]=await Promise.all([
+    const [snapshot,direct,bundle]=await Promise.all([
       loadPosAdminSnapshot(restaurantId,today()),
-      cloudFunction('remapro-direct-order-admin',{action:'list_channels',restaurantId},{attempts:1}).catch(()=>({channels:[]}))
+      cloudFunction('remapro-direct-order-admin',{action:'list_channels',restaurantId},{attempts:1}).catch(()=>({channels:[]})),
+      loadPosBundleHistory(restaurantId).catch(()=>null)
     ]);
-    posAdminState={restaurantId,loading:false,error:'',...snapshot,directChannels:Array.isArray(direct.channels)?direct.channels:[],directOrderShare:posAdminState.directOrderShare||null};
+    posAdminState={restaurantId,loading:false,error:'',...snapshot,bundle:bundle||null,directChannels:Array.isArray(direct.channels)?direct.channels:[],directOrderShare:posAdminState.directOrderShare||null};
     if(!posAdminState.floorPlans.length){
       const seedDocument=seedFloorPlanFromTables(posAdminState.tables||[]),seedId=crypto.randomUUID(),seedPlan={id:seedId,name:'Service habituel',draft_document:seedDocument,published_document:null,draft_revision:0,published_version:0,active:false,history:[]};
       try{
@@ -462,6 +463,32 @@ function directOrderAdminCard(){
   return card(t('directOrderAdmin'),`${shareBlock}<form id="directChannelForm" class="form"><input name="title" required placeholder="${t('directChannelTitle')}"><input name="slug" placeholder="${t('directSlugOptional')}"><div class="check-grid"><label class="checkline"><input type="checkbox" name="mode" value="dine_in" checked> ${t('directMode_dine_in')}</label><label class="checkline"><input type="checkbox" name="mode" value="takeaway" checked> ${t('directMode_takeaway')}</label></div><strong>${t('directPaymentChoices')}</strong><div class="check-grid"><label class="checkline"><input type="checkbox" name="paymentMethod" value="counter" checked> ${t('directPayment_counter')}</label><label class="checkline"><input type="checkbox" name="paymentMethod" value="card"> ${t('directPayment_card')}</label><label class="checkline"><input type="checkbox" name="paymentMethod" value="twint"> ${t('directPayment_twint')}</label></div><small class="muted">${t('directPaymentSafeHint')}</small><label class="checkline"><input type="checkbox" name="kioskEnabled"> ${t('kioskEnabled')}</label><label class="document-field"><span>${t('kioskResetSeconds')}</span><input name="kioskResetSeconds" type="number" min="8" max="120" step="1" value="20"></label><button class="btn primary">${t('createQrChannel')}</button></form><div class="pos-admin-list">${rows}</div>`);
 }
 function posAdminStation(value){return['kitchen','bar','none'].includes(String(value||''))?String(value):'kitchen'}
+async function posBundleAction(action,version=0){
+  const rid=cloudRestaurantId();if(!rid||!cloudManager())return;
+  try{
+    if(action==='draft')await savePosBundleDraft(rid);
+    if(action==='publish'){
+      const revision=Number(posAdminState.bundle?.draft?.source_revision);
+      if(!Number.isSafeInteger(revision)||revision<1)throw new Error('Créez d’abord un aperçu du brouillon.');
+      if(!confirm('Publier cet instantané de configuration pour ce restaurant ?'))return;
+      await publishPosBundle(rid,revision);
+    }
+    if(action==='restore'){
+      if(!confirm('Publier une nouvelle version identique à la version '+version+' ?'))return;
+      await restorePosBundle(rid,version);
+    }
+    await loadPosAdminData(false);render();
+  }catch(error){posAdminState={...posAdminState,error:error?.message||String(error)};render()}
+}
+function posBundleCard(){
+  const bundle=posAdminState.bundle;
+  if(!bundle)return card('Publication groupée',`<p class="muted">Le service de publication groupée n’est pas encore disponible sur cette installation.</p>`);
+  const draft=bundle.draft,doc=draft?.document||{},history=Array.isArray(bundle.history)?bundle.history:[];
+  const summary=draft?`${(doc.catalog||[]).length} articles · ${(doc.layout?.document?.buttons||[]).length} touches · ${(doc.tables||[]).length} tables${doc.floorPlan?' · plan de salle':''}`:'Aucun aperçu préparé';
+  const active=!!history.length&&Number(bundle.currentRevision)===Number(history[0].source_revision)+1;
+  const rows=history.slice(0,8).map(v=>`<div class="pos-admin-row"><span><strong>Version ${esc(v.version)}</strong><small>${esc(v.published_at||'')} · ${esc(v.checksum||'').slice(0,10)}${v.restored_from_version?' · retour à v'+esc(v.restored_from_version):''}</small></span><button type="button" class="btn compact" data-pos-bundle-restore="${esc(v.version)}">Restaurer</button></div>`).join('');
+  return card('Publication groupée',`<p class="muted">Préparez un aperçu du catalogue, des touches et des tables avant de publier. Les commandes ouvertes restent indépendantes.</p><p><strong>${active?'En service':'Dernière publication'} : version ${esc(bundle.currentVersion||'—')}</strong>${bundle.currentVersion&&!active?'<br><small class="muted">Une modification directe plus récente est en service. Actualisez l’aperçu pour publier une nouvelle version groupée.</small>':''}</p><p>${esc(summary)}</p><div class="actions"><button type="button" class="btn" id="posBundleDraft">Créer / actualiser l’aperçu</button><button type="button" class="btn primary" id="posBundlePublish" ${draft?'':'disabled'}>Publier cet aperçu</button></div>${rows?'<div class="pos-admin-list">'+rows+'</div>':''}`);
+}
 function posLayoutDocument(){
   return normalizePosLayout(posAdminState.layoutDraft?.document||posAdminState.layoutPublished?.document||emptyPosLayout());
 }
@@ -653,6 +680,7 @@ function posAdmin(){
     <div class="artisan-hero artisan-hero-small"><div class="artisan-hero-mark">${icon('posAdmin')}</div><div><span class="artisan-eyebrow">${esc(venue)}</span><h2>Administration de la caisse</h2><p>Le Hub configure · le POS exécute.</p></div></div>
     ${posAdminState.error?'<div class="notice error">'+esc(posAdminState.error)+'</div>':''}
     <div class="pos-admin-toolbar"><button class="btn" id="posAdminRefresh" ${loading?'disabled':''}>Actualiser</button><button class="btn primary" id="posPublishCatalog" ${loading?'disabled':''}>Publier le catalogue vers POS</button><button class="btn" id="posApplyInventory" ${loading||!posAdminState.inventoryMovements.length?'disabled':''}>Appliquer ${posAdminState.inventoryMovements.length} sortie(s) au stock</button><span class="muted">${loading?'Chargement…':posAdminState.catalog.length+' article(s) publiés'}</span></div>
+    ${posBundleCard()}
     ${moduleSectionNav([['layout','Caisse'],['floor','Salle'],['catalog','Catalogue'],['devices','Équipe'],['connections','Intégrations']])}
     ${posAdminState.foodCost?`<div class="pos-foodcost-strip" data-module-pane="catalog"><span><small>Ventes POS</small><strong>${money(posAdminState.foodCost.sales)}</strong></span><span><small>Food cost théorique</small><strong>${money(posAdminState.foodCost.theoreticalFoodCost)}</strong></span><span><small>Food cost %</small><strong>${Number(posAdminState.foodCost.foodCostPct||0).toFixed(1)}%</strong></span><span><small>Marge brute théorique</small><strong>${money(posAdminState.foodCost.grossMargin)}</strong></span></div>`:''}
 
@@ -1094,6 +1122,9 @@ document.getElementById('directOrderCopy')?.addEventListener('click',async()=>{c
 document.getElementById('directKioskOpen')?.addEventListener('click',()=>{const value=document.getElementById('directKioskUrl')?.value||'';if(value)window.open(value,'_blank','noopener,noreferrer')});
 document.getElementById('directOrderPrint')?.addEventListener('click',()=>{const share=posAdminState.directOrderShare;if(!share?.qrSvg)return;const w=window.open('','_blank','noopener,noreferrer');if(!w)return;w.document.write('<!doctype html><title>ReMaPro QR</title><body style="font-family:sans-serif;text-align:center;padding:32px"><h1>'+esc(activeRestaurant(state)?.name||'ReMaPro')+'</h1>'+share.qrSvg+'<p style="word-break:break-all">'+esc(share.url||'')+'</p><script>window.print()<\/script></body>');w.document.close()});
 document.getElementById('posPublishCatalog')?.addEventListener('click',()=>posAdminPublish());
+document.getElementById('posBundleDraft')?.addEventListener('click',()=>posBundleAction('draft'));
+document.getElementById('posBundlePublish')?.addEventListener('click',()=>posBundleAction('publish'));
+document.querySelectorAll('[data-pos-bundle-restore]').forEach(b=>b.addEventListener('click',()=>posBundleAction('restore',Number(b.dataset.posBundleRestore))));
 document.getElementById('posApplyInventory')?.addEventListener('click',()=>applyPosInventoryMovements());
 document.querySelectorAll('[data-pos-components]').forEach(b=>b.addEventListener('click',()=>{const [collection,index]=String(b.dataset.posComponents||'').split(':');openPosStockComponents(collection,Number(index))}));
 document.querySelectorAll('[data-pos-station]').forEach(el=>el.addEventListener('change',()=>{

@@ -274,7 +274,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
+        "configuration_head","bundle_current","bundle_history","bundle_save_draft","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -397,6 +397,51 @@ export default {
         const snapshot=await posAvailabilitySnapshot(ctx.supabaseAdmin,restaurantId,restaurant.organization_id);
         if(snapshot.error)return json({error:snapshot.error},500);
         return json({ok:true,...snapshot});
+      }
+
+      if(action==="bundle_current"||action==="bundle_history"){
+        if(action==="bundle_history"&&!manager)return json({error:"Manager access required"},403);
+        const {data:head,error:headError}=await ctx.supabaseAdmin.from("pos_configuration_bundle_heads")
+          .select("version,published_at").eq("restaurant_id",restaurantId).maybeSingle();
+        if(headError)return json({error:headError.message},500);
+        if(action==="bundle_history"){
+          const {data:versions,error}=await ctx.supabaseAdmin.from("pos_configuration_bundle_versions")
+            .select("version,source_revision,checksum,restored_from_version,published_by,published_at")
+            .eq("restaurant_id",restaurantId).order("version",{ascending:false}).limit(30);
+          if(error)return json({error:error.message},500);
+          const {data:draft,error:draftError}=await ctx.supabaseAdmin.from("pos_configuration_bundle_drafts")
+            .select("source_revision,document,updated_at").eq("restaurant_id",restaurantId).maybeSingle();
+          if(draftError)return json({error:draftError.message},500);
+          const {data:revisionRow,error:revisionError}=await ctx.supabaseAdmin.from("pos_configuration_revisions")
+            .select("revision").eq("restaurant_id",restaurantId).maybeSingle();
+          if(revisionError)return json({error:revisionError.message},500);
+          return json({ok:true,currentVersion:Number(head?.version)||0,currentRevision:Number(revisionRow?.revision)||0,history:versions||[],draft:draft||null});
+        }
+        if(!head)return json({ok:true,bundle:null});
+        const {data,error}=await ctx.supabaseAdmin.from("pos_configuration_bundle_versions")
+          .select("version,schema_version,source_revision,payload,checksum,published_at")
+          .eq("restaurant_id",restaurantId).eq("version",head.version).single();
+        if(error)return json({error:error.message},500);
+        return json({ok:true,bundle:data});
+      }
+
+      if(action==="bundle_save_draft"||action==="bundle_publish"||action==="bundle_restore"){
+        if(!manager)return json({error:"Manager access required"},403);
+        const args:any={p_restaurant_id:restaurantId,p_actor_user_id:userId};
+        if(action==="bundle_publish"){
+          const expected=Number(body.expectedRevision);
+          if(!Number.isSafeInteger(expected)||expected<1)return json({error:"Valid expected revision required"},400);
+          args.p_expected_revision=expected;
+        }
+        if(action==="bundle_restore"){
+          const version=Number(body.version);
+          if(!Number.isSafeInteger(version)||version<1)return json({error:"Valid version required"},400);
+          args.p_version=version;
+        }
+        const fn={bundle_save_draft:"pos_bundle_save_draft",bundle_publish:"pos_bundle_publish",bundle_restore:"pos_bundle_restore"}[action];
+        const {data,error}=await ctx.supabaseAdmin.rpc(fn,args);
+        if(error)return json({error:error.message},409);
+        return json({ok:true,result:data});
       }
 
       if(action==="configuration_head"){
