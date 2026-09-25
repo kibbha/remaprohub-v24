@@ -21,3 +21,4 @@ Run POS tests and build one debug APK for phone testing.
 
 Build POS test APK without Favorites and with modifier guard
 Requested: 2026-09-25
+2026-09-25: catégories sans Tous / Tout, service Sur place et À emporter, validation POS.
