@@ -28,3 +28,4 @@ Build Hub debug APK to verify Plats > Poissons hierarchy on device.
 
 Build Hub test APK with direct search, no Favorites and modifier validation
 Requested: 2026-09-25
+2026-09-25: catégories sans Tous / Tout, service Sur place et À emporter, validation Hub.
