@@ -395,3 +395,4 @@ html,body{background:#f1f5fa;color:var(--ink)}
   .pos-primary-nav .nav-tab{min-width:0;flex:1;font-size:11px;padding:8px 6px}
   .products{min-height:42vh}
 }
+.payments-alternative{margin-top:8px}

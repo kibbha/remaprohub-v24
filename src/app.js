@@ -818,13 +818,17 @@ async function bootstrapRestaurant(restaurant){
   if(state.online){
     try{
       await posFunction({action:'heartbeat',restaurantId:restaurant.id,device});
-      const data=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
-      const [bundleResult,head]=await Promise.all([
-        posFunction({action:'bundle_current',restaurantId:restaurant.id}).catch(()=>({bundle:null})),
-        posFunction({action:'configuration_head',restaurantId:restaurant.id}).catch(()=>null)
+      const before=await posFunction({action:'configuration_head',restaurantId:restaurant.id});
+      const [data,bundleResult]=await Promise.all([
+        posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id}),
+        before?.legacy===true?Promise.resolve({bundle:null}):posFunction({action:'bundle_current',restaurantId:restaurant.id})
       ]);
-      if(head?.settings)applyPosSettings(head.settings);
-      state.configurationBundle=Number(data.configurationRevision)===Number(head?.revision)?await readPublishedBundle(bundleResult,head):null;
+      const head=await posFunction({action:'configuration_head',restaurantId:restaurant.id});
+      if(before?.legacy!==true&&head?.legacy!==true)assertConsistentConfigurationRevision(before,data,head);
+      const bundle=before?.legacy===true||head?.legacy===true?null:await readPublishedBundle(bundleResult,head);
+      if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+      applyPosSettings(head.settings);
+      state.configurationBundle=bundle;
       state.bootstrap=applyPublishedBundle(data,state.configurationBundle);await kvSet(catalogKey(restaurant.id),state.bootstrap);
       if(data.openSession){
         state.cashSession={id:data.openSession.id,businessDate:data.openSession.business_date||data.openSession.businessDate,status:'open',openingCash:Number(data.openSession.opening_cash??data.openSession.openingCash)||0,synced:true};
@@ -1470,12 +1474,13 @@ async function splitCheckout(){
   const raw=await uiPrompt({title:t('splitCount'),label:t('splitCount'),value:'2',type:'number',inputMode:'numeric',min:'2',max:'6',step:'1'});if(raw===null)return;
   const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){uiAlert(t('splitInvalid'));return}
   const total=Math.round(cartTotal()*100)/100;
+  const availableMethods=[['cash',t('cashMethod')],['card',t('cardMethod')],['twint',t('twintMethod')],['voucher','Bon'],['invoice','Facture'],['other','Autre']].filter(([method])=>paymentAllowed(state.posSettings,method));
   const payments=[];let remaining=total;
   for(let i=0;i<count;i++){
     const suggested=i===count-1?remaining:Math.floor((total/count)*100)/100;
     const part=await uiFields({title:t('splitCount')+' '+(i+1)+'/'+count,message:money(remaining),fields:[
       {name:'amount',label:t('partAmount'),value:suggested.toFixed(2),type:'number',inputMode:'decimal',min:'0.01',max:String(remaining),step:'0.01',required:true},
-      {name:'method',label:t('paymentMethod'),type:'select',value:['cash','card','twint'].find(method=>paymentAllowed(state.posSettings,method))||'',options:[{value:'cash',label:t('cashMethod')},{value:'card',label:t('cardMethod')},{value:'twint',label:t('twintMethod')}].filter(option=>paymentAllowed(state.posSettings,option.value))}
+      {name:'method',label:t('paymentMethod'),type:'select',value:availableMethods[0]?.[0]||'',options:availableMethods.map(([value,label])=>({value,label}))}
     ]});if(!part)return;
     const amount=parseMoneyInput(part.amount);if(!Number.isFinite(amount)||amount<=0||amount>remaining+0.01){uiAlert(t('invalidAmount'));return}
     const method=normalizePaymentMethod(part.method);if(!method||!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
@@ -1796,7 +1801,7 @@ async function refreshHubManagedConfiguration(head=null){
     posFunction({action:'list_terminals',restaurantId}),
     posFunction({action:'list_printers',restaurantId}),
     posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]})),
-    posFunction({action:'bundle_current',restaurantId}).catch(()=>({bundle:null}))
+    posFunction({action:'bundle_current',restaurantId})
   ]);
   // These endpoints are separate reads. A publication during the fetch can mix
   // two revisions, so keep the previous offline snapshot and retry next poll.
@@ -2324,6 +2329,7 @@ function mainView(){
       <div class="checkout-summary"><span>Sous-total</span><strong>${money(cartTotal())}</strong></div>
       <div class="total-row"><span>Total</span><span>${money(cartTotal())}</span></div>
       <div class="payments"><button data-pay="cash" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'cash')?'disabled':''}>Espèces</button><button class="payment-primary" data-pay="card" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'card')?'disabled':''}>Carte / Tap to Pay<br><strong>${money(cartTotal())}</strong></button><button data-pay="twint" ${!state.cart.length||progressivePaymentActive()||!paymentAllowed(state.posSettings,'twint')?'disabled':''}>TWINT</button></div>
+      ${[['voucher','Bon'],['invoice','Facture'],['other','Autre']].some(([method])=>paymentAllowed(state.posSettings,method))?`<div class="payments payments-alternative">${[['voucher','Bon'],['invoice','Facture'],['other','Autre']].filter(([method])=>paymentAllowed(state.posSettings,method)).map(([method,label])=>`<button data-pay="${method}" ${!state.cart.length||progressivePaymentActive()?'disabled':''}>${label}</button>`).join('')}</div>`:''}
       ${state.receipts[0]?.receiptNumber?`<div class="last-receipt">Dernier ticket: <strong>${esc(state.receipts[0].receiptNumber)}</strong> · ${money(state.receipts[0].total)}</div>`:''}
     </div>
   </aside></main></div>`;
