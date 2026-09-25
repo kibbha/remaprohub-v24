@@ -260,6 +260,7 @@ export async function loadPosAdminSnapshot(restaurantId,businessDate=''){
 
 export const loadPosBundleHistory=restaurantId=>cloudFunction('remapro-pos-sync',{action:'bundle_history',restaurantId});
 export const savePosBundleDraft=restaurantId=>cloudFunction('remapro-pos-sync',{action:'bundle_save_draft',restaurantId});
+export const updatePosBundleSettings=(restaurantId,expectedRevision,settings)=>cloudFunction('remapro-pos-sync',{action:'bundle_update_settings',restaurantId,expectedRevision,settings});
 export const publishPosBundle=(restaurantId,expectedRevision)=>cloudFunction('remapro-pos-sync',{action:'bundle_publish',restaurantId,expectedRevision});
 export const restorePosBundle=(restaurantId,version)=>cloudFunction('remapro-pos-sync',{action:'bundle_restore',restaurantId,version});
 

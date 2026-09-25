@@ -4,6 +4,16 @@ const json=(data:unknown,status=200)=>Response.json(data,{status});
 const clean=(value:unknown,max=160)=>String(value??"").trim().slice(0,max);
 const validUuid=(value:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));
 const validDate=(value:unknown)=>/^\d{4}-\d{2}-\d{2}$/.test(String(value||""));
+const defaultPosSettings=()=>({payments:{cash:true,card:true,twint:true,voucher:true,invoice:true,other:true},kdsWarningMinutes:12,kdsCriticalMinutes:20});
+async function publishedPosSettings(db:any,restaurantId:string){
+  const {data:head,error:headError}=await db.from("pos_configuration_bundle_heads").select("version").eq("restaurant_id",restaurantId).maybeSingle();
+  if(headError)throw new Error(headError.message);
+  if(!head)return defaultPosSettings();
+  const {data,error}=await db.from("pos_configuration_bundle_versions").select("document").eq("restaurant_id",restaurantId).eq("version",head.version).single();
+  if(error)throw new Error(error.message);
+  const s=data?.document?.settings,defaults=defaultPosSettings();
+  return{payments:{...defaults.payments,...(s?.payments||{})},kdsWarningMinutes:Number(s?.kdsWarningMinutes)||12,kdsCriticalMinutes:Number(s?.kdsCriticalMinutes)||20};
+}
 
 async function patchDirectOrderFromPos(db:any,posOrderId:string,patch:any,eventType:string,actorUserId:string){
   const now=new Date().toISOString(),payload={...patch,updated_at:now};if(patch.status==="completed")payload.completed_at=now;
@@ -274,7 +284,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","bundle_current","bundle_history","bundle_save_draft","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
+        "configuration_head","bundle_current","bundle_history","bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -305,6 +315,19 @@ export default {
             p_action:action,p_entity_type:"request",p_entity_id:entityValue||null,
             p_metadata:{clientEventId:validUuid(body.clientEventId)?body.clientEventId:null}
           }).then(()=>{}).catch(()=>{});
+        }
+      }
+
+      const paymentActions=new Set(["commit_order","settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group","create_terminal_intent"]);
+      if(paymentActions.has(action)){
+        const methods=action==="commit_order"?[body.order?.paymentMethod]:
+          action==="settle_open_order"?[body.paymentMethod]:
+          action==="settle_open_order_split"?(Array.isArray(body.payments)?body.payments:[]).map((p:any)=>p?.method):
+          action==="settle_open_order_allocated"?(Array.isArray(body.groups)?body.groups:[]).map((g:any)=>g?.method):
+          [body.method];
+        let settings:any;try{settings=await publishedPosSettings(ctx.supabaseAdmin,restaurantId)}catch(settingsError){return json({error:(settingsError as Error).message},500)}
+        if(methods.some((method:any)=>settings.payments[String(method||"").trim().toLowerCase()]===false)){
+          return json({error:"PAYMENT_METHOD_DISABLED"},409);
         }
       }
 
@@ -425,7 +448,7 @@ export default {
         return json({ok:true,bundle:data});
       }
 
-      if(action==="bundle_save_draft"||action==="bundle_publish"||action==="bundle_restore"){
+      if(action==="bundle_save_draft"||action==="bundle_update_settings"||action==="bundle_publish"||action==="bundle_restore"){
         if(!manager)return json({error:"Manager access required"},403);
         const args:any={p_restaurant_id:restaurantId,p_actor_user_id:userId};
         if(action==="bundle_publish"){
@@ -433,12 +456,17 @@ export default {
           if(!Number.isSafeInteger(expected)||expected<1)return json({error:"Valid expected revision required"},400);
           args.p_expected_revision=expected;
         }
+        if(action==="bundle_update_settings"){
+          const expected=Number(body.expectedRevision);
+          if(!Number.isSafeInteger(expected)||expected<1)return json({error:"Valid expected revision required"},400);
+          args.p_expected_revision=expected;args.p_settings=body.settings;
+        }
         if(action==="bundle_restore"){
           const version=Number(body.version);
           if(!Number.isSafeInteger(version)||version<1)return json({error:"Valid version required"},400);
           args.p_version=version;
         }
-        const fn={bundle_save_draft:"pos_bundle_save_draft",bundle_publish:"pos_bundle_publish",bundle_restore:"pos_bundle_restore"}[action];
+        const fn={bundle_save_draft:"pos_bundle_save_draft",bundle_update_settings:"pos_bundle_update_settings",bundle_publish:"pos_bundle_publish",bundle_restore:"pos_bundle_restore"}[action];
         const {data,error}=await ctx.supabaseAdmin.rpc(fn,args);
         if(error)return json({error:error.message},409);
         return json({ok:true,result:data});
@@ -451,7 +479,8 @@ export default {
           if(String(error.message||"").toLowerCase().includes("pos_configuration_revisions"))return json({ok:true,revision:0,updatedAt:null,legacy:true});
           return json({error:error.message},500);
         }
-        return json({ok:true,revision:Number(data?.revision)||0,updatedAt:data?.updated_at||null});
+        let settings:any;try{settings=await publishedPosSettings(ctx.supabaseAdmin,restaurantId)}catch(settingsError){return json({error:(settingsError as Error).message},500)}
+        return json({ok:true,revision:Number(data?.revision)||0,updatedAt:data?.updated_at||null,settings});
       }
 
       if(action==="bootstrap"){
