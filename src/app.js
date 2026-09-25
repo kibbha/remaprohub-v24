@@ -1,7 +1,7 @@
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
-import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,categoryScopeIds,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
+import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
 import {renderAcademyCenter,academyContextTopics,academyTopic,loadLocalAcademyProgress,saveLocalAcademyProgress,mergeAcademyProgress,startAcademyTour,ensureAcademyStyles} from './academy.js';
 import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
@@ -17,14 +17,14 @@ import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './
 
 const APP_VERSION='0.27.0';
 const state={
-  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,posSettings:normalizePosSettings(null),category:'Tous',productSearch:'',cart:[],
+  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,posSettings:normalizePosSettings(null),category:'',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
-  receipts:[],serviceType:'counter',tableLabel:'',covers:1,
+  receipts:[],serviceType:'dine_in',tableLabel:'',covers:1,
   tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',pendingNewOrder:false,view:'sale',activeOrderId:null,activeTableId:null,
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
-  pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'all',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
+  pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null,directOrderPollTimer=null,hubConfigPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false,hubConfigSyncInFlight=false;
@@ -947,7 +947,7 @@ async function openTables(){
 async function startNewOrder(){
   if(!(await confirmDraftExit()))return;
   state.error='';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;
-  if(!state.tables.length){state.pendingNewOrder=false;state.serviceType='counter';state.view='sale';render();return}
+  if(!state.tables.length){state.pendingNewOrder=false;state.serviceType='dine_in';state.view='sale';render();return}
   state.pendingNewOrder=true;state.view='floor';await refreshFloorData();render();
 }
 async function addDiningTable(){
@@ -1644,21 +1644,30 @@ async function updateProductionItem(itemId,status,{renderAfter=true,refreshAfter
 function activeLayout(){
   return publishedLayout(state.bootstrap);
 }
+function initialLayoutCategory(doc,pageId,requestedId=''){
+  const categories=categoriesForPage(doc,pageId);
+  const chosen=categories.find(c=>String(c.id)===String(requestedId))||categories.find(c=>!categories.some(parent=>String(parent.id)===String(c.parentId)))||categories[0];
+  if(!chosen)return '';
+  if(pageButtons(doc,pageId).some(button=>String(button.categoryId)===String(chosen.id)
+    ||(String(chosen.id)===String(categories[0]?.id)&&!categories.some(c=>String(c.id)===String(button.categoryId||'')))))return String(chosen.id);
+  return String(categories.find(c=>String(c.parentId)===String(chosen.id))?.id||chosen.id);
+}
 function ensureLayoutSelection(layout){
   const doc=layout?.document;if(!doc)return;
   const pages=[...(doc.pages||[])].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   if(!pages.some(p=>String(p.id)===String(state.layoutPageId)))state.layoutPageId=String(pages[0]?.id||'');
-  const cats=['all',...categoriesForPage(doc,state.layoutPageId).map(c=>String(c.id))];
-  if(!cats.includes(String(state.layoutCategoryId)))state.layoutCategoryId='all';
+  const categories=categoriesForPage(doc,state.layoutPageId);
+  if(!categories.some(c=>String(c.id)===String(state.layoutCategoryId)))state.layoutCategoryId=initialLayoutCategory(doc,state.layoutPageId);
 }
 function layoutVisibleButtons(layout){
   const doc=layout?.document;if(!doc)return[];
   ensureLayoutSelection(layout);
-  const categoryIds=new Set(categoryScopeIds(doc,state.layoutPageId,state.layoutCategoryId));
+  const categories=categoriesForPage(doc,state.layoutPageId);
   return pageButtons(doc,state.layoutPageId).filter(b=>{
     if(b.hidden)return false;
-    if(state.layoutCategoryId!=='all')return categoryIds.has(String(b.categoryId||''));
-    return true;
+    if(String(state.productSearch||'').trim())return true;
+    return !categories.length||String(b.categoryId||'')===String(state.layoutCategoryId)
+      ||(String(state.layoutCategoryId)===String(categories[0]?.id)&&!categories.some(c=>String(c.id)===String(b.categoryId||'')));
   });
 }
 function closeItemConfigurator(){
@@ -2318,16 +2327,15 @@ function mainView(){
     const doc=layout.document,pages=[...(doc.pages||[])].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
     const navigation=categoryNavigationForPage(doc,state.layoutPageId,state.layoutCategoryId),cats=navigation.categories,allButtons=layoutVisibleButtons(layout);
     const buttons=allButtons.filter(b=>{const p=itemForButton(b,catalog);return matchesSearch(b.label||p?.name,p?.category)});
-    const branch=cats.find(c=>String(c.id)===navigation.branchId);
-    const subcategoryArea=navigation.subcategories.length?'<nav class="layout-subcategory-tabs" aria-label="Sous-catégories"><button type="button" class="'+(state.layoutCategoryId===navigation.branchId?'active':'')+'" data-layout-category="'+esc(navigation.branchId)+'">Tout '+esc(branch?.name||'')+'</button>'+navigation.subcategories.map(c=>'<button type="button" class="'+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>':'';
-    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button>'+navigation.roots.map(c=>'<button class="category '+(String(c.id)===navigation.activeRootId?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>';
+    const subcategoryArea=navigation.subcategories.length?'<nav class="layout-subcategory-tabs" aria-label="Sous-catégories">'+navigation.subcategories.map(c=>'<button type="button" class="'+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>':'';
+    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div>'+navigation.roots.map(c=>'<button class="category '+(String(c.id)===navigation.activeRootId?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>';
     productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div>'+subcategoryArea+'<div class="product-toolbar"><div><strong>'+buttons.length+' article'+(buttons.length>1?'s':'')+'</strong><small> · implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'
       +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null,a=availabilityForButton(b,catalog),remaining=a.availableNow,badge=remaining==null?'':remaining<=0?'<span class="availability-badge soldout">Épuisé</span>':'<span class="availability-badge '+(remaining<=a.lowThreshold?'low':'ok')+'">'+remaining+' dispo</span>',searchText=esc(((b.label||p.name)+' '+(p.category||'')).toLocaleLowerCase());return '<button class="product layout-product '+(b.unavailable||a.soldOut?'unavailable':'')+'" data-product-search="'+searchText+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable||a.soldOut?'disabled':'')+' style="--pos-color:'+esc(b.color||'#f2e5d8')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'">'+productVisual(p,b.photo,badge)+'<span class="product-copy"><strong>'+esc(b.label||p.name)+'</strong><small>'+esc(p.category||b.station||p.production_station||'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
   }else{
-    const cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
-    if(!cats.includes(state.category))state.category='Tous';
-    const visible=(state.category==='Tous'?catalog:catalog.filter(x=>(x.category||'Autres')===state.category)).filter(p=>matchesSearch(p.name,p.category));
-    categoryArea='<nav class="categories"><div class="category-heading">Catalogue</div>'+cats.map(c=>'<button class="category '+(c===state.category?'active':'')+'" data-category="'+esc(c)+'">'+(c==='Tous'?'◈ ':c==='Autres'?'••• ':'')+esc(c)+'</button>').join('')+'</nav>';
+    const cats=[...new Set(catalog.map(x=>x.category||'Autres'))];
+    if(!cats.includes(state.category))state.category=cats[0]||'';
+    const visible=catalog.filter(x=>(x.category||'Autres')===state.category).filter(p=>matchesSearch(p.name,p.category));
+    categoryArea='<nav class="categories"><div class="category-heading">Catalogue</div>'+cats.map(c=>'<button class="category '+(c===state.category?'active':'')+'" data-category="'+esc(c)+'">'+(c==='Autres'?'••• ':'')+esc(c)+'</button>').join('')+'</nav>';
     productArea='<section class="products"><div class="product-toolbar"><div><strong>'+visible.length+' article'+(visible.length>1?'s':'')+'</strong><small> sur '+catalog.length+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'+(visible.length?'<div class="product-grid">'+visible.map(p=>'<button class="product" data-product-search="'+esc(((p.name||'')+' '+(p.category||'')).toLocaleLowerCase())+'" data-product="'+p.id+'">'+productVisual(p)+'<span class="product-copy"><strong>'+esc(p.name)+'</strong><small>'+esc(p.category||'')+(p.production_station==='bar'?' · Bar':p.production_station==='none'?'':' · Cuisine')+'</small><span class="price">'+money(p.price)+'</span></span></button>').join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
   }
 
@@ -2336,8 +2344,8 @@ function mainView(){
   <main class="workspace">${categoryArea}${productArea}
   <aside class="cart">
     <div class="cart-head"><div class="cart-title-row"><div><small>Commande en cours</small><h2>${esc(state.tableLabel||'Nouvelle commande')}</h2></div><span class="cart-cover-badge">${Number(state.covers)||0} couv.</span></div>
-      <select id="service-type" class="sr-only"><option value="counter" ${state.serviceType==='counter'?'selected':''}>Comptoir</option><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select>
-      <div class="service-segments"><button type="button" data-service-type-ui="dine_in" class="${state.serviceType==='dine_in'?'active':''}">Sur place</button><button type="button" data-service-type-ui="takeaway" class="${state.serviceType==='takeaway'?'active':''}">▣ À emporter</button><button type="button" data-service-type-ui="counter" class="${state.serviceType==='counter'?'active':''}">⌂ Comptoir</button></div>
+      <select id="service-type" class="sr-only"><option value="dine_in" ${state.serviceType==='dine_in'?'selected':''}>Sur place</option><option value="takeaway" ${state.serviceType==='takeaway'?'selected':''}>À emporter</option></select>
+      <div class="service-segments"><button type="button" data-service-type-ui="dine_in" class="${state.serviceType==='dine_in'?'active':''}">Sur place</button><button type="button" data-service-type-ui="takeaway" class="${state.serviceType==='takeaway'?'active':''}">▣ À emporter</button></div>
       <div class="order-meta"><input id="table-label" placeholder="Table / référence" value="${esc(state.tableLabel)}"><input id="covers" type="number" min="0" value="${Number(state.covers)||0}" title="Couverts"></div>
     </div>
     <div class="cart-list">${state.cart.length?state.cart.map(x=>`<div class="line ${x.delta?'delta-line':x.locked?'locked-line':''}"><div class="line-main"><strong>${esc(x.name)}</strong>${x.delta?'<span class="delta-badge">Ajout</span>':x.locked?'<span class="sent-badge">Envoyé</span>':''}<small>${money(x.price)} · ${x.qty} article${x.qty>1?'s':''}</small>${x.note?'<small class="line-modifiers">'+esc(x.note)+'</small>':''}</div><div class="qty"><button data-minus="${x.id}" ${x.locked?'disabled':''}>−</button><span>${x.qty}</span><button data-plus="${x.id}" ${x.locked?'disabled':''}>+</button></div></div>`).join(''):'<div class="cart-empty"><span>＋</span><strong>Ajoutez des articles</strong><small>Touchez un produit pour commencer la commande.</small></div>'}</div>
@@ -2387,11 +2395,11 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue({force:true});if(state.view==='sync')render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
   document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
-  document.querySelector('#nav-sale')?.addEventListener('click',async()=>{if(!(await confirmDraftExit()))return;state.pendingNewOrder=false;state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='counter';state.cart=[];render()});
+  document.querySelector('#nav-sale')?.addEventListener('click',async()=>{if(!(await confirmDraftExit()))return;state.pendingNewOrder=false;state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='dine_in';state.cart=[];render()});
   document.querySelector('#nav-floor')?.addEventListener('click',()=>openTables());
   document.querySelector('#open-tables')?.addEventListener('click',()=>openTables());
   document.querySelector('#new-order')?.addEventListener('click',()=>startNewOrder());
-  document.querySelector('#order-without-table')?.addEventListener('click',()=>{state.pendingNewOrder=false;state.view='sale';state.serviceType='counter';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;state.error='';render()});
+  document.querySelector('#order-without-table')?.addEventListener('click',()=>{state.pendingNewOrder=false;state.view='sale';state.serviceType='dine_in';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;state.error='';render()});
   document.querySelector('#cancel-table-pick')?.addEventListener('click',()=>{state.pendingNewOrder=false;state.view='sale';state.error='';render()});
   document.querySelector('#nav-direct-orders')?.addEventListener('click',()=>{state.view='directOrders';refreshDirectOrders().then(render)});
   document.querySelector('#refresh-direct-orders')?.addEventListener('click',()=>refreshDirectOrders().then(render));
@@ -2458,8 +2466,8 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#table-label')?.addEventListener('input',e=>state.tableLabel=e.target.value);
   document.querySelector('#covers')?.addEventListener('input',e=>state.covers=Math.max(0,Number(e.target.value)||0));
   document.querySelectorAll('[data-category]').forEach(b=>b.addEventListener('click',()=>{state.category=b.dataset.category;render()}));
-  document.querySelectorAll('[data-layout-page]').forEach(b=>b.addEventListener('click',()=>{state.layoutPageId=b.dataset.layoutPage;state.layoutCategoryId='all';render()}));
-  document.querySelectorAll('[data-layout-category]').forEach(b=>b.addEventListener('click',()=>{state.layoutCategoryId=b.dataset.layoutCategory;render()}));
+  document.querySelectorAll('[data-layout-page]').forEach(b=>b.addEventListener('click',()=>{state.layoutPageId=b.dataset.layoutPage;state.layoutCategoryId='';render()}));
+  document.querySelectorAll('[data-layout-category]').forEach(b=>b.addEventListener('click',()=>{state.layoutCategoryId=initialLayoutCategory(activeLayout()?.document,state.layoutPageId,b.dataset.layoutCategory);render()}));
   document.querySelectorAll('[data-layout-product]').forEach(b=>b.addEventListener('click',()=>openItemConfigurator(b.dataset.layoutProduct)));
   document.querySelectorAll('[data-product]').forEach(b=>b.addEventListener('click',()=>{const p=(state.bootstrap?.catalog||[]).find(x=>x.id===b.dataset.product);if(p)addItem(p)}));
   document.querySelectorAll('[data-minus]').forEach(b=>b.addEventListener('click',()=>changeQty(b.dataset.minus,-1)));
