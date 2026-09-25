@@ -1648,7 +1648,7 @@ function ensureLayoutSelection(layout){
   const doc=layout?.document;if(!doc)return;
   const pages=[...(doc.pages||[])].sort((a,b)=>(Number(a.sortOrder)||0)-(Number(b.sortOrder)||0));
   if(!pages.some(p=>String(p.id)===String(state.layoutPageId)))state.layoutPageId=String(pages[0]?.id||'');
-  const cats=['all','favorites',...categoriesForPage(doc,state.layoutPageId).map(c=>String(c.id))];
+  const cats=['all',...categoriesForPage(doc,state.layoutPageId).map(c=>String(c.id))];
   if(!cats.includes(String(state.layoutCategoryId)))state.layoutCategoryId='all';
 }
 function layoutVisibleButtons(layout){
@@ -1657,7 +1657,6 @@ function layoutVisibleButtons(layout){
   const categoryIds=new Set(categoryScopeIds(doc,state.layoutPageId,state.layoutCategoryId));
   return pageButtons(doc,state.layoutPageId).filter(b=>{
     if(b.hidden)return false;
-    if(state.layoutCategoryId==='favorites')return !!b.favorite;
     if(state.layoutCategoryId!=='all')return categoryIds.has(String(b.categoryId||''));
     return true;
   });
@@ -1691,6 +1690,10 @@ function openItemConfigurator(buttonId){
   const availability=availabilityForButton(button,catalog);if(availability.soldOut){uiAlert('Article épuisé.');return}
   const product=itemForButton(button,catalog);if(!product){uiAlert('Cette touche POS est incomplète. Modifiez-la dans ReMaPro Hub.');return}
   const config=configurationForButton(doc,button,catalog);
+  if(config.groups.some(group=>group.type!=='notes'&&!(group.options||[]).length)){
+    uiAlert('Cette touche contient un groupe de modificateurs sans option. Ajoutez ses choix dans ReMaPro Hub, puis republiez la caisse.');
+    return;
+  }
   if(!config.groups.length&&!config.menu){addConfiguredLine(product,button,[],null);return}
 
   closeItemConfigurator();
@@ -2317,9 +2320,9 @@ function mainView(){
     const buttons=allButtons.filter(b=>{const p=itemForButton(b,catalog);return matchesSearch(b.label||p?.name,p?.category)});
     const branch=cats.find(c=>String(c.id)===navigation.branchId);
     const subcategoryArea=navigation.subcategories.length?'<nav class="layout-subcategory-tabs" aria-label="Sous-catégories"><button type="button" class="'+(state.layoutCategoryId===navigation.branchId?'active':'')+'" data-layout-category="'+esc(navigation.branchId)+'">Tout '+esc(branch?.name||'')+'</button>'+navigation.subcategories.map(c=>'<button type="button" class="'+(String(c.id)===String(state.layoutCategoryId)?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>':'';
-    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button><button class="category '+(state.layoutCategoryId==='favorites'?'active':'')+'" data-layout-category="favorites">★ Favoris</button>'+navigation.roots.map(c=>'<button class="category '+(String(c.id)===navigation.activeRootId?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>';
+    categoryArea='<nav class="categories layout-categories"><div class="category-heading">Catalogue</div><button class="category '+(state.layoutCategoryId==='all'?'active':'')+'" data-layout-category="all">Tous</button>'+navigation.roots.map(c=>'<button class="category '+(String(c.id)===navigation.activeRootId?'active':'')+'" data-layout-category="'+esc(c.id)+'">'+esc(c.name)+'</button>').join('')+'</nav>';
     productArea='<section class="products layout-products"><div class="layout-page-tabs">'+pages.map(p=>'<button class="'+(String(p.id)===String(state.layoutPageId)?'active':'')+'" data-layout-page="'+esc(p.id)+'">'+esc(p.name)+'</button>').join('')+'</div>'+subcategoryArea+'<div class="product-toolbar"><div><strong>'+buttons.length+' article'+(buttons.length>1?'s':'')+'</strong><small> · implantation v'+Number(layout.version||0)+(state.online?'':' · cache offline')+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'
-      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null,a=availabilityForButton(b,catalog),remaining=a.availableNow,badge=remaining==null?'':remaining<=0?'<span class="availability-badge soldout">Épuisé</span>':'<span class="availability-badge '+(remaining<=a.lowThreshold?'low':'ok')+'">'+remaining+' dispo</span>',searchText=esc(((b.label||p.name)+' '+(p.category||'')).toLocaleLowerCase());return '<button class="product layout-product '+(b.unavailable||a.soldOut?'unavailable':'')+'" data-product-search="'+searchText+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable||a.soldOut?'disabled':'')+' style="--pos-color:'+esc(b.color||'#f2e5d8')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'">'+productVisual(p,b.photo,badge)+'<span class="product-copy"><strong>'+esc(b.label||p.name)+'</strong><small>'+(b.favorite?'★ · ':'')+esc(p.category||b.station||p.production_station||'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
+      +(buttons.length?'<div class="layout-product-grid">'+buttons.map(b=>{const p=itemForButton(b,catalog);if(!p)return'';const linkedMenu=!p.layoutStandalone?(doc.menus||[]).find(m=>String(m.productId)===String(p.id)):null,a=availabilityForButton(b,catalog),remaining=a.availableNow,badge=remaining==null?'':remaining<=0?'<span class="availability-badge soldout">Épuisé</span>':'<span class="availability-badge '+(remaining<=a.lowThreshold?'low':'ok')+'">'+remaining+' dispo</span>',searchText=esc(((b.label||p.name)+' '+(p.category||'')).toLocaleLowerCase());return '<button class="product layout-product '+(b.unavailable||a.soldOut?'unavailable':'')+'" data-product-search="'+searchText+'" data-layout-product="'+esc(b.id)+'" '+(b.unavailable||a.soldOut?'disabled':'')+' style="--pos-color:'+esc(b.color||'#f2e5d8')+';--pos-x:'+(Number(b.x)||0)+';--pos-y:'+(Number(b.y)||0)+';--pos-w:'+Math.max(1,Number(b.w)||1)+';--pos-h:'+Math.max(1,Number(b.h)||1)+'">'+productVisual(p,b.photo,badge)+'<span class="product-copy"><strong>'+esc(b.label||p.name)+'</strong><small>'+esc(p.category||b.station||p.production_station||'')+'</small><span class="price">'+money(linkedMenu?.price||p.price)+'</span></span></button>'}).join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
   }else{
     const cats=['Tous',...new Set(catalog.map(x=>x.category||'Autres'))];
     if(!cats.includes(state.category))state.category='Tous';
