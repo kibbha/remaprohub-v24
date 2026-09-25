@@ -12,3 +12,9 @@ Hub configuration and payment policy integration verification
 Requested: 2026-09-25
 Source branch: pos/remapro-pos
 Run one debug APK build for phone testing of published payment methods and KDS thresholds.
+
+
+Dark POS approved design with Tables and New order shortcuts
+Requested: 2026-09-25
+Source branch: pos/remapro-pos
+Run POS tests and build one debug APK for phone testing.
