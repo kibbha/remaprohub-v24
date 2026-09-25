@@ -81,6 +81,10 @@ assert.equal(autoMatchLayoutButton(ambiguousButton,ambiguousCatalog),null);
 assert.equal(layoutButtonItem(ambiguousButton,ambiguousCatalog).source,'layout');
 
 const editorHtml=renderPosLayoutEditor({layout:{...standalone,categories:[{id:'editor-category',name:'Carte',parentId:'',sortOrder:0}]},catalog,sectionNav:'<nav class="module-section-nav"><button>Caisse</button><button>Catégories</button><button>Menus & options</button></nav>'});
+const fishLayout={...standalone,categories:[{id:'dishes',name:'Plats',parentId:'',sortOrder:0},{id:'fish',name:'Poissons',parentId:'dishes',sortOrder:1}],buttons:standalone.buttons.map((button,i)=>({...button,categoryId:i===0?'dishes':button.categoryId}))};
+const fishEditor=renderPosLayoutEditor({layout:fishLayout,catalog,selectedButtonId:fishLayout.buttons[0].id});
+assert.match(fishEditor,/data-layout-preview-category="fish"[^>]*>↳ Poissons<\/button>/,'new empty category is visible in the preview');
+assert.match(fishEditor,/<select id="posLayoutCategory">[\s\S]*?<option value="fish"[^>]*>↳ Poissons<\/option>/,'an existing dish can be reassigned to the new category');
 assert.match(editorHtml,/data-module-pane="touches"/);
 assert.match(editorHtml,/data-module-pane="categories"/);
 assert.match(editorHtml,/data-module-pane="menus"/);
