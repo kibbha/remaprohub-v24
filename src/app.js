@@ -10,12 +10,13 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
+import {readPublishedBundle,applyPublishedBundle} from './configuration-bundle.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
 const APP_VERSION='0.27.0';
 const state={
-  identity:null,restaurant:null,bootstrap:null,category:'Tous',productSearch:'',cart:[],
+  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,category:'Tous',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'counter',tableLabel:'',covers:1,
   tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',view:'sale',activeOrderId:null,activeTableId:null,
@@ -649,9 +650,9 @@ async function refreshFloorData(){
       posFunction({action:'list_open_orders',restaurantId:state.restaurant.id}),
       posFunction({action:'floor_plan_current',restaurantId:state.restaurant.id}).catch(()=>({plan:null}))
     ]);
-    state.tables=tables.rows||[];
+    state.tables=state.configurationBundle?.document?.tables||tables.rows||[];
     state.openOrders=orders.rows||[];
-    state.floorPlan=floor.plan||null;
+    state.floorPlan=state.configurationBundle?.document?.floorPlan||floor.plan||null;
     state.floorReservations=Array.isArray(floor.reservations)?floor.reservations:[];
     const zones=Array.isArray(state.floorPlan?.document?.zones)?state.floorPlan.document.zones:[];
     if(!zones.some(z=>z.id===state.floorZoneId))state.floorZoneId=zones[0]?.id||'';
@@ -792,13 +793,19 @@ async function bootstrapRestaurant(restaurant){
   state.cashSession=await kvGet(sessionKey(restaurant.id));
   state.availabilityRows=await kvGet(availabilityCacheKey(restaurant.id))||[];
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
+  state.configurationBundle=null;
   render();
   const device=await ensureDevice();
   if(state.online){
     try{
       await posFunction({action:'heartbeat',restaurantId:restaurant.id,device});
       const data=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
-      state.bootstrap=data;await kvSet(catalogKey(restaurant.id),data);
+      const [bundleResult,head]=await Promise.all([
+        posFunction({action:'bundle_current',restaurantId:restaurant.id}).catch(()=>({bundle:null})),
+        posFunction({action:'configuration_head',restaurantId:restaurant.id}).catch(()=>null)
+      ]);
+      state.configurationBundle=Number(data.configurationRevision)===Number(head?.revision)?await readPublishedBundle(bundleResult,head):null;
+      state.bootstrap=applyPublishedBundle(data,state.configurationBundle);await kvSet(catalogKey(restaurant.id),state.bootstrap);
       if(data.openSession){
         state.cashSession={id:data.openSession.id,businessDate:data.openSession.business_date||data.openSession.businessDate,status:'open',openingCash:Number(data.openSession.opening_cash??data.openSession.openingCash)||0,synced:true};
         await kvSet(sessionKey(restaurant.id),state.cashSession);
@@ -1751,19 +1758,23 @@ async function refreshCatalog(){
 
 async function refreshHubManagedConfiguration(head=null){
   const device=await ensureDevice(),restaurantId=state.restaurant.id;
-  const [bootstrap,tables,terminals,printers,providers]=await Promise.all([
+  const [bootstrap,tables,terminals,printers,providers,bundleResult]=await Promise.all([
     posFunction({action:'bootstrap',restaurantId,deviceId:device.id}),
     posFunction({action:'list_tables',restaurantId}),
     posFunction({action:'list_terminals',restaurantId}),
     posFunction({action:'list_printers',restaurantId}),
-    posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]}))
+    posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]})),
+    posFunction({action:'bundle_current',restaurantId}).catch(()=>({bundle:null}))
   ]);
   // These endpoints are separate reads. A publication during the fetch can mix
   // two revisions, so keep the previous offline snapshot and retry next poll.
   const after=await posFunction({action:'configuration_head',restaurantId});
   assertConsistentConfigurationRevision(head,bootstrap,after);
-  state.bootstrap=bootstrap;
-  state.tables=tables.rows||[];
+  const bundle=await readPublishedBundle(bundleResult,after);
+  state.configurationBundle=bundle;
+  state.bootstrap=applyPublishedBundle(bootstrap,bundle);
+  state.tables=bundle?.document.tables||tables.rows||[];
+  if(bundle?.document.floorPlan)state.floorPlan=bundle.document.floorPlan;
   state.terminals=terminals.rows||[];
   state.printers=printers.rows||[];
   state.providerConnections=providers.rows||[];
