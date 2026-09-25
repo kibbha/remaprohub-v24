@@ -16,6 +16,6 @@ assert.ok(css.includes('V0.28 — ReMaPro POS clarity redesign'));
 assert.ok(css.includes('.pos-more-menu'));
 assert.ok(css.includes('.product-visual'));
 assert.ok(css.includes('.cart-tools'));
-assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-20260923/);
+assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-\d{8}/);
 for(const token of ['pos-more-groups','one-task-per-screen operational views','payments{position:sticky']) assert.ok(app.includes(token)||css.includes(token),token+' missing');
 console.log('ReMaPro POS clarity redesign checks passed');

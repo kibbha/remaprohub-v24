@@ -1,5 +1,5 @@
-const CACHE='remapro-pos-shell-v0285-final-audit-20260923';
-const CORE=['./','./index.html','./manifest.webmanifest','./runtime-config.js','./src/app.js','./src/cloud.js','./src/db.js','./src/printer.js','./src/tap-to-pay.js','./src/layout.js','./src/academy-content.js','./src/academy.js','./src/i18n.js','./src/ui.js','./src/telemetry.js','./src/resilience.js','./src/direct-orders.js','./src/styles.css','./assets/icon.svg'];
+const CACHE='remapro-pos-shell-v0286-service-flow-20260925';
+const CORE=['./','./index.html','./manifest.webmanifest','./runtime-config.js','./src/app.js','./src/cloud.js','./src/db.js','./src/printer.js','./src/tap-to-pay.js','./src/layout.js','./src/academy-content.js','./src/academy.js','./src/i18n.js','./src/ui.js','./src/telemetry.js','./src/resilience.js','./src/service-flow.js','./src/configuration-bundle.js','./src/configuration-revision.js','./src/payment-policy.js','./src/customer-display.js','./src/direct-orders.js','./src/styles.css','./assets/icon.svg'];
 const corePaths=new Set(CORE.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('remapro-pos-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));

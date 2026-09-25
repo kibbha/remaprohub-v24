@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {parseCashAmount,closingChecks,mergePendingOrders,syncIndicator} from '../src/service-flow.js';
+for(const bad of ['',null,'   ','-1','NaN','abc','1e3','1.234','Infinity'])assert.equal(parseCashAmount(bad),null,String(bad));
+assert.equal(parseCashAmount('100,50'),100.5);assert.equal(parseCashAmount('0'),0);
+const base={restaurant:{id:'a'},cashSession:{status:'open'},online:true,pendingQueue:[],openOrders:[],cart:[],terminalIntents:[]};
+assert.equal(closingChecks(base).canClose,true);
+for(const extra of [{pendingQueue:[{restaurantId:'a'}]},{openOrders:[{status:'payment_pending'}]},{cart:[{locked:false}]},{cart:[{locked:true,delta:true}]},{terminalIntents:[{status:'authorized'}]},{paymentBusy:true},{cashSession:{status:'closing'}}])assert.equal(closingChecks({...base,...extra}).canClose,false);
+assert.equal(closingChecks({...base,pendingQueue:[{restaurantId:'b'}],cart:[{locked:true}]}).canClose,true);
+const remote=[{id:'1',total:10},{id:'2',total:20}],local=[{id:'1',total:15},{id:'3',total:5}];
+const queue=[{restaurantId:'a',payload:{orderId:'1'}},{restaurantId:'a',payload:{order:{id:'3'}}}];
+assert.deepEqual(mergePendingOrders(remote,local,queue,'a').map(x=>x.total),[15,20,5]);
+assert.deepEqual(mergePendingOrders(remote,local,queue,'b'),remote);
+assert.equal(syncIndicator({...base,online:false,syncConfirmedAt:'today'}).tone,'offline');
+assert.equal(syncIndicator({...base,pendingQueue:[{restaurantId:'a',last_error:'denied'}]}).tone,'error');
+assert.equal(syncIndicator(base).key,'serviceSyncEmpty');
+assert.equal(syncIndicator({...base,syncConfirmedAt:'today'}).key,'serviceSyncConfirmed');
+console.log('Service flow: money input, closure blockers, local order preservation and sync feedback passed');
+
+// Exercise the actual app handlers with local storage / server doubles.
+const {readFileSync}=await import('node:fs');
+const {default:vm}=await import('node:vm');
+const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const flow=source.slice(source.indexOf('async function openSession('),source.indexOf('function linePayload('));
+const calls=[],alerts=[];
+const testState={...base,restaurant:{id:'a'},cashSession:null,busy:false};
+const context=vm.createContext({state:testState,parseCashAmount,closingChecks,uiAlert:x=>alerts.push(x),t:x=>x,ensureDevice:async()=>({id:'device'}),uuid:()=> 'session-1',dateKey:()=> '2026-09-25',sessionKey:id=>'session:'+id,kvSet:async()=>{},queueCommand:async(...args)=>calls.push(args),render:()=>{},flushQueue:async()=>{},updateQueueCount:async()=>{}});
+vm.runInContext(flow,context);
+await context.openSession('bad');assert.equal(testState.cashSession,null);assert.equal(calls.length,0);
+await Promise.all([context.openSession('100,50'),context.openSession('200')]);
+assert.equal(calls.length,1,'double opening tap must queue one session');assert.equal(calls[0][1].openingCash,100.5);
+testState.cart=[{locked:false}];await context.closeSession('100');assert.equal(calls.length,1,'unsaved draft blocks closure');
+testState.cart=[];testState.online=false;await context.closeSession('100');assert.equal(calls.length,1,'offline closure waits for current server data');
+testState.online=true;await context.closeSession('');assert.equal(calls.length,1,'blank count must not silently become zero');
+await context.closeSession('112,50');assert.equal(calls.length,2);assert.equal(calls[1][0],'close_cash_session');assert.equal(calls[1][1].countedCash,112.5);assert.equal(testState.cashSession.status,'closing');
+await context.closeSession('112,50');assert.equal(calls.length,2,'closing cannot be queued twice');
+console.log('Actual POS session handlers: validation, draft/offline guards and double taps passed');

@@ -13,7 +13,7 @@ const scenarios=[
   ['printer unavailable/failure',app.includes("markPrinter(printer,'error')")&&printer.includes('printEscPosText')],
   ['long reconnection/manual recovery',app.includes("flushQueue({force:true})")&&app.includes("window.addEventListener('online'")],
   ['partial refund protection',app.includes("refunds.filter(r=>['completed','pending_external'].includes(r.status))")&&app.includes('amount>remaining+0.001')],
-  ['cash difference close path',app.includes("queueCommand('close_cash_session'")&&app.includes('countedCash:Number(countedCash)||0')],
+  ['cash difference close path',app.includes("queueCommand('close_cash_session'")&&app.includes('countedCash:amount')&&app.includes('parseCashAmount(countedCash)')],
   ['repeated queued events remain idempotent',app.includes('queuedPayload(item)')&&db.includes('PRIMARY KEY NOT NULL')],
   ['service worker mutation safety',sw.includes("request.method!=='GET'")&&sw.includes("url.origin!==self.location.origin")],
   ['content security policy present',html.includes('Content-Security-Policy')]

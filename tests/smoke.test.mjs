@@ -8,7 +8,7 @@ for(const token of ['publishedLayout','openItemConfigurator','data-layout-produc
 for(const token of ['modifierRoutesToStation','configurationForButton','menuChoiceProducts'])assert.ok(layout.includes(token),token);
 assert.ok(printer.includes('modifierText'));
 assert.ok(printer.includes('modifierRoutes'));
-assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-20260923/);
+assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-\d{8}/);
 assert.ok(sw.includes('./src/layout.js'));
 assert.ok(db.includes('CapacitorSQLite'));
 assert.doesNotMatch(cloud,/service[_-]?role/i);

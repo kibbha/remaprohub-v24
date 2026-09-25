@@ -1,3 +1,4 @@
+import {parseCashAmount,mergePendingOrders,closingChecks,syncIndicator} from './service-flow.js';
 import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
@@ -24,7 +25,7 @@ const state={
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
-  pendingQueue:[],syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
+  pendingQueue:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null,directOrderPollTimer=null,hubConfigPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false,hubConfigSyncInFlight=false;
@@ -659,7 +660,7 @@ async function refreshFloorData(){
       posFunction({action:'floor_plan_current',restaurantId:state.restaurant.id}).catch(()=>({plan:null}))
     ]);
     state.tables=state.configurationBundle?.document?.tables||tables.rows||[];
-    state.openOrders=orders.rows||[];
+    state.openOrders=mergePendingOrders(orders.rows||[],state.openOrders,await queueAll(),state.restaurant.id);
     state.floorPlan=state.configurationBundle?.document?.floorPlan||floor.plan||null;
     state.floorReservations=Array.isArray(floor.reservations)?floor.reservations:[];
     const zones=Array.isArray(state.floorPlan?.document?.zones)?state.floorPlan.document.zones:[];
@@ -737,7 +738,8 @@ async function executeQueued(item){
   if(item.action==='close_cash_session'){
     const r=await posFunction({action:'close_cash_session',restaurantId:item.restaurantId,...queuedPayload(item)});
     if(state.cashSession?.id===item.payload.sessionId){
-      await kvSet('lastClosedSession:'+item.restaurantId,r.session||state.cashSession);
+      state.lastClosedSession={...(r.session||{}),businessDate:state.cashSession.businessDate};
+      await kvSet('lastClosedSession:'+item.restaurantId,state.lastClosedSession);
       state.cashSession=null;await kvDelete(sessionKey(item.restaurantId));
     }
     return r;
@@ -748,16 +750,25 @@ async function flushQueueInternal({force=false}={}){
   if(state.trainingMode)return;
   if(!state.online||!state.restaurant)return;
   const list=await queueAll();
-  let floorChanged=false,productionChanged=false;
+  let floorChanged=false,productionChanged=false,confirmed=false;
   for(const item of list){
     if(item.restaurantId!==state.restaurant.id)continue;
     if(!force&&!queueRetryDue(item))break;
     try{
-      await executeQueued(item);
+      await executeQueued(item);confirmed=true;
       if(['save_open_order','append_order_items','send_to_production','update_production_item','set_production_priority','recall_production_order','settle_open_order','settle_open_order_split'].includes(item.action))floorChanged=true;
       if(['append_order_items','send_to_production','update_production_item','set_production_priority','recall_production_order'].includes(item.action))productionChanged=true;
       await queueDelete(item.client_event_id);
     }catch(error){
+      // Explicit transactional rejection: the server has NOT closed the session.
+      // Let the cashier settle the newly discovered notes, then count again.
+      if(item.action==='close_cash_session'&&error?.message==='OPEN_ORDERS_EXIST'&&state.cashSession?.id===item.payload.sessionId){
+        state.cashSession={...state.cashSession,status:'open'};
+        await kvSet(sessionKey(item.restaurantId),state.cashSession);
+        await queueDelete(item.client_event_id);
+        state.closingReport=null;state.error=t('serviceCloseBlocked');floorChanged=true;
+        break;
+      }
       const message=error?.message==='OFFLINE_OPERATOR_REAUTH'
         ?'Reconnectez '+(error.operatorName||'l’opérateur d’origine')+' pour synchroniser cette action.'
         :(error.message||String(error));
@@ -772,7 +783,9 @@ async function flushQueueInternal({force=false}={}){
   if(productionChanged&&state.online)await refreshProductionQueue();
   if(state.pendingAutoReceiptNumber&&state.online)await refreshReceipts();
   state.syncLastRun=new Date().toISOString();
-  await updateQueueCount();render();
+  await updateQueueCount();
+  if(confirmed&&!state.queueCount){state.syncConfirmedAt=state.syncLastRun;await kvSet('syncConfirmedAt:'+state.restaurant.id,state.syncConfirmedAt)}
+  render();
 }
 async function flushQueue(options={}){
   if(queueFlushPromise)return queueFlushPromise;
@@ -785,7 +798,10 @@ async function queueCommand(action,payload,options={}){
   await queuePut(item);await updateQueueCount();return item;
 }
 async function bootstrapRestaurant(restaurant){
-  state.restaurant=restaurant;state.error='';applyPosSettings(null);
+  state.restaurant=restaurant;state.error='';state.closingReport=null;state.serviceReport=null;state.closingError='';
+  state.syncConfirmedAt=await kvGet('syncConfirmedAt:'+restaurant.id)||'';
+  state.lastClosedSession=await kvGet('lastClosedSession:'+restaurant.id)||null;
+  applyPosSettings(null);
   state.receipts=await kvGet(receiptsKey(restaurant.id))||[];
   state.tables=await kvGet(tablesKey(restaurant.id))||[];
   state.openOrders=await kvGet(openOrdersKey(restaurant.id))||[];
@@ -882,21 +898,50 @@ async function logoutPos(){
   state.identity=null;state.restaurant=null;state.operator=null;state.cashSession=null;state.view='sale';render();
 }
 async function openSession(openingCash){
+  const amount=parseCashAmount(openingCash);
+  if(amount===null){uiAlert(t('invalidAmount'));return}
+  if(state.cashSession||state.busy)return;
+  state.busy=true;
+  try{
   const device=await ensureDevice();
-  const session={id:uuid(),businessDate:dateKey(),status:'open',openingCash:Number(openingCash)||0,synced:false};
+  const session={id:uuid(),businessDate:dateKey(),status:'open',openingCash:amount,synced:false};
   state.cashSession=session;await kvSet(sessionKey(state.restaurant.id),session);
   await queueCommand('open_cash_session',{sessionId:session.id,deviceId:device.id,businessDate:session.businessDate,openingCash:session.openingCash});
   render();flushQueue().catch(()=>{});
+  }finally{state.busy=false}
 }
 async function closeSession(countedCash){
-  if(!state.cashSession)return;
-  if(state.openOrders.some(x=>['open','sent','preparing','served','payment_pending'].includes(x.status))){
-    uiAlert('Impossible de clôturer : il reste des notes ouvertes.');
-    return;
-  }
+  const amount=parseCashAmount(countedCash);
+  if(amount===null){uiAlert(t('invalidAmount'));return}
+  await updateQueueCount();
+  if(!state.online||!closingChecks(state).canClose){uiAlert(t('serviceCloseBlocked'));return}
   state.cashSession={...state.cashSession,status:'closing'};await kvSet(sessionKey(state.restaurant.id),state.cashSession);
-  await queueCommand('close_cash_session',{sessionId:state.cashSession.id,countedCash:Number(countedCash)||0});
+  await queueCommand('close_cash_session',{sessionId:state.cashSession.id,countedCash:amount});
   render();flushQueue().catch(()=>{});
+}
+async function prepareClosing(){
+  if(state.closingBusy)return;
+  state.view='closing';state.closingBusy=true;state.closingError='';state.closingReport=null;render();
+  const restaurantId=state.restaurant?.id,businessDate=state.cashSession?.businessDate||dateKey();
+  try{
+    await flushQueue({force:true});await updateQueueCount();
+    if(state.online){
+      await Promise.all([refreshFloorData(),refreshTerminals()]);
+      const result=await posFunction({action:'service_report',restaurantId,businessDate});
+      if(state.restaurant?.id===restaurantId)state.closingReport=result.report||null;
+    }
+  }catch(error){state.closingError=error.message||String(error)}
+  finally{state.closingBusy=false;if(state.view==='closing')render()}
+}
+function closingView(){
+  const checks=closingChecks(state),report=state.closingReport;
+  const blockers=[['serviceCloseNotes',checks.open,'floor'],['serviceCloseDraft',checks.draft,'sale'],['serviceCloseQueue',checks.pending,'sync'],['serviceCloseTerminals',checks.terminals,'terminals']];
+  return `<div class="shell">${topbar()}<main class="service-close-page"><div class="floor-head"><div><h1>${t('closeCash')}</h1><p>${esc(state.cashSession?.businessDate||'')} · ${esc(state.restaurant.name)}</p></div><button class="secondary" id="closing-refresh" ${state.closingBusy?'disabled':''}>${t('serviceRefresh')}</button></div>
+  <section class="card"><h2>${t('serviceCloseChecks')}</h2><div class="service-close-checks">${blockers.map(([label,count,view])=>`<button class="secondary ${count?'needs-action':''}" data-closing-view="${view}"><span>${t(label)}</span><strong>${count}</strong></button>`).join('')}</div><p>${t(checks.canClose?'serviceCloseReady':'serviceCloseBlocked')}</p></section>
+  <section class="card"><h2>${t('serviceClosePayments')}</h2><p class="muted">${t('serviceClosePaymentsHint')}</p>${report?`<div class="service-payment-rows">${(report.payments||[]).map(x=>`<div><span>${esc(String(x.method||'').toUpperCase())}</span><strong>${money(x.amount)}</strong></div>`).join('')}<div><span>${t('refunds')}</span><strong>${money(report.refundTotal)}</strong></div><div><span>${t('netSales')}</span><strong>${money(report.netSales)}</strong></div></div>`:`<p role="status">${t(state.closingBusy?'serviceLoading':'serviceReportUnavailable')}</p>`}</section>
+  ${state.closingError?`<p class="notice error">${esc(state.closingError)}</p>`:''}
+  ${!state.online?`<p class="notice">${t('serviceCloseOffline')}</p>`:''}
+  <section class="card"><p>${t('serviceCloseCountHint')}</p><button class="primary wide" id="closing-count" ${!checks.canClose||state.closingBusy||!state.online||!report?'disabled':''}>${t('serviceCountAndClose')}</button></section></main></div>`;
 }
 function linePayload(x){
   const modifiers=Array.isArray(x.modifiers)?x.modifiers.filter(m=>m?.kind!=='remapro_availability'):[];
@@ -916,7 +961,7 @@ function orderUsesTable(order,tableId,label=''){
 function openTable(table){
   const existing=state.openOrders.find(o=>orderUsesTable(o,table.id,table.label));
   if(state.pendingNewOrder&&existing){state.error=t('tableOccupied');return render()}
-  state.pendingNewOrder=false;
+  state.pendingNewOrder=false;state.mobilePanel=existing?'cart':'products';
   state.serviceType='dine_in';
   if(existing){
     state.activeTableId=existing.table_id||table.id;state.tableLabel=existing.table_label||table.label;
@@ -946,7 +991,7 @@ async function openTables(){
 }
 async function startNewOrder(){
   if(!(await confirmDraftExit()))return;
-  state.error='';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;
+  state.mobilePanel='products';state.error='';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;
   if(!state.tables.length){state.pendingNewOrder=false;state.serviceType='dine_in';state.view='sale';render();return}
   state.pendingNewOrder=true;state.view='floor';await refreshFloorData();render();
 }
@@ -1885,7 +1930,6 @@ async function syncHubManagedConfiguration({force=false}={}){
     const currentRevision=Number(state.bootstrap?.configurationRevision)||0,nextRevision=Number(head?.revision)||0;
     if(!force&&nextRevision===currentRevision)return false;
     await refreshHubManagedConfiguration(head);
-    state.syncLastRun=new Date().toISOString();
     recordDiagnostic('hub_config.updated',{fromRevision:currentRevision,toRevision:nextRevision,forced:!!force});
     return true;
   }catch(error){
@@ -2087,8 +2131,14 @@ function posBrandLockup({auth=false,version=false}={}){
 }
 function loginView(){return `<div class="login-wrap"><form class="card" id="login-form">${posBrandLockup({auth:true})}<p>${t('loginSubtitle')}</p><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><p class="muted">v${APP_VERSION}</p></form></div>`}
 function pickerView(){return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('chooseRestaurant')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary" id="logout">Déconnexion</button></div></div>`}
-function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session">${posBrandLockup({auth:true})}<h1>${t('openCash')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${esc(state.restaurant.name)} · ${dateKey()}</p><label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="" placeholder="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
+function closedSessionSummary(){
+  const last=state.lastClosedSession;
+  if(!last||last.status!=='closed')return '';
+  return `<section class="service-last-close"><h2>${t('serviceLastClose')}</h2><p>${esc(last.businessDate||'')}</p><div><span>${t('serviceExpected')}</span><strong>${money(last.expectedCash)}</strong></div><div><span>${t('countedCash')}</span><strong>${money(last.countedCash)}</strong></div><div><span>${t('serviceDifference')}</span><strong>${money(last.differenceCash)}</strong></div><p>${t('serviceCloseConfirmed')}</p></section>`;
+}
+function sessionView(){return `<div class="picker-wrap"><form class="card" id="open-session">${posBrandLockup({auth:true})}<h1>${t('openCash')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${esc(state.restaurant.name)} · ${dateKey()}</p>${closedSessionSummary()}<label class="field">Fond de caisse (CHF)<input name="opening" inputmode="decimal" value="" placeholder="0.00" required></label><button class="primary" type="submit">Ouvrir le service</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><button class="secondary wide" type="button" id="switch-restaurant">Changer de restaurant</button></form></div>`}
 function topbar(){
+  const sync=syncIndicator(state);
   const pending=state.directOrders.filter(x=>x.status==='pending').length;
   const context=state.tableLabel||((state.serviceType==='dine_in')?'Sur place':(state.serviceType==='takeaway'?'À emporter':'Comptoir'));
   return `<header class="topbar">
@@ -2099,10 +2149,11 @@ function topbar(){
     <div class="spacer"></div>
     ${state.view==='sale'?`<div class="pos-order-context"><span>Table / service</span><strong>${esc(context)}</strong></div>`:''}
     ${state.operator?`<button class="operator-chip" id="switch-operator"><span class="operator-avatar">${esc((state.operator.display_name||'O').slice(0,1).toUpperCase())}</span><span><strong>${esc(state.operator.display_name)}</strong><small>${esc(state.operator.role)}</small></span></button>`:''}
+    <button type="button" class="service-sync-chip ${sync.tone}" data-sync-open aria-label="${t(sync.key,{count:sync.count})}">${t(sync.key,{count:sync.count})}</button>
     <details class="pos-more-menu"><summary aria-label="Plus d’options">•••</summary><div class="pos-more-panel">
       <div class="pos-more-title"><strong>ReMaPro POS</strong><small>${esc(state.restaurant.name)}</small></div>
       <div class="pos-more-groups"><section><small>Service</small><div class="pos-more-nav"><button class="nav-tab ${state.view==='directOrders'?'active':''}" id="nav-direct-orders">${t('directOrders')}${pending?' <span class="nav-badge">'+pending+'</span>':''}</button><button class="nav-tab ${state.view==='tickets'?'active':''}" id="nav-tickets">Tickets</button><button class="nav-tab ${state.view==='report'?'active':''}" id="nav-report">Rapport</button></div></section><section><small>Matériel & équipe</small><div class="pos-more-nav"><button class="nav-tab ${state.view==='terminals'?'active':''}" id="nav-terminals">Terminaux</button><button class="nav-tab ${state.view==='printers'?'active':''}" id="nav-printers">Imprimantes</button><button class="nav-tab ${state.view==='team'?'active':''}" id="nav-team">Équipe</button></div></section></div>
-      <div class="pos-more-status"><button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${state.queueCount?state.queueCount+' en attente':'Synchronisé'}</button><span class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</span></div>
+      <div class="pos-more-status"><button class="queue queue-button ${state.queueCount?'has-pending':''}" id="nav-sync">${t(sync.key,{count:sync.count})}</button><span class="status"><span class="dot ${state.online?'online':''}"></span>${state.online?'En ligne':'Hors ligne'}</span></div>
       <label class="top-language"><span class="sr-only">${t('language')}</span><select id="pos-language">${languageOptions()}</select></label>
       <button class="secondary academy-help-context" id="academy-help-context">? Académie / Aide</button>
       <button class="secondary" id="customer-display-open">${t('customerDisplay')}</button>
@@ -2339,8 +2390,9 @@ function mainView(){
     productArea='<section class="products"><div class="product-toolbar"><div><strong>'+visible.length+' article'+(visible.length>1?'s':'')+'</strong><small> sur '+catalog.length+'</small></div><button class="secondary" id="quick-item">+ Article libre</button></div>'+(visible.length?'<div class="product-grid">'+visible.map(p=>'<button class="product" data-product-search="'+esc(((p.name||'')+' '+(p.category||'')).toLocaleLowerCase())+'" data-product="'+p.id+'">'+productVisual(p)+'<span class="product-copy"><strong>'+esc(p.name)+'</strong><small>'+esc(p.category||'')+(p.production_station==='bar'?' · Bar':p.production_station==='none'?'':' · Cuisine')+'</small><span class="price">'+money(p.price)+'</span></span></button>').join('')+'</div>':'<div class="empty"><h3>Aucun article</h3><p>Changez de catégorie ou modifiez votre recherche.</p></div>')+'</section>';
   }
 
-  return `<div class="shell pos-sale-shell">${topbar()}
+  return `<div class="shell pos-sale-shell mobile-panel-${state.mobilePanel}">${topbar()}
   ${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
+  <nav class="mobile-sale-switch" aria-label="${t('serviceMobileNavigation')}"><button data-mobile-panel="products" aria-pressed="${state.mobilePanel==='products'}">${t('serviceProducts')}</button><button data-mobile-panel="cart" aria-pressed="${state.mobilePanel==='cart'}">${t('serviceCart')} · ${state.cart.reduce((sum,x)=>sum+(Number(x.qty)||0),0)} · ${money(cartTotal())}</button></nav>
   <main class="workspace">${categoryArea}${productArea}
   <aside class="cart">
     <div class="cart-head"><div class="cart-title-row"><div><small>Commande en cours</small><h2>${esc(state.tableLabel||'Nouvelle commande')}</h2></div><span class="cart-cover-badge">${Number(state.covers)||0} couv.</span></div>
@@ -2376,9 +2428,13 @@ function render(){
   if(!state.restaurant){app.innerHTML=pickerView();wire();translateDom(app);return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();translateDom(app);return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();translateDom(app);return}
-  app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():mainView();wire();translateDom(app);
+  app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():state.view==='closing'?closingView():mainView();wire();translateDom(app);
 }
 function wire(){
+  document.querySelector('[data-sync-open]')?.addEventListener('click',()=>{state.view='sync';updateQueueCount().then(render)});
+  document.querySelector('#closing-refresh')?.addEventListener('click',prepareClosing);
+  document.querySelectorAll('[data-closing-view]').forEach(b=>b.addEventListener('click',async()=>{const target=b.dataset.closingView;if(target==='floor'&&!(await confirmDraftExit()))return;if(target==='sale')state.mobilePanel='cart';state.view=target;render()}));
+  document.querySelectorAll('[data-mobile-panel]').forEach(b=>b.addEventListener('click',()=>{state.mobilePanel=b.dataset.mobilePanel;render()}));
   document.querySelector('#pos-language')?.addEventListener('change',e=>{const next=setLanguage(e.target.value);state.academyLocale=next;localStorage.setItem('remapro-academy-lang',next);render()});
   bindPosAcademy();bindTraining();
   document.querySelectorAll('#open-academy').forEach(b=>b.addEventListener('click',()=>{const context=!currentSession()?'login':!state.restaurant?'picker':state.operatorRequired&&!state.operator?'operator':!state.cashSession?'session':state.view;const topic=academyContextTopics('pos',context)[0];state.academy.selectedTopic=topic?.id||'';state.academy.selectedPath='';state.academy.troubleshoot='';state.view='academy';render()}));
@@ -2394,7 +2450,7 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#sync-refresh')?.addEventListener('click',()=>updateQueueCount().then(render));
   document.querySelector('#sync-retry')?.addEventListener('click',async()=>{await flushQueue({force:true});if(state.view==='sync')render()});
   document.querySelector('#switch-restaurant')?.addEventListener('click',()=>{state.restaurant=null;state.cashSession=null;render()});
-  document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(Number(String(fd.get('opening')).replace(',','.'))||0)});
+  document.querySelector('#open-session')?.addEventListener('submit',async e=>{e.preventDefault();const fd=new FormData(e.currentTarget);await openSession(fd.get('opening'))});
   document.querySelector('#nav-sale')?.addEventListener('click',async()=>{if(!(await confirmDraftExit()))return;state.pendingNewOrder=false;state.view='sale';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.serviceType='dine_in';state.cart=[];render()});
   document.querySelector('#nav-floor')?.addEventListener('click',()=>openTables());
   document.querySelector('#open-tables')?.addEventListener('click',()=>openTables());
@@ -2459,7 +2515,8 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelectorAll('[data-fail-refund]').forEach(b=>b.addEventListener('click',()=>confirmRefund(b.dataset.failRefund,false)));
   document.querySelector('#refresh-catalog')?.addEventListener('click',()=>{refreshCatalog();refreshFloorData().then(render)});
   document.querySelector('#quick-item')?.addEventListener('click',()=>addQuickItem());
-  document.querySelector('#close-session')?.addEventListener('click',async()=>{const v=await uiPrompt({title:t('closeCash'),label:t('countedCash'),value:'',placeholder:'0.00',type:'number',inputMode:'decimal',required:true,min:'0',step:'0.01'});if(v===null)return;const n=Number(String(v).replace(',','.'));if(!Number.isFinite(n)||n<0){uiAlert(t('invalidAmount'));return}await closeSession(n)});
+  document.querySelector('#close-session')?.addEventListener('click',prepareClosing);
+  document.querySelector('#closing-count')?.addEventListener('click',async()=>{const v=await uiPrompt({title:t('closeCash'),label:t('countedCash'),value:'',placeholder:'0.00',type:'number',inputMode:'decimal',required:true,min:'0',step:'0.01'});if(v===null)return;const n=parseCashAmount(v);if(n===null){uiAlert(t('invalidAmount'));return}await closeSession(n)});
   document.querySelector('#service-type')?.addEventListener('change',e=>state.serviceType=e.target.value);
   document.querySelectorAll('[data-service-type-ui]').forEach(b=>b.addEventListener('click',()=>{state.serviceType=b.dataset.serviceTypeUi;render()}));
   document.querySelector('#pos-product-search')?.addEventListener('input',e=>{state.productSearch=e.target.value;const q=String(state.productSearch||'').trim().toLocaleLowerCase();document.querySelectorAll('[data-product-search]').forEach(card=>{card.hidden=!!q&&!String(card.dataset.productSearch||'').includes(q)})});
