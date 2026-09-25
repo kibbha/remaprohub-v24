@@ -164,7 +164,7 @@ body{background:#f5efe8}
 .cart{background:#fffdf9;border-left:1px solid #eaded2;box-shadow:-9px 0 25px #4c311b08}
 .cart-head{padding:14px 15px 12px;border-bottom:1px solid #eee2d8}
 .cart-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.cart-title-row small{display:block;color:#a09185;font-size:9px;text-transform:uppercase;letter-spacing:.8px;font-weight:900}.cart-title-row h2{margin:2px 0 0;font-family:Georgia,ui-serif,serif;font-size:21px}.cart-cover-badge{border-radius:999px;background:#f5e8de;color:#8e4a32;padding:5px 8px;font-size:10px;font-weight:850}
-.service-segments{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0 8px}
+.service-segments{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:12px 0 8px}
 .service-segments button{min-height:42px;border:1px solid #eaded2;border-radius:11px;background:#fff;color:#6e6259;font-size:10px;font-weight:800;padding:7px 5px}
 .service-segments button.active{background:#c4512a;color:#fff;border-color:#c4512a;box-shadow:0 6px 15px #c4512a22}
 .order-meta{grid-template-columns:minmax(0,1fr) 82px}.order-meta input{min-height:38px;border-color:#e8ddd2;background:#fffdfb}
