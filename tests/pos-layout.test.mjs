@@ -38,6 +38,10 @@ assert.equal(setPosLayoutCategoryParent(nestedFixture,'fish','root').categories.
 assert.equal(setPosLayoutCategoryParent(nestedFixture,'root','meat').categories.find(c=>c.id==='root').parentId,'');
 const nestedHtml=renderPosLayoutEditor({layout:nestedFixture});
 assert.match(nestedHtml,/data-layout-category-parent="fish"[^>]*>[\s\S]*?Viandes \(parent actuel\)/);
+const fishPreview=renderPosLayoutEditor({layout:nestedFixture,selectedCategoryId:'fish'});
+assert.match(fishPreview,/data-layout-preview-category="root"[^>]*>Plats<\/button>/);
+assert.match(fishPreview,/data-layout-preview-category="fish"[^>]*>Poissons<\/button>/);
+assert.doesNotMatch(fishPreview,/data-layout-preview-category="all"|>Tous<\/button>|>Tout Plats<\/button>/);
 const catalog=Array.from({length:10},(_,i)=>({
   id:'p'+(i+1),
   name:'Produit '+(i+1),
@@ -99,7 +103,7 @@ assert.equal(layoutButtonItem(ambiguousButton,ambiguousCatalog).source,'layout')
 const editorHtml=renderPosLayoutEditor({layout:{...standalone,categories:[{id:'editor-category',name:'Carte',parentId:'',sortOrder:0}]},catalog,sectionNav:'<nav class="module-section-nav"><button>Caisse</button><button>Catégories</button><button>Menus & options</button></nav>'});
 const fishLayout={...standalone,categories:[{id:'dishes',name:'Plats',parentId:'',sortOrder:0},{id:'fish',name:'Poissons',parentId:'dishes',sortOrder:1}],buttons:standalone.buttons.map((button,i)=>({...button,categoryId:i===0?'dishes':button.categoryId}))};
 const fishEditor=renderPosLayoutEditor({layout:fishLayout,catalog,selectedButtonId:fishLayout.buttons[0].id});
-assert.match(fishEditor,/data-layout-preview-category="fish"[^>]*>Plats › Poissons<\/button>/,'new empty category is visible with its parent in the preview');
+assert.match(fishEditor,/data-layout-preview-category="fish"[^>]*>Poissons<\/button>/,'new empty category is visible under its parent in the preview');
 assert.match(fishEditor,/<select id="posLayoutCategory">[\s\S]*?<option value="fish"[^>]*>↳ Poissons<\/option>/,'an existing dish can be reassigned to the new category');
 assert.match(editorHtml,/data-module-pane="touches"/);
 assert.match(editorHtml,/data-module-pane="categories"/);
