@@ -30,3 +30,4 @@ Build Hub test APK with direct search, no Favorites and modifier validation
 Requested: 2026-09-25
 2026-09-25: catégories sans Tous / Tout, service Sur place et À emporter, validation Hub.
 2026-09-25: réparer la liste des catégories du Hub et l'enregistrement de la politique espèces sur brouillon périmé.
+2026-09-25: nouvelle validation Hub après correction du scanner de livraison et vérification des droits de stockage.
