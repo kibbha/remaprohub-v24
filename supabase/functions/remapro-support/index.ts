@@ -90,7 +90,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   const model=Deno.env.get("OPENAI_SUPPORT_MODEL")||Deno.env.get("OPENAI_MODEL")||"gpt-5.6-luna";
   let triage=fallbackTriage(ticket.application,ticket.subject,message);
   let support={reply:"Votre demande a bien été enregistrée. ReMaPro l'analyse et conserve son suivi dans ce ticket.",diagnostic_questions:[] as string[]};
-  let diagnostic:any=null;
+  let diagnostic:any=null,specialist:any=null,qa:any=null;
   if(apiKey){
     try{
       triage=await structured(apiKey,model,
@@ -121,7 +121,6 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",status:"failed",inputSummary:message,outputSummary:error instanceof Error?error.message:String(error)});
       }
     }
-    let specialist:any=null,qa:any=null;
     const specialistRole=triage.category==="bug"
       ?(ticket.application==="pos"?"developer_pos":"developer_hub")
       :triage.category==="feature"?"product"
@@ -152,15 +151,16 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
       }
     }
-    if(triage.requires_approval){
-      const {data:pending}=await ctx.supabaseAdmin.from("support_approvals").select("id").eq("ticket_id",ticket.id).eq("status","pending").limit(1);
-      if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
-        ticket_id:ticket.id,organization_id:ticket.organization_id,requested_by_agent:"dispatcher",
-        action:"human_review",payload:{category:triage.category,priority:triage.priority,summary:triage.summary}
-      });
-    }
-    const assigned=AGENT.has(String(triage.route))?triage.route:"support";
-    const engineeringContext={...context,...(diagnostic||{}),specialist:specialist||null,qa:qa||null};
+  }
+  if(triage.requires_approval){
+    const {data:pending}=await ctx.supabaseAdmin.from("support_approvals").select("id").eq("ticket_id",ticket.id).eq("status","pending").limit(1);
+    if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
+      ticket_id:ticket.id,organization_id:ticket.organization_id,requested_by_agent:"dispatcher",
+      action:"human_review",payload:{category:triage.category,priority:triage.priority,summary:triage.summary}
+    });
+  }
+  const assigned=AGENT.has(String(triage.route))?triage.route:"support";
+  const engineeringContext={...context,...(diagnostic||{}),specialist:specialist||null,qa:qa||null};
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
