@@ -18,9 +18,15 @@ function safeContext(value:any){
   for(const key of allowed)if(value[key]!==undefined)out[key]=value[key];
   return JSON.stringify(out).length<=12000?out:{};
 }
-function platformRole(ctx:any){
+async function platformRole(ctx:any,userId:string){
   const meta=ctx?.jwtClaims?.app_metadata||ctx?.userClaims?.app_metadata||{};
-  const role=String(meta?.remapro_platform_role||"");
+  const jwtRole=String(meta?.remapro_platform_role||"");
+  if(PLATFORM_ROLES.has(jwtRole))return jwtRole;
+  if(!validUuid(userId))return "";
+  const {data,error}=await ctx.supabaseAdmin.from("platform_operators")
+    .select("role,active").eq("user_id",userId).eq("active",true).maybeSingle();
+  if(error||!data)return "";
+  const role=String(data.role||"");
   return PLATFORM_ROLES.has(role)?role:"";
 }
 async function access(ctx:any,organizationId:string,restaurantId:string,userId:string){
@@ -183,9 +189,13 @@ export default {
       const action=clean(body.action,50),userId=String(ctx.userClaims?.id||"");
       if(!userId)return json({error:"Authentication required"},401);
       if(action==="health")return json({ok:true,service:"remapro-support",aiConfigured:!!Deno.env.get("OPENAI_API_KEY")});
+      if(action==="platform_context"){
+        const role=await platformRole(ctx,userId);
+        return json({ok:true,isPlatformOperator:!!role,role});
+      }
 
       if(action==="platform_inbox"){
-        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
         const limit=Math.min(200,Math.max(1,Number(body.limit)||100));
         const [ticketsResult,approvalsResult,runsResult,jobsResult]=await Promise.all([
           ctx.supabaseAdmin.from("support_tickets").select("*").order("updated_at",{ascending:false}).limit(limit),
@@ -197,7 +207,7 @@ export default {
         return json({ok:true,tickets:ticketsResult.data||[],approvals:approvalsResult.data||[],runs:runsResult.data||[],jobs:jobsResult.data||[]});
       }
       if(action==="platform_review_approval"){
-        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
         const approvalId=clean(body.approvalId,64),decision=String(body.decision||"");
         if(!validUuid(approvalId)||!["approved","rejected"].includes(decision))return json({error:"Valid approval decision required"},400);
         const {data:approval,error:approvalError}=await ctx.supabaseAdmin.from("support_approvals")
@@ -247,7 +257,7 @@ export default {
       }
 
       if(action==="platform_job_action"){
-        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
         const jobId=clean(body.jobId,64),jobAction=String(body.jobAction||"");
         if(!validUuid(jobId)||!["retry","cancel"].includes(jobAction))return json({error:"Valid job action required"},400);
         const patch:any={updated_at:new Date().toISOString()};
@@ -259,7 +269,7 @@ export default {
       }
 
       if(action==="platform_update"){
-        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
         const ticketId=clean(body.ticketId,64);if(!validUuid(ticketId))return json({error:"Valid ticket required"},400);
         const patch:any={updated_at:new Date().toISOString()};
         if(STATUS.has(String(body.status)))patch.status=String(body.status);
