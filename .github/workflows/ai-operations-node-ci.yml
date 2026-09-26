@@ -5,6 +5,14 @@ on:
     branches:
       - rebuild/remaprohub-clean
       - pos/remapro-pos
+    paths:
+      - 'src/app.js'
+      - 'src/cloud.js'
+      - 'supabase/functions/remapro-support/**'
+      - 'supabase/migrations/**'
+      - 'tests/ai-operations-support.test.mjs'
+      - 'tests/architecture.test.mjs'
+      - '.github/workflows/ai-operations-node-ci.yml'
 
 permissions:
   contents: read
@@ -18,5 +26,9 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-      - name: Run Node test suite
+      - name: Run Hub AI Operations checks
+        if: github.base_ref == 'rebuild/remaprohub-clean'
+        run: node tests/architecture.test.mjs && node tests/ai-operations-support.test.mjs
+      - name: Run POS Node test suite
+        if: github.base_ref == 'pos/remapro-pos'
         run: npm test
