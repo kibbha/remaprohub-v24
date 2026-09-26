@@ -215,7 +215,7 @@ async function runSimulation(campaignId){
  try{
   var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_run_batch",campaignId:campaignId,count:1},{attempts:1,timeoutMs:180000});
   var result=(data&&data.results||[])[0];
-  state.simulationOutput=data&&data.dailyLimitReached?"Limite quotidienne atteinte pour cette campagne.":result&&result.error?"Simulation en erreur : "+result.error:result?"Simulation notée "+Math.round(Number(result.score||0)*100)+"% — "+(result.passed?"RÉUSSIE":"À AMÉLIORER")+".":"Aucune situation en attente à exécuter.";
+  state.simulationOutput=data&&data.dailyLimitReached?"Limite quotidienne atteinte pour cette campagne.":data&&data.busy?"Une simulation est déjà en cours pour cette campagne. Réessaie après sa fin.":result&&result.error?"Simulation en erreur : "+result.error:result?"Simulation notée "+Math.round(Number(result.score||0)*100)+"% — "+(result.passed?"RÉUSSIE":"À AMÉLIORER")+".":"Aucune situation en attente à exécuter.";
  }catch(e){state.error=e&&e.message||String(e)}
  finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
 }
