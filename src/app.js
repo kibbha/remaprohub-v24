@@ -899,11 +899,61 @@ async function submitSupportTicket(form){
   }catch(error){supportState.error=error?.message||String(error)}
   finally{supportState.loading=false;await refreshSupportTickets()}
 }
-function bindSupportPanel(){
-  document.getElementById('supportTicketForm')?.addEventListener('submit',e=>{e.preventDefault();submitSupportTicket(e.currentTarget)});
+
+const platformRole=()=>String(cloudIdentity?.user?.app_metadata?.remapro_platform_role||'');
+const isPlatformOperator=()=>['owner','support','developer','qa','release','product'].includes(platformRole());
+function platformOpsPanel(){
+  if(!isPlatformOperator())return '';
+  const u=language()==='fr'
+    ?{title:'ReMaPro AI Operations',sub:'Supervision plateforme · tickets, agents et validations humaines',tickets:'Tickets',approvals:'Validations',runs:'Exécutions agents',approve:'Approuver',reject:'Rejeter',none:'Aucune validation en attente.',loading:'Chargement…'}
+    :{title:'ReMaPro AI Operations',sub:'Platform supervision · tickets, agents and human approvals',tickets:'Tickets',approvals:'Approvals',runs:'Agent runs',approve:'Approve',reject:'Reject',none:'No pending approval.',loading:'Loading…'};
+  if(!supportState.platformLoaded&&!supportState.platformLoading)setTimeout(()=>refreshPlatformOps(),0);
+  const tickets=supportState.platformTickets||[],approvals=supportState.platformApprovals||[],runs=supportState.platformRuns||[];
+  const active=tickets.filter(x=>!['resolved','closed'].includes(x.status)).length;
+  const critical=tickets.filter(x=>x.priority==='critical'&&!['resolved','closed'].includes(x.status)).length;
+  return card(u.title,`<p class="muted">${u.sub}</p>
+    ${supportState.platformError?`<div class="notice error">${esc(supportState.platformError)}</div>`:''}
+    <div class="kpi-grid">
+      <div class="kpi"><span>${u.tickets}</span><strong>${active}</strong><small>${critical} critical</small></div>
+      <div class="kpi"><span>${u.approvals}</span><strong>${approvals.length}</strong><small>human gate</small></div>
+      <div class="kpi"><span>${u.runs}</span><strong>${runs.length}</strong><small>latest 100</small></div>
+    </div>
+    <h3>${u.approvals}</h3>
+    ${approvals.length?approvals.map(a=>`<div class="row"><span><strong>${esc(a.action)}</strong><br><small class="muted">${esc(a.requested_by_agent||'agent')} · ${esc(a.ticket_id||'')}</small></span><span class="actions"><button class="btn compact primary" data-platform-approval="${esc(a.id)}" data-decision="approved">${u.approve}</button><button class="btn compact" data-platform-approval="${esc(a.id)}" data-decision="rejected">${u.reject}</button></span></div>`).join(''):`<p class="muted">${u.none}</p>`}
+    <h3>${u.tickets}</h3>
+    ${tickets.slice(0,12).map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc((x.application||'').toUpperCase())} · ${esc(x.priority||'normal')} · ${esc(x.assigned_agent||'support')}</small></span><span><small>${esc(x.status||'open')}</small></span></div>`).join('')||`<p class="muted">${u.loading}</p>`}
+    <h3>${u.runs}</h3>
+    ${runs.slice(0,10).map(x=>`<div class="row"><span><strong>${esc(x.agent_role)}</strong><br><small class="muted">${esc(x.output_summary||x.input_summary||'')}</small></span><span><small>${esc(x.status)}</small></span></div>`).join('')}
+  `);
+}
+async function refreshPlatformOps(){
+  if(!isPlatformOperator()||supportState.platformLoading)return false;
+  supportState.platformLoading=true;supportState.platformError='';
+  try{
+    const data=await cloudFunction('remapro-support',{action:'platform_inbox',limit:100},{attempts:1});
+    supportState.platformTickets=Array.isArray(data?.tickets)?data.tickets:[];
+    supportState.platformApprovals=Array.isArray(data?.approvals)?data.approvals:[];
+    supportState.platformRuns=Array.isArray(data?.runs)?data.runs:[];
+    supportState.platformLoaded=true;return true;
+  }catch(error){supportState.platformError=error?.message||String(error);return false}
+  finally{supportState.platformLoading=false;if(page==='help')render()}
+}
+async function reviewPlatformApproval(approvalId,decision){
+  if(!isPlatformOperator())return;
+  supportState.platformLoading=true;
+  try{
+    await cloudFunction('remapro-support',{action:'platform_review_approval',approvalId,decision},{attempts:1});
+    supportState.platformLoaded=false;
+  }catch(error){supportState.platformError=error?.message||String(error)}
+  finally{supportState.platformLoading=false;await refreshPlatformOps()}
 }
 
-function help(){ensureAcademyStyles();if(!academyState.loaded&&!academyState.loading)setTimeout(()=>refreshAcademyProgress(),0);return `<section>${head(t('help'))}${renderAcademyCenter({application:'hub',scope:academyState.scope,locale:language(),query:academyState.query,role:academyState.role,module:academyState.module,progressRows:currentAcademyProgress(),selectedTopic:academyState.selectedTopic,selectedPath:academyState.selectedPath,troubleshoot:academyState.troubleshoot,manager:cloudManager(),canManageVisibility:cloudOrgAdmin(),managerVisibility:academyState.managerVisibility,managerRows:academyState.managerRows})}${supportPanel()}</section>`}
+function bindSupportPanel(){
+  document.getElementById('supportTicketForm')?.addEventListener('submit',e=>{e.preventDefault();submitSupportTicket(e.currentTarget)});
+  document.querySelectorAll('[data-platform-approval]').forEach(b=>b.addEventListener('click',()=>reviewPlatformApproval(b.dataset.platformApproval,b.dataset.decision)));
+}
+
+function help(){ensureAcademyStyles();if(!academyState.loaded&&!academyState.loading)setTimeout(()=>refreshAcademyProgress(),0);return `<section>${head(t('help'))}${renderAcademyCenter({application:'hub',scope:academyState.scope,locale:language(),query:academyState.query,role:academyState.role,module:academyState.module,progressRows:currentAcademyProgress(),selectedTopic:academyState.selectedTopic,selectedPath:academyState.selectedPath,troubleshoot:academyState.troubleshoot,manager:cloudManager(),canManageVisibility:cloudOrgAdmin(),managerVisibility:academyState.managerVisibility,managerRows:academyState.managerRows})}${supportPanel()}${platformOpsPanel()}</section>`}
 function securityGate(){
   const cfg=securitySettings(),session=cloudSession(),email=rememberedSecurityEmail()||cloudIdentity?.user?.email||session?.user?.email||'';
   if(securityBooting)return `<main class="security-shell"><section class="security-card"><img src="icon.svg" alt="ReMaPro Hub"><h1>ReMaPro Hub</h1><p class="muted">${t('securityInitializing')}</p></section></main>`;
