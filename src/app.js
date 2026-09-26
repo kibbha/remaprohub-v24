@@ -1,10 +1,9 @@
 import{initializeCloudSessionStorage,cloudSession,signInCloud,signOutCloud,cloudFunction}from'./cloud.js';
 
-const VERSION='0.3.0';
+const VERSION='0.3.1';
 const AGENTS=['dispatcher','support','diagnostic','developer_hub','developer_pos','qa','product','knowledge','release'];
 const root=document.getElementById('app');
 const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingAction:'',trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:'',simulationLoaded:false,simulationLoading:false,simulationAction:'',simulationCampaigns:[],simulationScenarios:[],simulationRuns:[],simulationFindings:[],simulationOutput:''};
-let simulationAutoTimer=null;const simulationAutoBlocked=new Set();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('fr-CH',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return String(v)}};
 const statusLabel=v=>({open:'Ouvert',triaged:'Trié',in_progress:'En cours',waiting_customer:'Attente client',waiting_approval:'Validation',resolved:'Résolu',closed:'Fermé',awaiting_execution:'À exécuter',executing:'Développement',testing:'Tests',pr_open:'PR ouverte',awaiting_merge_approval:'Fusion à valider',merge_approved:'Fusion autorisée',failed:'Échec',completed:'Terminé',cancelled:'Annulé'}[v]||String(v||'—'));
@@ -143,7 +142,7 @@ function simulationView(){
  '<div class="simulation-rule"><b>2.</b><span>Dispatcher → Support/Diagnostic/Product/Developer/QA selon le cas.</span></div>'+
  '<div class="simulation-rule"><b>3.</b><span>Évaluateur → note chaque rôle, sécurité comprise.</span></div>'+
  '<div class="simulation-rule"><b>4.</b><span>Une faiblesse peut être promue en test de régression permanent.</span></div>'+
- '<div class="simulation-rule"><b>5.</b><span>Aucun merge, paiement, déploiement ou changement client n’est disponible en simulation.</span></div></article></section>';
+ '<div class="simulation-rule"><b>5.</b><span>Auto serveur continue même lorsque Ops est fermée, à raison d’un tick toutes les 20 minutes et dans la limite quotidienne.</span></div><div class="simulation-rule"><b>6.</b><span>Aucun merge, paiement, déploiement ou changement client n’est disponible en simulation.</span></div></article></section>';
  html+='<section class="panel"><div class="panel-head"><div><h2>Campagnes</h2><small>Génère par lots ; exécute un cas à la fois pour rester fiable sur mobile.</small></div><button id="simulationRefreshBtn" class="small">Actualiser</button></div>'+
    (campaigns.length?campaigns.map(simulationCampaignRow).join(""):'<p class="empty">Aucune campagne. Crée la première ci-dessus.</p>')+'</section>';
  html+='<section class="grid two"><article class="panel"><div class="panel-head"><div><h2>Faiblesses détectées</h2><small>Transforme les cas utiles en tests permanents.</small></div></div>'+
@@ -185,39 +184,7 @@ async function loadSimulation(force){
   state.simulationFindings=Array.isArray(data&&data.findings)?data.findings:[];
   state.simulationLoaded=true;
  }catch(e){state.error=e&&e.message||String(e)}
- finally{state.simulationLoading=false;render();scheduleSimulationAuto()}
-}
-function scheduleSimulationAuto(){
- if(simulationAutoTimer){clearTimeout(simulationAutoTimer);simulationAutoTimer=null}
- if(state.view!=="simulation"||state.simulationAction||state.simulationLoading)return;
- var campaign=(state.simulationCampaigns||[]).find(function(c){
-  return c.auto_run&&!simulationAutoBlocked.has(c.id)&&!["paused","completed","cancelled","failed"].includes(c.status)
- });
- if(!campaign)return;
- simulationAutoTimer=setTimeout(function(){runSimulationAutoStep(campaign.id)},2500);
-}
-async function runSimulationAutoStep(campaignId){
- if(state.view!=="simulation"||state.simulationAction)return;
- var campaign=(state.simulationCampaigns||[]).find(function(c){return c.id===campaignId});
- if(!campaign||!campaign.auto_run)return;
- var queued=(state.simulationScenarios||[]).filter(function(s){return s.campaign_id===campaignId&&["queued","error"].includes(s.status)});
- state.simulationAction="auto";state.error="";render();
- try{
-  if(!queued.length&&Number(campaign.generated_count||0)<Number(campaign.target_cases||0)){
-   var generated=await cloudFunction("remapro-agent-runtime",{action:"simulation_generate_batch",campaignId:campaignId,count:Math.min(20,Number(campaign.batch_size||10))},{attempts:1,timeoutMs:120000});
-   state.simulationOutput="Auto : "+Number(generated&&generated.generated||0)+" nouvelle(s) situation(s) générée(s).";
-  }else{
-   var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_run_batch",campaignId:campaignId,count:1},{attempts:1,timeoutMs:180000});
-   if(data&&data.dailyLimitReached){
-    simulationAutoBlocked.add(campaignId);
-    state.simulationOutput="Auto suspendu : plafond quotidien atteint. Il reprendra après réouverture lors d’une nouvelle journée.";
-   }else{
-    var result=(data&&data.results||[])[0];
-    state.simulationOutput=result&&result.error?"Auto : erreur — "+result.error:result?"Auto : "+Math.round(Number(result.score||0)*100)+"% — "+(result.passed?"réussi":"à améliorer")+".":"Auto : aucun cas restant.";
-   }
-  }
- }catch(e){state.error=e&&e.message||String(e);simulationAutoBlocked.add(campaignId)}
- finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+ finally{state.simulationLoading=false;render()}
 }
 async function createSimulationCampaign(form){
  if(state.simulationAction)return;
@@ -256,7 +223,6 @@ async function simulationCampaignAction(campaignId,campaignAction){
  if(state.simulationAction)return;state.simulationAction="campaign";state.error="";render();
  try{
   await cloudFunction("remapro-agent-runtime",{action:"simulation_campaign_action",campaignId:campaignId,campaignAction:campaignAction},{attempts:1,timeoutMs:60000});
-  if(campaignAction==="auto_on")simulationAutoBlocked.delete(campaignId);
  }
  catch(e){state.error=e&&e.message||String(e)}
  finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
