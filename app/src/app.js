@@ -1226,10 +1226,9 @@ document.getElementById('posOperatorAddForm')?.addEventListener('submit',async e
   e.preventDefault();const d=new FormData(e.currentTarget);
   try{await savePosOperator(cloudRestaurantId(),{displayName:String(d.get('displayName')||'').trim(),role:String(d.get('role')||'server'),pin:String(d.get('pin')||''),active:true,permissions:{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 });
-document.querySelectorAll('[data-pos-operator-edit]').forEach(b=>b.addEventListener('click',async()=>{
-  const o=posAdminState.operators.find(x=>x.id===b.dataset.posOperatorEdit);if(!o)return;
-  const name=prompt('Nom affiché',o.display_name||'');if(name===null)return;const role=prompt('Rôle : manager, cashier, server, bar, kitchen',o.role||'server');if(role===null)return;const pin=prompt('Nouveau PIN (laisser vide pour conserver)','');if(pin===null)return;
-  try{await savePosOperator(cloudRestaurantId(),{id:o.id,displayName:name.trim(),role:role.trim(),pin,active:true,permissions:o.permissions||{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
+document.querySelectorAll('[data-pos-operator-form]').forEach(form=>form.addEventListener('submit',async e=>{
+  e.preventDefault();const o=posAdminState.operators.find(x=>x.id===form.dataset.posOperatorForm);if(!o)return;const d=new FormData(form),pin=String(d.get('pin')||'');
+  try{await savePosOperator(cloudRestaurantId(),{id:o.id,displayName:String(d.get('displayName')||'').trim(),role:String(d.get('role')||'server'),pin,active:true,permissions:o.permissions||{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
 document.querySelectorAll('[data-pos-operator-disable]').forEach(b=>b.addEventListener('click',async()=>{
   const o=posAdminState.operators.find(x=>x.id===b.dataset.posOperatorDisable);if(!o||!confirm('Désactiver '+o.display_name+' ?'))return;
@@ -1239,19 +1238,17 @@ document.getElementById('posPrinterAddForm')?.addEventListener('submit',async e=
   e.preventDefault();const d=new FormData(e.currentTarget);
   try{await savePosPrinter(cloudRestaurantId(),{label:String(d.get('label')||'').trim(),role:String(d.get('role')||'receipt'),connectionType:String(d.get('connectionType')||'system'),address:String(d.get('address')||'').trim(),charsPerLine:42,codepage:'ascii',autoPrint:false,cutAfterPrint:true,active:true,publicConfig:{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 });
-document.querySelectorAll('[data-pos-printer-edit]').forEach(b=>b.addEventListener('click',async()=>{
-  const p=posAdminState.printers.find(x=>x.id===b.dataset.posPrinterEdit);if(!p)return;
-  const address=prompt('Adresse / ID matériel',p.address||'');if(address===null)return;const auto=confirm('Activer l’impression automatique pour ce profil ?');
-  try{await savePosPrinter(cloudRestaurantId(),{id:p.id,deviceId:p.device_id||'',label:p.label,role:p.role,connectionType:p.connection_type,address:address.trim(),charsPerLine:Number(p.chars_per_line)||42,codepage:p.codepage||'ascii',autoPrint:auto,cutAfterPrint:p.cut_after_print!==false,active:p.active!==false,publicConfig:p.public_config||{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
+document.querySelectorAll('[data-pos-printer-form]').forEach(form=>form.addEventListener('submit',async e=>{
+  e.preventDefault();const p=posAdminState.printers.find(x=>x.id===form.dataset.posPrinterForm);if(!p)return;const d=new FormData(form);
+  try{await savePosPrinter(cloudRestaurantId(),{id:p.id,deviceId:p.device_id||'',label:String(d.get('label')||'').trim(),role:String(d.get('role')||'receipt'),connectionType:p.connection_type,address:String(d.get('address')||'').trim(),charsPerLine:Number(p.chars_per_line)||42,codepage:p.codepage||'ascii',autoPrint:d.get('autoPrint')==='on',cutAfterPrint:p.cut_after_print!==false,active:d.get('active')==='on',publicConfig:p.public_config||{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
 document.getElementById('posTerminalAddForm')?.addEventListener('submit',async e=>{
   e.preventDefault();const d=new FormData(e.currentTarget);
   try{await savePosPaymentTerminal(cloudRestaurantId(),{label:String(d.get('label')||'').trim(),provider:String(d.get('provider')||'generic'),integrationMode:String(d.get('integrationMode')||'cloud'),externalTerminalId:String(d.get('externalTerminalId')||'').trim(),currency:state.preferences?.currency||'CHF',supportsCard:true,supportsTwint:String(d.get('provider'))==='twint',supportsTips:true,supportsRefunds:true,active:false,publicConfig:{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 });
-document.querySelectorAll('[data-pos-terminal-edit]').forEach(b=>b.addEventListener('click',async()=>{
-  const x=posAdminState.terminals.find(t=>t.id===b.dataset.posTerminalEdit);if(!x)return;
-  const ext=prompt('ID terminal prestataire',x.external_terminal_id||'');if(ext===null)return;const active=confirm('Activer ce profil terminal ? (la connexion réelle restera séparée)');
-  try{await savePosPaymentTerminal(cloudRestaurantId(),{id:x.id,deviceId:x.device_id||'',label:x.label,provider:x.provider,integrationMode:x.integration_mode,externalTerminalId:ext.trim(),currency:x.currency||'CHF',supportsCard:x.supports_card!==false,supportsTwint:x.supports_twint===true,supportsTips:x.supports_tips!==false,supportsRefunds:x.supports_refunds!==false,active,publicConfig:{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
+document.querySelectorAll('[data-pos-terminal-form]').forEach(form=>form.addEventListener('submit',async e=>{
+  e.preventDefault();const x=posAdminState.terminals.find(t=>t.id===form.dataset.posTerminalForm);if(!x)return;const d=new FormData(form);
+  try{await savePosPaymentTerminal(cloudRestaurantId(),{id:x.id,deviceId:x.device_id||'',label:String(d.get('label')||'').trim(),provider:x.provider,integrationMode:x.integration_mode,externalTerminalId:String(d.get('externalTerminalId')||'').trim(),currency:x.currency||'CHF',supportsCard:x.supports_card!==false,supportsTwint:x.supports_twint===true,supportsTips:x.supports_tips!==false,supportsRefunds:x.supports_refunds!==false,active:d.get('active')==='on',publicConfig:x.public_config||{}});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
 document.getElementById('posProviderAddForm')?.addEventListener('submit',async e=>{
   e.preventDefault();const d=new FormData(e.currentTarget),provider=String(d.get('provider')||''),integrationMode=String(d.get('integrationMode')||'');
