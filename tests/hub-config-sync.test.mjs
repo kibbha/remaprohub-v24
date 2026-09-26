@@ -6,6 +6,8 @@ const checks=[
   ['poll interval is bounded',app.includes('const HUB_CONFIG_POLL_MS=15000')],
   ['poll asks for lightweight configuration head',app.includes("action:'configuration_head'")&&app.includes('syncHubManagedConfiguration')],
   ['full reload happens only through managed refresh',app.includes('refreshHubManagedConfiguration(head)')],
+  ['published configuration uses atomic snapshot first',app.includes("action:'configuration_snapshot'")&&app.includes('readConfigurationSnapshot(atomic)')],
+  ['legacy multi-endpoint reload remains as compatibility fallback',app.includes('Compatibility path for a backend that has not deployed atomic snapshots yet.')],
   ['managed reload includes bootstrap/catalog',app.includes("action:'bootstrap'")],
   ['managed reload includes tables',app.includes("action:'list_tables'")],
   ['managed reload includes terminals',app.includes("action:'list_terminals'")],
