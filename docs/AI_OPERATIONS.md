@@ -341,3 +341,8 @@ Round 3 is based on promoted regression results:
 The evaluator now treats `role_focus` as the historical defect to correct (`role_focus_mode=defect_to_correct`), never as an instruction to reproduce the old defect.
 
 Round 3 profile versions: Dispatcher v5, Diagnostic v4, Developer Hub v3, Knowledge v3.
+
+
+#### Regression-first campaign gate
+
+The worker always clears promoted regression debt before creating or executing new synthetic scenarios. If a current-profile promoted case is still pending but the 10-evaluation UTC daily regression cap has been reached, the tick returns `regression_daily_limit` and does not advance the simulation campaign. Once the UTC cap resets, the worker resumes regression testing automatically; when no promoted regression remains pending, normal campaign generation/execution resumes automatically.
