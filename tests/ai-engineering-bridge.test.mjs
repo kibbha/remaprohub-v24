@@ -14,7 +14,7 @@ for(const token of ['platformJobs','platform_job_action','Travaux développeur',
 for(const token of [
   'ai_engineering_jobs','platform_job_action','["execute_fix","human_review"].includes(String(approval.action))',
   'approval.action==="merge_pr"','merge_approved','awaiting_execution',
-  'pos/remapro-pos','rebuild/remaprohub-clean'
+  'pos/remapro-pos','rebuild/remaprohub-clean','activeJob','awaiting_merge_approval','jobLookupFailed'
 ]) {
   if(!fn.includes(token)) throw new Error('Missing engineering orchestration token: '+token);
 }
