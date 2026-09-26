@@ -1,0 +1,2 @@
+create index if not exists pos_configuration_bundle_drafts_updated_by_idx on public.pos_configuration_bundle_drafts(updated_by);
+create index if not exists pos_configuration_bundle_versions_published_by_idx on public.pos_configuration_bundle_versions(published_by);
