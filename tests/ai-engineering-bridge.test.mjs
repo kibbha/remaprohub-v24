@@ -12,7 +12,7 @@ for(const token of ['platformJobs','platform_job_action','Travaux développeur',
   if(!app.includes(token)) throw new Error('Missing Hub engineering queue token: '+token);
 }
 for(const token of [
-  'ai_engineering_jobs','platform_job_action','approval.action==="human_review"',
+  'ai_engineering_jobs','platform_job_action','["execute_fix","human_review"].includes(String(approval.action))',
   'approval.action==="merge_pr"','merge_approved','awaiting_execution',
   'pos/remapro-pos','rebuild/remaprohub-clean'
 ]) {

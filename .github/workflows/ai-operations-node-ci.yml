@@ -12,6 +12,7 @@ on:
       - 'supabase/migrations/**'
       - 'tests/ai-operations-support.test.mjs'
       - 'tests/ai-engineering-bridge.test.mjs'
+      - 'tests/platform-operator.test.mjs'
       - 'tests/architecture.test.mjs'
       - 'tests/pos-layout.test.mjs'
       - '.github/workflows/ai-operations-node-ci.yml'
@@ -30,7 +31,7 @@ jobs:
           node-version: 24
       - name: Run Hub AI Operations checks
         if: github.base_ref == 'rebuild/remaprohub-clean'
-        run: node tests/architecture.test.mjs && node tests/pos-layout.test.mjs && node tests/ai-operations-support.test.mjs && node tests/ai-engineering-bridge.test.mjs
+        run: node tests/architecture.test.mjs && node tests/pos-layout.test.mjs && node tests/ai-operations-support.test.mjs && node tests/ai-engineering-bridge.test.mjs && node tests/platform-operator.test.mjs
       - name: Run POS Node test suite
         if: github.base_ref == 'pos/remapro-pos'
         run: npm test
