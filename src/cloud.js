@@ -229,7 +229,7 @@ export function cloudPageAllowed(identity,page,restaurantId){
 }
 const RETRYABLE_FUNCTION_STATUS=new Set([429,502,503,504]);
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-export async function cloudFunction(path,payload,{attempts=3}={}){
+export async function cloudFunction(path,payload,{attempts=3,timeoutMs=NETWORK_TIMEOUT_MS}={}){
   const {url,key}=cloudConfig();
   if(!url||!key)throw new Error('CLOUD_NOT_CONFIGURED');
   const tries=Math.max(1,Math.min(5,Math.trunc(+attempts||3)));
@@ -239,7 +239,7 @@ export async function cloudFunction(path,payload,{attempts=3}={}){
     if(!session?.access_token)throw new Error('AUTH_REQUIRED');
     let response;
     try{
-      response=await fetchWithTimeout(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)});
+      response=await fetchWithTimeout(url+'/functions/v1/'+path,{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+session.access_token},body:JSON.stringify(payload)},timeoutMs);
     }catch(error){lastError=error;recordDiagnostic('edge.function_network_error',{path,attempt:attempt+1,message:error?.message||String(error)});if(attempt+1<tries){recordDiagnostic('edge.function_retry',{path,attempt:attempt+1,reason:'network'});await sleep(250*(2**attempt));continue}throw error}
     const data=await response.json().catch(()=>({}));
     if(response.ok)return data;
