@@ -124,3 +124,18 @@ The engineering worker receives the Product plan as `execution_plan` and the QA 
 as `qa_plan`. It may prepare a branch and pull request, but the existing independent
 `merge_pr` approval remains mandatory before merge. Rejecting `execute_feature`
 does not create an engineering job.
+
+
+## Three-application separation
+
+ReMaPro now has three distinct application surfaces:
+
+- **ReMaPro Hub** — customer restaurant management and in-app support.
+- **ReMaPro POS** — customer point of sale and in-app support.
+- **ReMaPro Ops** — internal-only platform supervision for ReMaPro operators.
+
+The Hub no longer renders the AI Operations platform console. Its customer-facing
+Academy and Support remain available. Global tickets, agent runs, engineering jobs,
+approvals and operator replies are handled from ReMaPro Ops.
+
+All three applications continue to use the same authenticated Supabase backend.
