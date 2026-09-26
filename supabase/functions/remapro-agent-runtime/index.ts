@@ -104,7 +104,7 @@ Operating rules:
     const response=await fetch("https://api.openai.com/v1/agents/sessions",{
       method:"POST",headers:headers(key),
       body:JSON.stringify({
-        agent:{name:"ReMaPro "+profile.display_name,model,instructions,
+        agent:{model,instructions,
           reasoning:{effort:profile.reasoning_effort||"medium",summary:"concise"},
           text:{format:{type:"text"},verbosity:"low"},tools:[]},
         environment:{type:"none"},input:clean(input,24000),stream:false,
