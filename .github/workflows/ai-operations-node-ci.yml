@@ -14,7 +14,7 @@ on:
       - 'tests/ai-engineering-bridge.test.mjs'
       - 'tests/platform-operator.test.mjs'
       - 'tests/support-conversations.test.mjs'
-      - 'tests/ai-product-execution.test.mjs'
+      - 'tests/ai-product-execution.test.mjs'\n      - 'tests/ai-agent-training.test.mjs'\n      - 'supabase/functions/remapro-agent-runtime/**'\n      - 'supabase/migrations/20260926152108_remapro_ai_agent_training_core.sql'\n      - 'supabase/migrations/20260926152206_remapro_ai_agent_training_indexes.sql'
       - 'tests/architecture.test.mjs'
       - 'tests/pos-layout.test.mjs'
       - '.github/workflows/ai-operations-node-ci.yml'
@@ -33,7 +33,7 @@ jobs:
           node-version: 24
       - name: Run Hub AI Operations checks
         if: github.base_ref == 'rebuild/remaprohub-clean'
-        run: node tests/architecture.test.mjs && node tests/pos-layout.test.mjs && node tests/ai-operations-support.test.mjs && node tests/ai-engineering-bridge.test.mjs && node tests/platform-operator.test.mjs && node tests/support-conversations.test.mjs && node tests/ai-product-execution.test.mjs
+        run: node tests/architecture.test.mjs && node tests/pos-layout.test.mjs && node tests/ai-operations-support.test.mjs && node tests/ai-engineering-bridge.test.mjs && node tests/platform-operator.test.mjs && node tests/support-conversations.test.mjs && node tests/ai-product-execution.test.mjs && node tests/ai-agent-training.test.mjs
       - name: Run POS Node test suite
         if: github.base_ref == 'pos/remapro-pos'
         run: npm test
