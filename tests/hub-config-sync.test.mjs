@@ -37,3 +37,5 @@ assert.match(app,/state\.bootstrap=\{\.\.\.\(state\.bootstrap\|\|\{\}\),profile:
 assert.match(app,/state\.providerConnections=await kvGet\(providersKey\(restaurant\.id\)\)\|\|\[\]/,'offline startup prefers dedicated dynamic caches for provider state');
 assert.match(app,/state\.terminals=publishedDeviceProfiles\(state\.terminals,managed\.bundle,'terminals'\)/,'published terminal profiles preserve the latest cached dynamic status');
 assert.match(app,/if\(!state\.providerConnections\.length&&Array\.isArray\(managed\.providers\)\)/,'managed provider copy is only a compatibility fallback');
+
+assert.match(app,/if\(data\.openSession\)[\s\S]{0,500}else if\(state\.online\)[\s\S]{0,150}kvDelete\(sessionKey\(restaurant\.id\)\)/,'online bootstrap clears a stale cached cash session when the server has none');
