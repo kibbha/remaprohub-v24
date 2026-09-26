@@ -63,6 +63,10 @@ const diagnosticSchema={type:"object",additionalProperties:false,properties:{
   engineering_summary:{type:"string"},reproduction_steps:{type:"array",items:{type:"string"}},
   suspected_components:{type:"array",items:{type:"string"}},severity_rationale:{type:"string"}
 },required:["engineering_summary","reproduction_steps","suspected_components","severity_rationale"]};
+const specialistSchema={type:"object",additionalProperties:false,properties:{
+  work_summary:{type:"string"},recommended_actions:{type:"array",items:{type:"string"}},
+  risks:{type:"array",items:{type:"string"}},acceptance_checks:{type:"array",items:{type:"string"}}
+},required:["work_summary","recommended_actions","risks","acceptance_checks"]};
 
 async function insertRun(ctx:any,{ticketId,organizationId,agentRole,status="completed",inputSummary="",outputSummary="",metadata={}}:any){
   await ctx.supabaseAdmin.from("ai_agent_runs").insert({
@@ -117,9 +121,46 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",status:"failed",inputSummary:message,outputSummary:error instanceof Error?error.message:String(error)});
       }
     }
-  }
-  const assigned=AGENT.has(String(triage.route))?triage.route:"support";
-  const engineeringContext=diagnostic?{...context,...diagnostic}:context;
+    let specialist:any=null,qa:any=null;
+    const specialistRole=triage.category==="bug"
+      ?(ticket.application==="pos"?"developer_pos":"developer_hub")
+      :triage.category==="feature"?"product"
+      :triage.route==="knowledge"?"knowledge":"";
+    if(specialistRole){
+      try{
+        const roleInstruction=specialistRole==="product"
+          ?"You are ReMaPro Product Agent. Turn the request into a product brief: user problem, smallest useful change, risks and measurable acceptance checks. Do not rank customers or invent demand volume."
+          :specialistRole==="knowledge"
+            ?"You are ReMaPro Knowledge Agent. Identify the documentation or in-product guidance needed, with concrete steps and checks. Never invent features that do not exist."
+            :`You are ReMaPro ${ticket.application==="pos"?"POS":"Hub"} Developer Agent. Produce an implementation-ready change plan from the report and diagnostic. Separate confirmed facts from hypotheses. Never claim code was changed, merged or deployed.`;
+        specialist=await structured(apiKey,model,roleInstruction,
+          JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,context}),
+          "remapro_specialist_work",specialistSchema);
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,inputSummary:triage.summary,outputSummary:specialist.work_summary,metadata:specialist});
+      }catch(error){
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
+      }
+    }
+    if(triage.category==="bug"){
+      try{
+        qa=await structured(apiKey,model,
+          "You are ReMaPro QA Agent. Build a focused regression plan for the reported bug. Include reproduction verification, happy path, adjacent regression risks and acceptance checks. Never claim tests were executed.",
+          JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,specialist,context}),
+          "remapro_qa_plan",specialistSchema);
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",inputSummary:triage.summary,outputSummary:qa.work_summary,metadata:qa});
+      }catch(error){
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
+      }
+    }
+    if(triage.requires_approval){
+      const {data:pending}=await ctx.supabaseAdmin.from("support_approvals").select("id").eq("ticket_id",ticket.id).eq("status","pending").limit(1);
+      if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
+        ticket_id:ticket.id,organization_id:ticket.organization_id,requested_by_agent:"dispatcher",
+        action:"human_review",payload:{category:triage.category,priority:triage.priority,summary:triage.summary}
+      });
+    }
+    const assigned=AGENT.has(String(triage.route))?triage.route:"support";
+    const engineeringContext={...context,...(diagnostic||{}),specialist:specialist||null,qa:qa||null};
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
