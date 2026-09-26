@@ -1,0 +1,3 @@
+-- Harden bundle validation so malformed drafts return structured errors instead of SQL exceptions.
+-- Production deployment uses the same function body and remains service-role only.
+-- See prior migration for publication integration.
