@@ -45,3 +45,7 @@ if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))thr
 if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
 
 for(const token of ['claim_failed','.eq("id",scenario.id).in("status",["queued","error"])','if(!claimed)continue'])if(!runtime.includes(token))throw new Error('Missing atomic simulation claim token: '+token);
+
+const concurrency=fs.readFileSync(new URL('../supabase/migrations/20260926191529_remapro_simulation_concurrency_lock.sql',import.meta.url),'utf8');
+for(const token of ['ai_simulation_one_running_per_campaign_idx',"where status='running'"])if(!concurrency.includes(token))throw new Error('Missing Simulation Lab concurrency migration token: '+token);
+for(const token of ['recoverStaleSimulationRuns','Recovered stale simulation run after 10 minutes','busy:true','recoveredStale'])if(!runtime.includes(token))throw new Error('Missing Simulation Lab concurrency runtime token: '+token);
