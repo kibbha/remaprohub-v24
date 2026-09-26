@@ -103,6 +103,9 @@ export async function publishPosCatalog(restaurantId,state,{replace=true}={}){
 export async function loadPosBootstrap(restaurantId,deviceId=''){
   return cloudFunction('remapro-pos-sync',{action:'bootstrap',restaurantId,deviceId});
 }
+export async function validatePosConfigurationBundle(restaurantId,document=null){
+  return cloudFunction('remapro-pos-sync',{action:'bundle_validate',restaurantId,...(document?{document}:{})});
+}
 export async function registerPosDevice(restaurantId,device){
   return cloudFunction('remapro-pos-sync',{action:'heartbeat',restaurantId,device});
 }
