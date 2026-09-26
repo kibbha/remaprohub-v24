@@ -1,0 +1,1 @@
+create index if not exists pos_configuration_bundle_heads_restaurant_version_idx on public.pos_configuration_bundle_heads(restaurant_id,version);
