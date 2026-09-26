@@ -13,21 +13,27 @@ const fail=(message:string,status=400)=>Response.json({error:message},{status});
 const validEmail=(value:string)=>/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const uniqueStrings=(value:any)=>[...new Set(Array.isArray(value)?value.map(String).filter(Boolean):[])];
 
-async function hasMultiAccess(ctx:any,organizationId:string){
-  const {data:subscription,error}=await ctx.supabase.from("subscriptions")
-    .select("status,trial_ends_at,plan:subscription_plans(code)")
+async function subscriptionAccess(ctx:any,organizationId:string,now=new Date()){
+  const {data:subscription,error}=await ctx.supabaseAdmin.from("subscriptions")
+    .select("status,trial_ends_at,current_period_end,created_at,plan:subscription_plans(code)")
     .eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(error)throw new Error("Unable to verify subscription");
   if(subscription){
     const status=String(subscription.status||""),planCode=String(subscription?.plan?.code||"standard");
-    if(status==="active"&&planCode==="multi")return true;
-    if(status==="trialing"&&subscription.trial_ends_at&&new Date(subscription.trial_ends_at).getTime()>Date.now())return true;
-    return false;
+    const trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
+    const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
+    const allowed=status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
+    return{allowed,status,planCode};
   }
-  const {data:organization,error:orgError}=await ctx.supabase.from("organizations")
+  const {data:organization,error:orgError}=await ctx.supabaseAdmin.from("organizations")
     .select("created_at").eq("id",organizationId).single();
   if(orgError||!organization?.created_at)throw new Error("Unable to verify trial period");
-  return new Date(organization.created_at).getTime()+14*86400000>Date.now();
+  const allowed=new Date(organization.created_at).getTime()+7*86400000>now.getTime();
+  return{allowed,status:"legacy_trial",planCode:"standard"};
+}
+async function hasMultiAccess(ctx:any,organizationId:string){
+  const access=await subscriptionAccess(ctx,organizationId);
+  return access.allowed&&(access.status==="trialing"||access.status==="legacy_trial"||access.planCode==="multi");
 }
 
 async function writeAudit(ctx:any,{organizationId,restaurantIds=[],actorUserId,targetUserId=null,action,details={}}:any){
@@ -63,6 +69,10 @@ export default {
         .map((m:any)=>String(m.restaurant_id)));
       if(!orgAdmin&&!adminRestaurants.size)return fail("Manager access required",403);
 
+      const readOnlyActions=new Set(["list-members","list-audit"]);
+      if(!readOnlyActions.has(action)&&!(await subscriptionAccess(ctx,organizationId)).allowed){
+        return fail("SUBSCRIPTION_REQUIRED",402);
+      }
       const allowedScope=(ids:string[])=>orgAdmin||ids.every(id=>adminRestaurants.has(id));
 
       if(action==="list-members"){
