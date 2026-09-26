@@ -213,6 +213,40 @@ export default {
         return json({ok:true,isPlatformOperator:!!role,role});
       }
 
+      if(action==="platform_ticket"){
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
+        const ticketId=clean(body.ticketId,64);
+        if(!validUuid(ticketId))return json({error:"Valid ticket required"},400);
+        const [ticketResult,messagesResult,runsResult,jobsResult,approvalsResult]=await Promise.all([
+          ctx.supabaseAdmin.from("support_tickets").select("*").eq("id",ticketId).maybeSingle(),
+          ctx.supabaseAdmin.from("support_messages").select("*").eq("ticket_id",ticketId).order("created_at",{ascending:true}),
+          ctx.supabaseAdmin.from("ai_agent_runs").select("*").eq("ticket_id",ticketId).order("created_at",{ascending:false}).limit(100),
+          ctx.supabaseAdmin.from("ai_engineering_jobs").select("*").eq("ticket_id",ticketId).order("updated_at",{ascending:false}).limit(10),
+          ctx.supabaseAdmin.from("support_approvals").select("*").eq("ticket_id",ticketId).order("created_at",{ascending:false}).limit(50)
+        ]);
+        if(ticketResult.error||!ticketResult.data)return json({error:"Ticket not found"},404);
+        if(messagesResult.error||runsResult.error||jobsResult.error||approvalsResult.error)return json({error:"Unable to load platform ticket"},500);
+        return json({ok:true,ticket:ticketResult.data,messages:messagesResult.data||[],runs:runsResult.data||[],jobs:jobsResult.data||[],approvals:approvalsResult.data||[]});
+      }
+
+      if(action==="platform_reply"){
+        if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
+        const ticketId=clean(body.ticketId,64),message=clean(body.message,6000);
+        if(!validUuid(ticketId)||!message)return json({error:"Ticket and message are required"},400);
+        const {data:ticket,error:ticketError}=await ctx.supabaseAdmin.from("support_tickets").select("id,organization_id,status").eq("id",ticketId).maybeSingle();
+        if(ticketError||!ticket)return json({error:"Ticket not found"},404);
+        const now=new Date().toISOString();
+        const {error:messageError}=await ctx.supabaseAdmin.from("support_messages").insert({
+          ticket_id:ticket.id,organization_id:ticket.organization_id,sender_user_id:userId,
+          sender_type:"operator",agent_role:"platform_operator",body:message,metadata:{source:"remapro_ops"}
+        });
+        if(messageError)return json({error:"Unable to send operator reply"},500);
+        await ctx.supabaseAdmin.from("support_tickets").update({
+          latest_message:message,status:ticket.status==="closed"?"closed":"in_progress",updated_at:now
+        }).eq("id",ticket.id);
+        return json({ok:true,ticketId:ticket.id});
+      }
+
       if(action==="platform_inbox"){
         if(!(await platformRole(ctx,userId)))return json({error:"Platform operator required"},403);
         const limit=Math.min(200,Math.max(1,Number(body.limit)||100));
