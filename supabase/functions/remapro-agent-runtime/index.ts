@@ -509,12 +509,8 @@ async function nextSimulationRegression(ctx:any){
     .order("updated_at",{ascending:false}).limit(40);
   if(error)throw error;
   const rows=cases||[];
-  if(!rows.length)return {testCase:null,dailyLimitReached:false};
-  const ids=rows.map((x:any)=>x.id).filter(Boolean);
-  const today=new Date();today.setUTCHours(0,0,0,0);
-  const {count:todayCount}=await ctx.supabaseAdmin.from("ai_evaluation_runs")
-    .select("*",{count:"exact",head:true}).in("training_case_id",ids).gte("created_at",today.toISOString());
-  if(Number(todayCount||0)>=10)return {testCase:null,dailyLimitReached:true};
+  if(!rows.length)return {testCase:null,pending:false,dailyLimitReached:false};
+  let pendingCase:any=null;
   for(const testCase of rows){
     const profile=await loadProfile(ctx,testCase.agent_role);
     const {data:done,error:doneError}=await ctx.supabaseAdmin.from("ai_evaluation_runs")
@@ -522,9 +518,15 @@ async function nextSimulationRegression(ctx:any){
       .eq("profile_version",profile.version).in("status",["passed","failed"])
       .order("created_at",{ascending:false}).limit(1).maybeSingle();
     if(doneError)throw doneError;
-    if(!done)return {testCase,dailyLimitReached:false};
+    if(!done){pendingCase=testCase;break}
   }
-  return {testCase:null,dailyLimitReached:false};
+  if(!pendingCase)return {testCase:null,pending:false,dailyLimitReached:false};
+  const ids=rows.map((x:any)=>x.id).filter(Boolean);
+  const today=new Date();today.setUTCHours(0,0,0,0);
+  const {count:todayCount}=await ctx.supabaseAdmin.from("ai_evaluation_runs")
+    .select("*",{count:"exact",head:true}).in("training_case_id",ids).gte("created_at",today.toISOString());
+  if(Number(todayCount||0)>=10)return {testCase:null,pending:true,dailyLimitReached:true};
+  return {testCase:pendingCase,pending:true,dailyLimitReached:false};
 }
 
 async function simulationWorkerTick(ctx:any){
@@ -564,6 +566,10 @@ async function simulationWorkerTick(ctx:any){
       console.warn("remapro_worker_regression_failed",{caseId:regression.testCase.id,message});
       return {idle:false,step:"regression_error",caseId:regression.testCase.id,error:message};
     }
+  }
+
+  if(regression.pending&&regression.dailyLimitReached){
+    return {idle:false,step:"regression_daily_limit",pending:true,dailyLimitReached:true};
   }
 
   const {data:campaign,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns")
