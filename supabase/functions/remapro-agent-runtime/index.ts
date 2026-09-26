@@ -371,7 +371,7 @@ Message: ${scenario.message}
 Expected production task for your role: respond exactly as you would in production, but do not claim any action was executed.
 Prior simulated agent outputs:
 ${prior||"None"}`;
-      const result=await runManagedAgent(ctx,{role,input,metadata:{simulation_id:scenario.id,campaign_id:scenario.campaign_id,simulation:true}});
+      const result=await runManagedAgent(ctx,{role,input,metadata:{simulation_id:String(scenario.id),campaign_id:String(scenario.campaign_id),simulation:"true"}});
       chain[role]={output:result.output,model:result.model,profile_version:result.profileVersion,knowledge_ids:(result.knowledge||[]).map((x:any)=>x.id)};
       usage[role]=result.usage||{};
       for(const item of result.knowledge||[])knowledgeMap.set(item.id,item);
