@@ -319,3 +319,10 @@ New verified knowledge: POS payment-state vs sensitive billing, multi-location l
 Before generating or executing another synthetic ticket, the server worker checks active training cases with `category=simulation`. If a promoted case has no completed evaluation for the current agent profile version, the worker evaluates exactly one such case and returns `regression_evaluated`.
 
 The worker caps these automatic regression evaluations at 10 per UTC day. A case is considered current only when it has a passed or failed evaluation matching the active profile version. This closes the loop between a simulation finding, profile/knowledge improvement and a measurable regression retest without allowing unbounded API consumption.
+
+
+#### Role-scoped promoted regressions
+
+A promoted Simulation Lab finding is evaluated against the responsibilities of the target role rather than the entire multi-agent scenario. The full scenario remains context, but chain-wide requirements belonging to other agents are not scored against the target role. For example, Dispatcher is scored on classification/routing/flags/safe intake, while detailed reproduction and regression plans belong to Diagnostic, Developer and QA.
+
+Existing promoted simulation training cases are migrated to `evaluation_scope=agent_role` with an explicit `role_focus`. Future promotions write these fields automatically.
