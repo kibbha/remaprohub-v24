@@ -25,3 +25,15 @@ Next phase:
 - GitHub issue/branch/PR execution bridge using a least-privilege GitHub App;
 - automated execution of approved development plans;
 - approval gate before merge/release.
+
+
+## Platform supervision
+
+Users with an Auth app-metadata claim `remapro_platform_role` set to one of
+`owner`, `support`, `developer`, `qa`, `release`, or `product` see a protected
+**ReMaPro AI Operations** panel in Hub Help/Academy.
+
+The panel reads the global support inbox, recent agent runs and pending human-review
+approvals through `remapro-support`. Restaurant accounts cannot call these platform
+actions. Approval decisions update the approval record and move the ticket back into
+the controlled workflow; they do not merge or deploy code automatically.
