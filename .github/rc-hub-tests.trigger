@@ -1,3 +1,1 @@
-RC Hub test suite — POS category preview and optional photos
-2026-09-24
-58b3e15
+AI Operations RC validation 2026-09-26 product-execution
