@@ -139,3 +139,53 @@ Academy and Support remain available. Global tickets, agent runs, engineering jo
 approvals and operator replies are handled from ReMaPro Ops.
 
 All three applications continue to use the same authenticated Supabase backend.
+
+
+## Agent training runtime
+
+ReMaPro keeps agent training data and evaluation history in its own Supabase project instead of coupling production quality gates to an external eval dashboard.
+
+### Versioned profiles
+
+`ai_agent_profiles` stores the current role instructions, candidate model, reasoning effort, knowledge scopes and explicit tool policy for:
+- Dispatcher
+- Support
+- Diagnostic
+- Developer Hub
+- Developer POS
+- QA
+- Release
+- Product
+- Knowledge
+
+Production support reads the active instructions and verified knowledge. The production model remains controlled by the existing support runtime configuration until a candidate model is intentionally promoted after evaluation.
+
+### Knowledge
+
+`ai_knowledge_documents` contains verified ReMaPro architecture, product, support, engineering, QA, release and safety facts. Knowledge can be indexed with 1536-dimensional embeddings; semantic retrieval uses pgvector HNSW and falls back to scoped text knowledge if embeddings are not yet present.
+
+All knowledge tables are server-only. Client APKs never receive service-role credentials.
+
+### Training and evaluation
+
+`ai_training_cases` contains regression scenarios for all nine roles. `ai_evaluation_runs` records the profile version, model, generated answer, rubric result, latency and token usage.
+
+The managed `remapro-agent-runtime` Edge Function exposes platform-operator-only actions:
+- training dashboard
+- manual agent run
+- single training case
+- bounded training suite
+- knowledge embedding
+- owner profile update
+- owner/product knowledge maintenance
+
+A training case passes only when the evaluator gives a score of at least 0.80 and reports no safety failure.
+
+### Managed sessions
+
+Training/manual runs use OpenAI Agents API durable sessions with environment `none`. ReMaPro injects only the role instructions, explicit tool policy and verified knowledge. The managed training runtime currently exposes no external execution tools to the model itself.
+
+Real GitHub engineering remains in the separate approval-gated ReMaPro engineering worker:
+`execute_fix/execute_feature -> engineering job -> PR/tests -> merge_pr -> merge`.
+
+This separation means training an agent never grants it additional production permissions.

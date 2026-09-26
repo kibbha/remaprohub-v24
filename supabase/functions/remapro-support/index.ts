@@ -74,6 +74,32 @@ const specialistSchema={type:"object",additionalProperties:false,properties:{
   risks:{type:"array",items:{type:"string"}},acceptance_checks:{type:"array",items:{type:"string"}}
 },required:["work_summary","recommended_actions","risks","acceptance_checks"]};
 
+async function trainedAgent(ctx:any,role:string,fallbackInstructions:string,defaultModel:string){
+  const {data:profile}=await ctx.supabaseAdmin.from("ai_agent_profiles")
+    .select("role,instructions,model,knowledge_scopes,tool_policy,version,enabled")
+    .eq("role",role).eq("enabled",true).maybeSingle();
+  if(!profile)return {model:defaultModel,instructions:fallbackInstructions,profileVersion:0,knowledgeIds:[] as string[]};
+  const scopes=Array.isArray(profile.knowledge_scopes)?profile.knowledge_scopes:[];
+  const allowed=[...new Set(["global",...scopes])];
+  const {data:knowledge}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+    .select("id,scope,title,content").eq("status","active").in("scope",allowed)
+    .order("updated_at",{ascending:false}).limit(8);
+  const rows=knowledge||[];
+  const verified=rows.length?rows.map((x:any,i:number)=>`[${i+1}] ${x.title} (${x.scope})\n${clean(x.content,2600)}`).join("\n\n"):"No verified ReMaPro knowledge retrieved.";
+  return {
+    model:String(defaultModel||profile.model),
+    instructions:`${profile.instructions||fallbackInstructions}
+
+Verified ReMaPro knowledge:
+${verified}
+
+Tool policy: ${JSON.stringify(profile.tool_policy||{})}
+Use only facts from the request and verified knowledge. Never claim an action happened unless evidence is provided.`,
+    profileVersion:Number(profile.version||1),
+    knowledgeIds:rows.map((x:any)=>x.id)
+  };
+}
+
 async function insertRun(ctx:any,{ticketId,organizationId,agentRole,status="completed",inputSummary="",outputSummary="",metadata={}}:any){
   await ctx.supabaseAdmin.from("ai_agent_runs").insert({
     ticket_id:ticketId,organization_id:organizationId,agent_role:agentRole,status,
@@ -94,35 +120,40 @@ function fallbackTriage(application:string,subject:string,message:string){
 async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   const apiKey=Deno.env.get("OPENAI_API_KEY")||"";
   const model=Deno.env.get("OPENAI_SUPPORT_MODEL")||Deno.env.get("OPENAI_MODEL")||"gpt-5.6-luna";
+  const trainedCache=new Map<string,any>();
+  const trained=async(role:string,fallback:string)=>{
+    if(!trainedCache.has(role))trainedCache.set(role,await trainedAgent(ctx,role,fallback,model));
+    return trainedCache.get(role);
+  };
   let triage=fallbackTriage(ticket.application,ticket.subject,message);
   let support={reply:"Votre demande a bien été enregistrée. ReMaPro l'analyse et conserve son suivi dans ce ticket.",diagnostic_questions:[] as string[]};
   let diagnostic:any=null,specialist:any=null,qa:any=null;
   if(apiKey){
     try{
-      triage=await structured(apiKey,model,
-        "You are ReMaPro's dispatcher agent. Classify a restaurant SaaS support request. Be conservative with critical priority. Never invent facts. Route bugs to the relevant Hub or POS developer, feature requests to product, documentation/how-to requests to knowledge/support. Output only the requested JSON schema.",
+      const agent=await trained("dispatcher","You are ReMaPro's dispatcher agent. Classify a restaurant SaaS support request. Be conservative with critical priority. Never invent facts. Route bugs to the relevant Hub or POS developer, feature requests to product, documentation/how-to requests to knowledge/support. Output only the requested JSON schema.");
+      triage=await structured(apiKey,agent.model,agent.instructions,
         JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,context}),
         "remapro_support_triage",triageSchema);
-      await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"dispatcher",inputSummary:message,outputSummary:triage.summary,metadata:triage});
+      await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"dispatcher",inputSummary:message,outputSummary:triage.summary,metadata:{...triage,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
     }catch(error){
       await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"dispatcher",status:"failed",inputSummary:message,outputSummary:error instanceof Error?error.message:String(error)});
     }
     try{
-      support=await structured(apiKey,model,
-        "You are ReMaPro Support. Reply in the user's language. Be concise, practical, calm and specific. Do not claim a fix has been deployed. If information is missing, ask no more than three targeted diagnostic questions. For billing/account/security/data-loss/critical incidents, acknowledge and say the case requires human review rather than inventing a resolution.",
+      const agent=await trained("support","You are ReMaPro Support. Reply in the user's language. Be concise, practical, calm and specific. Do not claim a fix has been deployed. If information is missing, ask no more than three targeted diagnostic questions. For billing/account/security/data-loss/critical incidents, acknowledge and say the case requires human review rather than inventing a resolution.");
+      support=await structured(apiKey,agent.model,agent.instructions,
         JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,context}),
         "remapro_support_reply",supportSchema);
-      await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"support",inputSummary:message,outputSummary:support.reply,metadata:{questions:support.diagnostic_questions}});
+      await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"support",inputSummary:message,outputSummary:support.reply,metadata:{questions:support.diagnostic_questions,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
     }catch(error){
       await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"support",status:"failed",inputSummary:message,outputSummary:error instanceof Error?error.message:String(error)});
     }
     if(triage.category==="bug"){
       try{
-        diagnostic=await structured(apiKey,model,
-          "You are ReMaPro Diagnostic Agent. Convert the report into an engineering-ready bug brief. Do not guess root cause. Separate known reproduction facts from suspected components. Keep steps deterministic where possible.",
+        const agent=await trained("diagnostic","You are ReMaPro Diagnostic Agent. Convert the report into an engineering-ready bug brief. Do not guess root cause. Separate known reproduction facts from suspected components. Keep steps deterministic where possible.");
+        diagnostic=await structured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,context}),
           "remapro_bug_diagnostic",diagnosticSchema);
-        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",inputSummary:message,outputSummary:diagnostic.engineering_summary,metadata:diagnostic});
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",inputSummary:message,outputSummary:diagnostic.engineering_summary,metadata:{...diagnostic,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
       }catch(error){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",status:"failed",inputSummary:message,outputSummary:error instanceof Error?error.message:String(error)});
       }
@@ -138,10 +169,11 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
           :specialistRole==="knowledge"
             ?"You are ReMaPro Knowledge Agent. Identify the documentation or in-product guidance needed, with concrete steps and checks. Never invent features that do not exist."
             :`You are ReMaPro ${ticket.application==="pos"?"POS":"Hub"} Developer Agent. Produce an implementation-ready change plan from the report and diagnostic. Separate confirmed facts from hypotheses. Never claim code was changed, merged or deployed.`;
-        specialist=await structured(apiKey,model,roleInstruction,
+        const agent=await trained(specialistRole,roleInstruction);
+        specialist=await structured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,context}),
           "remapro_specialist_work",specialistSchema);
-        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,inputSummary:triage.summary,outputSummary:specialist.work_summary,metadata:specialist});
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,inputSummary:triage.summary,outputSummary:specialist.work_summary,metadata:{...specialist,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
       }catch(error){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
       }
@@ -151,11 +183,11 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         const qaInstruction=triage.category==="bug"
           ?"You are ReMaPro QA Agent. Build a focused regression plan for the reported bug. Include reproduction verification, happy path, adjacent regression risks and acceptance checks. Never claim tests were executed."
           :"You are ReMaPro QA Agent. Build a focused validation and regression plan for the proposed product improvement. Cover the requested behavior, permissions, happy path, adjacent regressions and measurable acceptance checks. Never claim tests were executed.";
-        qa=await structured(apiKey,model,
-          qaInstruction,
+        const agent=await trained("qa",qaInstruction);
+        qa=await structured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,specialist,context}),
           "remapro_qa_plan",specialistSchema);
-        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",inputSummary:triage.summary,outputSummary:qa.work_summary,metadata:qa});
+        await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",inputSummary:triage.summary,outputSummary:qa.work_summary,metadata:{...qa,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
       }catch(error){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
       }

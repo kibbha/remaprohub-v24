@@ -30,3 +30,6 @@ verify_jwt = true
 
 [functions.remapro-support]
 verify_jwt = true
+
+[functions.remapro-agent-runtime]
+verify_jwt = true
