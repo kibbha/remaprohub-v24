@@ -12,27 +12,27 @@ assert.equal(PLAN_CONFIG.standard.monthly,19.90);
 assert.equal(PLAN_CONFIG.standard.yearly,199);
 assert.equal(PLAN_CONFIG.standard.restaurants,1);
 assert.equal(PLAN_CONFIG.standard.managers,1);
-assert.equal(PLAN_CONFIG.multi.monthly,39.90);
+assert.equal(PLAN_CONFIG.multi.monthly,49.90);
 assert.equal(PLAN_CONFIG.multi.yearly,399);
 assert.equal(PLAN_CONFIG.multi.restaurants,5);
 assert.equal(PLAN_CONFIG.multi.staffLimited,true);
 
 const state=load();
 assert.equal(state.subscription.status,'trialing');
-assert.equal(state.subscription.trialDays,14);
+assert.equal(state.subscription.trialDays,7);
 assert.ok(state.subscription.trialStart);
 assert.ok(JSON.parse(storage.get('remaprohub.v27.state')).subscription.trialStart,'trial start must persist immediately');
 
 state.subscription={status:'trialing',trialStart:'2026-09-18T08:00:00.000Z',trialDays:7,plan:'standard',billing:'monthly'};
-assert.equal(ensureSubscriptionState(state,new Date('2026-09-26T08:00:00.000Z')),true);
-assert.equal(state.subscription.trialDays,14,'legacy seven-day trials must be upgraded to fourteen days');
+assert.equal(ensureSubscriptionState(state,new Date('2026-09-24T08:00:00.000Z')),false);
+assert.equal(state.subscription.trialDays,7,'seven-day trials must remain seven days');
 assert.equal(state.subscription.status,'trialing');
-assert.equal(trialRemaining(state,new Date('2026-09-26T08:00:00.000Z')),6);
-assert.equal(ensureSubscriptionState(state,new Date('2026-10-02T08:00:00.000Z')),true);
+assert.equal(trialRemaining(state,new Date('2026-09-24T08:00:00.000Z')),1);
+assert.equal(ensureSubscriptionState(state,new Date('2026-09-25T08:00:00.000Z')),true);
 assert.equal(state.subscription.status,'expired');
-assert.equal(trialRemaining(state,new Date('2026-10-02T08:00:00.000Z')),0);
+assert.equal(trialRemaining(state,new Date('2026-09-25T08:00:00.000Z')),0);
 
-state.subscription={status:'trialing',trialStart:new Date().toISOString(),trialDays:14,plan:'standard',billing:'monthly'};
+state.subscription={status:'trialing',trialStart:new Date().toISOString(),trialDays:7,plan:'standard',billing:'monthly'};
 assert.equal(subscriptionPrice(state),19.90);
 assert.equal(selectSubscriptionPlan(state,{plan:'multi',billing:'yearly'}),true);
 assert.equal(state.subscription.plan,'multi');
@@ -53,6 +53,6 @@ delete backup.state.subscription;
 const target=load();
 assert.equal(importData(target,JSON.stringify(backup)),true,'older V27 backup without subscription must remain importable');
 assert.equal(target.subscription.plan,'standard');
-assert.equal(target.subscription.trialDays,14);
+assert.equal(target.subscription.trialDays,7);
 
 console.log('Subscription trial, prices and backward-compatible backup restore OK');
