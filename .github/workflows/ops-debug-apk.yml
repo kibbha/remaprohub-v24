@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push' || github.head_ref == 'ops/remapro-ops'
+    if: github.event_name == 'push' || github.head_ref == 'build/ops-three-app'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
