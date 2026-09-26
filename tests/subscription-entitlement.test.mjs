@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
-globalThis.navigator={onLine:true};
+Object.defineProperty(globalThis,'navigator',{value:{onLine:true},configurable:true});
 const {subscriptionAccessForIdentity}=await import('../src/cloud.js');
 
 const now=new Date('2026-09-27T12:00:00Z');
@@ -32,3 +32,7 @@ for(const token of ['subscriptionRequired','subscriptionRequiredHint'])
   assert.ok(i18n.includes(token),'POS translations must include '+token);
 
 console.log('POS pre-launch subscription gate and offline continuity checks passed');
+
+for(const token of ['noRestaurantAssigned','noRestaurantAssignedHint'])
+  assert.ok(app.includes(token),'POS zero-restaurant recovery screen must include '+token);
+assert.ok(app.includes("(state.identity?.restaurants||[]).length"),'picker must explicitly handle an empty restaurant list');
