@@ -1,9 +1,9 @@
 import{initializeCloudSessionStorage,cloudSession,signInCloud,signOutCloud,cloudFunction}from'./cloud.js';
 
-const VERSION='0.2.0';
+const VERSION='0.2.1';
 const AGENTS=['dispatcher','support','diagnostic','developer_hub','developer_pos','qa','product','knowledge','release'];
 const root=document.getElementById('app');
-const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:''};
+const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingAction:'',trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:''};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('fr-CH',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return String(v)}};
 const statusLabel=v=>({open:'Ouvert',triaged:'Trié',in_progress:'En cours',waiting_customer:'Attente client',waiting_approval:'Validation',resolved:'Résolu',closed:'Fermé',awaiting_execution:'À exécuter',executing:'Développement',testing:'Tests',pr_open:'PR ouverte',awaiting_merge_approval:'Fusion à valider',merge_approved:'Fusion autorisée',failed:'Échec',completed:'Terminé',cancelled:'Annulé'}[v]||String(v||'—'));
@@ -46,13 +46,13 @@ function trainingView(){
  <section class="grid two">
   <article class="panel"><div class="panel-head"><div><h2>Profils des agents</h2><small>Instructions, modèle et version actuellement utilisés en production.</small></div></div>
   ${state.trainingProfiles.map(p=>`<div class="line"><span><strong>${esc(agentLabel(p.role))} · v${esc(p.version)}</strong><small>${esc(p.purpose||'')}</small></span><span><b>${esc(p.model)}</b><small>${p.enabled?'Actif':'Désactivé'} · ${esc(p.reasoning_effort)}</small></span></div>`).join('')||'<p class="empty">Aucun profil.</p>'}</article>
-  <article class="panel"><div class="panel-head"><div><h2>Base de connaissances</h2><small>Les agents utilisent ces éléments vérifiés comme contexte ReMaPro.</small></div><button id="embedKnowledgeBtn" class="primary small">Indexer</button></div>
+  <article class="panel"><div class="panel-head"><div><h2>Base de connaissances</h2><small>Les agents utilisent ces éléments vérifiés comme contexte ReMaPro.</small></div><button id="embedKnowledgeBtn" class="primary small" ${state.trainingAction?'disabled':''}>${state.trainingAction==='index'?'Indexation…':'Indexer'}</button></div>
   ${state.trainingKnowledge.slice(0,12).map(d=>`<div class="line"><span><strong>${esc(d.title)}</strong><small>${esc(d.scope)} · ${esc(d.source_type)}</small></span><span><b>${d.embedding_model?'Vectorisé':'Texte'}</b><small>v${esc(d.version)}</small></span></div>`).join('')||'<p class="empty">Aucune connaissance.</p>'}</article>
  </section>
- <section class="panel"><div class="panel-head"><div><h2>Cas d’entraînement</h2><small>Un score ≥ 80% sans échec de sécurité est requis pour réussir.</small></div><button id="runNextTrainingBtn" class="primary small">Tester le suivant</button></div>
- ${state.trainingCases.map(c=>{const e=latest.get(c.id);return `<div class="job-row"><span class="agent-avatar">${esc(agentLabel(c.agent_role).slice(0,2).toUpperCase())}</span><span class="grow"><strong>${esc(c.name)}</strong><small>${esc(agentLabel(c.agent_role))} · ${esc(c.category)} · ${esc(c.difficulty)}</small>${e?`<em class="${e.passed?'':'error-text'}">${e.passed?'Réussi':'À améliorer'} · ${Math.round(Number(e.score||0)*100)}% · ${fmtDate(e.created_at)}</em>`:'<em>Jamais testé</em>'}</span><span class="actions"><button class="small primary" data-training-case="${esc(c.id)}">Tester</button></span></div>`}).join('')||'<p class="empty">Aucun cas de test.</p>'}
+ <section class="panel"><div class="panel-head"><div><h2>Cas d’entraînement</h2><small>Un score ≥ 80% sans échec de sécurité est requis pour réussir.</small></div><button id="runNextTrainingBtn" class="primary small" ${state.trainingAction?'disabled':''}>${state.trainingAction==='test'?'Test…':'Tester le suivant'}</button></div>
+ ${state.trainingCases.map(c=>{const e=latest.get(c.id);return `<div class="job-row"><span class="agent-avatar">${esc(agentLabel(c.agent_role).slice(0,2).toUpperCase())}</span><span class="grow"><strong>${esc(c.name)}</strong><small>${esc(agentLabel(c.agent_role))} · ${esc(c.category)} · ${esc(c.difficulty)}</small>${e?`<em class="${e.passed?'':'error-text'}">${e.passed?'Réussi':'À améliorer'} · ${Math.round(Number(e.score||0)*100)}% · ${fmtDate(e.created_at)}</em>`:'<em>Jamais testé</em>'}</span><span class="actions"><button class="small primary" data-training-case="${esc(c.id)}" ${state.trainingAction?'disabled':''}>Tester</button></span></div>`}).join('')||'<p class="empty">Aucun cas de test.</p>'}
  </section>
- <section class="grid two"><article class="panel"><h2>Test manuel</h2><form id="manualAgentForm" class="form"><label>Agent<select name="agentRole">${state.trainingProfiles.map(p=>`<option value="${esc(p.role)}">${esc(agentLabel(p.role))}</option>`).join('')}</select></label><label>Situation à tester<textarea name="input" rows="5" maxlength="12000" required placeholder="Ex. Un restaurateur signale que la table reste ouverte après paiement…"></textarea></label><button class="primary">Lancer l’agent</button></form></article>
+ <section class="grid two"><article class="panel"><h2>Test manuel</h2><form id="manualAgentForm" class="form"><label>Agent<select name="agentRole">${state.trainingProfiles.map(p=>`<option value="${esc(p.role)}">${esc(agentLabel(p.role))}</option>`).join('')}</select></label><label>Situation à tester<textarea name="input" rows="5" maxlength="12000" required placeholder="Ex. Un restaurateur signale que la table reste ouverte après paiement…"></textarea></label><button class="primary" ${state.trainingAction?'disabled':''}>${state.trainingAction==='manual'?'Exécution…':'Lancer l’agent'}</button></form></article>
  <article class="panel"><h2>Dernier résultat</h2><p class="training-output">${esc(state.trainingOutput||'Lance un cas ou un test manuel pour afficher le résultat ici.')}</p></article></section>`;
 }
 async function loadTraining(force=false){
@@ -70,33 +70,47 @@ async function loadTraining(force=false){
  finally{state.trainingLoading=false;render()}
 }
 async function runTrainingCase(caseId){
- state.trainingLoading=true;state.trainingOutput='';render();
+ if(state.trainingAction)return;
+ state.trainingAction='test';state.trainingOutput='';state.error='';render();
  try{
   const data=await cloudFunction('remapro-agent-runtime',{action:'run_training_case',caseId},{attempts:1,timeoutMs:60000});
   state.trainingOutput=`Score ${Math.round(Number(data?.score||0)*100)}% — ${data?.passed?'RÉUSSI':'À AMÉLIORER'}\n\n${data?.output||''}\n\n${(data?.result?.failures||[]).length?'Points à corriger : '+data.result.failures.join(' · '):''}`;
-  state.trainingLoaded=false;await loadTraining(true);
- }catch(e){state.error=e?.message||String(e);state.trainingLoading=false;render()}
+ }catch(e){state.error=e?.message||String(e)}
+ finally{
+  state.trainingAction='';
+  await loadTraining(true);
+ }
 }
 async function runNextTraining(){
+ if(state.trainingAction)return;
  const latest=latestEvalByCase();const next=state.trainingCases.find(c=>!latest.has(c.id)||!latest.get(c.id)?.passed)||state.trainingCases[0];
  if(next)await runTrainingCase(next.id);
 }
 async function embedKnowledge(){
- state.trainingLoading=true;render();
+ if(state.trainingAction)return;
+ state.trainingAction='index';state.error='';render();
  try{
-  const data=await cloudFunction('remapro-agent-runtime',{action:'embed_knowledge',limit:10},{attempts:1,timeoutMs:60000});
-  const ok=(data?.results||[]).filter(x=>x.ok).length;state.trainingOutput=`${ok} connaissance(s) indexée(s) sémantiquement.`;
-  state.trainingLoaded=false;await loadTraining(true);
- }catch(e){state.error=e?.message||String(e);state.trainingLoading=false;render()}
+  const data=await cloudFunction('remapro-agent-runtime',{action:'embed_knowledge',limit:5},{attempts:1,timeoutMs:60000});
+  const completed=Number(data?.completed||0),failed=Number(data?.failed||0),remaining=Number(data?.remaining||0);
+  const firstError=(data?.results||[]).find(x=>!x.ok)?.error||'';
+  state.trainingOutput=completed
+   ?`${completed} connaissance(s) vectorisée(s). ${remaining} restante(s).${failed?' '+failed+' échec(s).':''}`
+   :`Aucune vectorisation effectuée. La recherche ReMaPro par connaissances vérifiées reste active.${firstError?'\n\nDétail : '+firstError:''}${data?.warning?'\n\n'+data.warning:''}`;
+ }catch(e){state.error=e?.message||String(e)}
+ finally{
+  state.trainingAction='';
+  await loadTraining(true);
+ }
 }
 async function runManualAgent(form){
+ if(state.trainingAction)return;
  const d=new FormData(form),agentRole=String(d.get('agentRole')||''),input=String(d.get('input')||'').trim();if(!input)return;
- state.trainingLoading=true;state.trainingOutput='';render();
+ state.trainingAction='manual';state.trainingOutput='';state.error='';render();
  try{
   const data=await cloudFunction('remapro-agent-runtime',{action:'run_agent',agentRole,input},{attempts:1,timeoutMs:60000});
   state.trainingOutput=`${agentLabel(agentRole)} · ${data?.model||''} · profil v${data?.profileVersion||'?'}\n\n${data?.output||''}`;
  }catch(e){state.error=e?.message||String(e)}
- finally{state.trainingLoading=false;render()}
+ finally{state.trainingAction='';render()}
 }
 function jobsView(){return `<section class="panel"><div class="panel-head"><h2>File d’ingénierie</h2><small>Hub et POS · aucune fusion sans validation finale</small></div>${jobRows(state.jobs)}</section>`}
 function jobRows(rows){return rows.length?rows.map(j=>`<div class="job-row"><span class="app-chip ${esc(j.application)}">${esc((j.application||'').toUpperCase())}</span><span class="grow"><strong>${esc(statusLabel(j.status))}</strong><small>${esc(j.base_branch||'')} ${j.work_branch?'→ '+esc(j.work_branch):''}</small>${j.github_pr_number?`<em>PR #${esc(j.github_pr_number)}</em>`:''}${j.last_error?`<em class="error-text">${esc(short(j.last_error))}</em>`:''}</span><span class="actions">${j.status==='failed'?`<button class="primary small" data-job="${esc(j.id)}" data-job-action="retry">Relancer</button>`:''}${!['completed','cancelled'].includes(j.status)?`<button class="small" data-job="${esc(j.id)}" data-job-action="cancel">Annuler</button>`:''}</span></div>`).join(''):'<p class="empty">Aucun travail développeur.</p>'}
