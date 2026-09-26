@@ -41,3 +41,5 @@ const simEnd=app.indexOf('function jobsView()',simStart);
 if(simStart<0||simEnd<0)throw new Error('Simulation Lab view block not found');
 const simBlock=app.slice(simStart,simEnd);
 for(const forbidden of ['open_ticket','platform_review_approval','platform_job_action'])if(simBlock.includes(forbidden))throw new Error('Simulation Lab UI must stay isolated from production action: '+forbidden);
+
+for(const token of ['data&&data.busy','Une simulation est déjà en cours'])if(!app.includes(token))throw new Error('Missing Simulation Lab busy-state token: '+token);
