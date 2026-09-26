@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
-  <title id="title">ReMaPro Hub</title>
-  <rect width="1024" height="1024" fill="#8D7B6A"/>
-  <g fill="#FFFDF9">
-    <rect x="142" y="625" width="86" height="170" rx="18"/>
-    <rect x="256" y="540" width="86" height="255" rx="18"/>
-    <rect x="370" y="455" width="86" height="340" rx="18"/>
-    <path fill-rule="evenodd" d="M430 225h225c122 0 205 78 205 190 0 84-47 147-126 176l154 204H722L594 618h-36v177H430V225Zm128 119v161h87c53 0 83-29 83-81 0-51-30-80-83-80h-87Z"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title"><title id="title">ReMaPro Ops</title><rect width="1024" height="1024" fill="#2F5E68"/><g fill="none" stroke="#F7FBFA" stroke-width="42"><circle cx="300" cy="330" r="82"/><circle cx="724" cy="330" r="82"/><circle cx="512" cy="560" r="82"/><path d="M368 375 452 500M656 375 572 500M382 560h48M594 560h48"/></g><g fill="#F7FBFA"><path fill-rule="evenodd" d="M180 710h130v120H180zM210 738v64h70v-64z"/><path d="M370 710h36v120h-36zM406 710h82c44 0 68 22 68 60s-24 60-68 60h-34v-32h30c21 0 32-9 32-28s-11-28-32-28h-78z"/><path d="M610 710h150v32H646v15h82c26 0 44 15 44 37 0 23-18 36-48 36H610v-32h112c8 0 12-3 12-9s-4-9-12-9h-70c-27 0-42-14-42-36z"/></g></svg>
