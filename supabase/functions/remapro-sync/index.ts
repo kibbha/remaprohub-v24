@@ -90,6 +90,21 @@ async function conflict(ctx:any,restaurantId:string,readKeys:string[],conflictKe
   return json({error:"SYNC_CONFLICT",revision:Number(data?.revision||0),data:filterWorkspace(data?.data||{},readKeys),conflictKeys},409);
 }
 
+async function organizationEntitled(db:any,organizationId:string,now=new Date()){
+  const {data:subscription,error}=await db.from("subscriptions")
+    .select("status,trial_ends_at,current_period_end,created_at")
+    .eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(error)throw new Error("Unable to verify subscription");
+  if(subscription){
+    const status=String(subscription.status||""),trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
+    const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
+    return status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
+  }
+  const {data:organization,error:orgError}=await db.from("organizations").select("created_at").eq("id",organizationId).maybeSingle();
+  if(orgError||!organization?.created_at)return false;
+  return new Date(organization.created_at).getTime()+7*86400000>now.getTime();
+}
+
 const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
   if(req.method!=="POST")return json({error:"Method not allowed"},405);
   try{
@@ -115,6 +130,9 @@ const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
     const restaurantAdmin=own.some((m:any)=>m.restaurant_id===restaurantId&&RESTAURANT_ADMIN_ROLES.has(String(m.role)));
     const scoped=own.filter((m:any)=>m.restaurant_id===restaurantId);
     if(!orgAdmin&&!restaurantAdmin&&!scoped.length)return json({error:"Restaurant access denied"},403);
+    if(action==="push"&&!(await organizationEntitled(ctx.supabaseAdmin,restaurant.organization_id))){
+      return json({error:"SUBSCRIPTION_REQUIRED"},402);
+    }
 
     const manager=orgAdmin||restaurantAdmin;
     const readKeys=manager?[...ALL_KEYS]:permissionKeys(scoped,READ_BY_PERMISSION);
