@@ -511,3 +511,38 @@ body:has(.pos-sale-shell){background:#111213;color:#f3f2ef}
 @media(pointer:coarse){
   .pos-sale-shell button,.pos-sale-shell input,.pos-sale-shell select{min-height:44px}
 }
+
+
+/* Current approved ReMaPro POS palette: warm cream, high-contrast service UI. */
+body:has(.pos-sale-shell){background:#f4efe7;color:#302821}
+.pos-sale-shell{--ink:#302821;--deep:#f4efe7;--paper:#fffaf3;--line:#ded3c6;--muted:#776d64;--accent:#d96f32;--ok:#2f8a62;background:#f4efe7;color:#302821}
+.pos-sale-shell .topbar{background:#fffaf3;border-bottom-color:#ded3c6;color:#302821;box-shadow:0 4px 16px #6b4f3320}
+.pos-sale-shell .brand-wordmark{color:#302821}
+.pos-sale-shell .pos-global-search{background:#fff;border-color:#ded3c6;color:#302821}
+.pos-sale-shell .pos-global-search input{color:#302821}
+.pos-sale-shell .pos-primary-nav{border-color:#ded3c6;background:#f7f0e6}
+.pos-sale-shell .pos-primary-nav .nav-tab{color:#5e554d}
+.pos-sale-shell .pos-primary-nav .nav-tab.active{background:#d96f32;color:#fff}
+.pos-sale-shell .workspace{background:#f4efe7}
+.pos-sale-shell .categories{border-color:#ded3c6;background:#fffaf3;color:#302821}
+.pos-sale-shell .category-heading{color:#776d64}
+.pos-sale-shell .category{color:#5e554d}
+.pos-sale-shell .category.active,.pos-sale-shell .category:hover{border-color:#d96f32;background:#f8e1d2;color:#8a421d}
+.pos-sale-shell .products{border-color:#ded3c6;background:#fbf6ef;color:#302821}
+.pos-sale-shell .product-toolbar{border-color:#ded3c6;color:#302821}
+.pos-sale-shell .product-toolbar small,.pos-sale-shell .product-copy small{color:#776d64}
+.pos-sale-shell .product{border-color:#dfd4c8;background:#fffaf3;color:#302821;box-shadow:0 3px 10px #6b4f3314}
+.pos-sale-shell .product:hover{border-color:#d96f32;box-shadow:0 7px 17px #6b4f3322}
+.pos-sale-shell .product-copy strong{color:#302821}.pos-sale-shell .product-copy .price{color:#b65322}.pos-sale-shell .product-visual{background-color:#f6eee4}
+.pos-sale-shell .layout-subcategory-tabs{background:#fbf6ef}.pos-sale-shell .layout-subcategory-tabs button{border-color:#ded3c6;background:#fffaf3;color:#5e554d}.pos-sale-shell .layout-subcategory-tabs button.active{border-color:#d96f32;background:#f8e1d2;color:#8a421d}
+.pos-sale-shell .cart{border-color:#ded3c6;background:#fffaf3;color:#302821;box-shadow:0 4px 15px #6b4f3318}
+.pos-sale-shell .cart-head,.pos-sale-shell .cart-foot,.pos-sale-shell .line{border-color:#e3d9ce}
+.pos-sale-shell .cart-title-row h2,.pos-sale-shell .total-row{color:#302821}
+.pos-sale-shell .cart-title-row small,.pos-sale-shell .cart-title-row h2+small,.pos-sale-shell .line-main small,.pos-sale-shell .cart-empty small,.pos-sale-shell .checkout-summary{color:#776d64}
+.pos-sale-shell .cart-cover-badge{background:#efe5da;color:#4f463f}
+.pos-sale-shell .service-segments button,.pos-sale-shell .qty button,.pos-sale-shell .cart-tools button,.pos-sale-shell .product-toolbar .secondary,.pos-sale-shell .payments button,.pos-sale-shell .secondary{border-color:#ded3c6;background:#fff;color:#403832}
+.pos-sale-shell .service-segments button.active{border-color:#d96f32;background:#f8e1d2;color:#8a421d}
+.pos-sale-shell .order-meta input,.pos-sale-shell .order-meta select,.pos-sale-shell .field input,.pos-sale-shell .field select{border-color:#ded3c6;background:#fff;color:#302821}
+.pos-sale-shell .payments button.payment-primary{border-color:#2f8a62;background:#dcefe5;color:#205b42;box-shadow:0 5px 15px #2f8a6222}
+.pos-sale-shell .notice{border-color:#e1b28e;background:#fff0e5;color:#713814}
+@media(max-width:820px){.pos-sale-shell .pos-primary-nav{border-color:#ded3c6;background:#fffaf3;box-shadow:0 8px 28px #6b4f3330}.pos-sale-shell .pos-primary-nav .nav-tab{color:#5e554d}.pos-sale-shell .pos-primary-nav .nav-tab.active{background:#d96f32;color:#fff}}
