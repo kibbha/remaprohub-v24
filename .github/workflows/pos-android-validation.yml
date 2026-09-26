@@ -1,6 +1,8 @@
 name: Android ReMaPro POS V0.27.0 Beta Validation
 
 on:
+  pull_request:
+    branches: [pos/remapro-pos]
   workflow_dispatch:
   push:
     branches: [pos/remapro-pos]
@@ -12,6 +14,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.head_ref == 'build/pos-three-app'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
