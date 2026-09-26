@@ -1,10 +1,10 @@
 name: AI Operations Node CI
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/ai-operations-support-hub
-      - feature/ai-operations-support-pos
+      - rebuild/remaprohub-clean
+      - pos/remapro-pos
 
 permissions:
   contents: read
