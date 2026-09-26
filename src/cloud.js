@@ -79,12 +79,29 @@ async function request(path){
   if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await fetchWithTimeout(url+path,{headers:{'apikey':key,'Authorization':'Bearer '+s.access_token,'Accept':'application/json'}})}
   const data=await r.json().catch(()=>null);if(!r.ok)throw new Error(data?.message||data?.error||'REQUEST_FAILED');return data;
 }
+export function subscriptionAccessForIdentity(identity,organizationId,now=new Date()){
+  if(!identity||!organizationId)return{allowed:false,status:'missing',plan:'standard',trialEndsAt:null,currentPeriodEnd:null};
+  if(!Array.isArray(identity.subscriptions))return{allowed:true,status:'legacy_cache',plan:'standard',trialEndsAt:null,currentPeriodEnd:null};
+  const subscription=identity.subscriptions.find(x=>x.organization_id===organizationId);
+  if(subscription){
+    const status=String(subscription.status||''),trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
+    const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
+    const allowed=status==='active'||(status==='trialing'&&trialEnd>now.getTime())||(status==='past_due'&&periodEnd>now.getTime());
+    return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
+  }
+  const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
+  const end=organization?.created_at?new Date(organization.created_at).getTime()+7*86400000:0;
+  return{allowed:end>now.getTime(),status:end?'legacy_trial':'missing',plan:'standard',trialEndsAt:end?new Date(end).toISOString():null,currentPeriodEnd:null};
+}
 export async function loadIdentity(){
   const user=await request('/auth/v1/user'),uid=encodeURIComponent(user.id);
   const memberships=await request('/rest/v1/memberships?select=organization_id,restaurant_id,role,permissions&active=eq.true&user_id=eq.'+uid);
   const orgs=[...new Set((memberships||[]).map(m=>m.organization_id).filter(Boolean))];
-  const restaurants=orgs.length?await request('/rest/v1/restaurants?select=id,organization_id,name,currency,timezone,active&active=eq.true&organization_id=in.('+orgs.map(encodeURIComponent).join(',')+')'):[];
-  return{user,memberships:memberships||[],restaurants:restaurants||[]};
+  const filter=orgs.map(encodeURIComponent).join(',');
+  const restaurants=orgs.length?await request('/rest/v1/restaurants?select=id,organization_id,name,currency,timezone,active&active=eq.true&organization_id=in.('+filter+')'):[];
+  const organizations=orgs.length?await request('/rest/v1/organizations?select=id,created_at&id=in.('+filter+')'):[];
+  const subscriptions=orgs.length?await request('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,created_at,plan:subscription_plans(code)&organization_id=in.('+filter+')&order=created_at.desc'):[];
+  return{user,memberships:memberships||[],restaurants:restaurants||[],organizations:organizations||[],subscriptions:subscriptions||[],fetchedAt:new Date().toISOString()};
 }
 export async function posFunction(payload){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
@@ -92,7 +109,7 @@ export async function posFunction(payload){
   const body=op?.token?{...payload,operatorSessionToken:op.token}:payload;
   const call=()=>fetchWithTimeout(url+'/functions/v1/remapro-pos-sync',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(body)});
   let r=await call();if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await call()}
-  const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'POS_SYNC_FAILED');error.status=r.status;error.payload=data;throw error}return data;
+  const data=await r.json().catch(()=>({}));if(!r.ok){if(r.status===402&&data?.error==='SUBSCRIPTION_REQUIRED'&&typeof globalThis.dispatchEvent==='function'&&typeof globalThis.CustomEvent==='function')globalThis.dispatchEvent(new CustomEvent('remapro:subscription-required',{detail:data.entitlement||{allowed:false,status:'expired'}}));const error=new Error(data?.error||'POS_SYNC_FAILED');error.status=r.status;error.payload=data;throw error}return data;
 }
 
 export async function academyFunction(payload){
