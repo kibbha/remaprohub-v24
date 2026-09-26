@@ -284,7 +284,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","bundle_current","bundle_history","bundle_validate","bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
+        "configuration_head","configuration_snapshot","bundle_current","bundle_history","bundle_validate","bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -485,6 +485,19 @@ export default {
         const {data,error}=await ctx.supabaseAdmin.rpc(fn,args);
         if(error)return json({error:error.message},409);
         return json({ok:true,result:data});
+      }
+
+      if(action==="configuration_snapshot"){
+        const {data:head,error:headError}=await ctx.supabaseAdmin.from("pos_configuration_bundle_heads")
+          .select("version,published_at").eq("restaurant_id",restaurantId).maybeSingle();
+        if(headError)return json({error:headError.message},500);
+        if(!head)return json({ok:true,snapshot:null,legacy:true});
+        const {data:bundle,error:bundleError}=await ctx.supabaseAdmin.from("pos_configuration_bundle_versions")
+          .select("version,schema_version,source_revision,payload,checksum,published_at")
+          .eq("restaurant_id",restaurantId).eq("version",head.version).single();
+        if(bundleError)return json({error:bundleError.message},500);
+        let settings:any;try{settings=await publishedPosSettings(ctx.supabaseAdmin,restaurantId)}catch(settingsError){return json({error:(settingsError as Error).message},500)}
+        return json({ok:true,snapshot:{...bundle,settings,headPublishedAt:head.published_at}});
       }
 
       if(action==="configuration_head"){
