@@ -101,3 +101,11 @@ export async function academyFunction(payload){
   let r=await call();if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await call()}
   const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'ACADEMY_SYNC_FAILED');error.status=r.status;throw error}return data;
 }
+
+
+export async function supportFunction(payload){
+  const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
+  const call=()=>fetchWithTimeout(url+'/functions/v1/remapro-support',{method:'POST',headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+s.access_token},body:JSON.stringify(payload)});
+  let r=await call();if(r.status===401){try{s=await refreshSession()}catch(error){await removeStoredSession();removeStoredOperator();throw error}r=await call()}
+  const data=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(data?.error||'SUPPORT_REQUEST_FAILED');error.status=r.status;error.payload=data;throw error}return data;
+}
