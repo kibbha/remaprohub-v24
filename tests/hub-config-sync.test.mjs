@@ -26,3 +26,6 @@ console.log('hub-config-sync.test.mjs: OK');
 
 assert.match(app,/configurationRevision:Number\(head\?\.revision\)\|\|Number\(snapshot\.sourceRevision\)\+1/,'atomic snapshot derives the current configuration revision when no head is supplied');
 assert.match(app,/await Promise\.all\(\[refreshOperators\(\),refreshTerminals\(\),refreshPrinters\(\)\]\)/,'atomic configuration refresh also reloads dynamic operator and device state');
+
+assert.match(app,/network\.online'[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'network resume refreshes dynamic POS state without replacing local queue data');
+assert.match(app,/visibilitychange[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'foreground resume refreshes dynamic POS state');
