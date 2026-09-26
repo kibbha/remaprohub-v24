@@ -43,3 +43,7 @@ if(!runtime.includes('ctx.authMode!=="none"'))throw new Error('Simulation worker
 const config=fs.readFileSync(new URL('../supabase/config.toml',import.meta.url),'utf8');
 if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))throw new Error('Mixed user/custom-worker runtime must disable platform JWT precheck');
 if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
+
+const concurrency=fs.readFileSync(new URL('../supabase/migrations/20260926191529_remapro_simulation_concurrency_lock.sql',import.meta.url),'utf8');
+for(const token of ['ai_simulation_one_running_per_campaign_idx',"where status='running'"])if(!concurrency.includes(token))throw new Error('Missing Simulation Lab concurrency migration token: '+token);
+for(const token of ['recoverStaleSimulationRuns','Recovered stale simulation run after 10 minutes','busy:true','recoveredStale'])if(!runtime.includes(token))throw new Error('Missing Simulation Lab concurrency runtime token: '+token);
