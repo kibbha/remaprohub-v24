@@ -11,7 +11,7 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
-import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,readCachedConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
 import {normalizePosSettings,paymentAllowed} from './payment-policy.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
@@ -818,7 +818,12 @@ async function bootstrapRestaurant(restaurant){
   state.availabilityRows=await kvGet(availabilityCacheKey(restaurant.id))||[];
   const cached=await kvGet(catalogKey(restaurant.id));if(cached)state.bootstrap=cached;
   state.configurationBundle=null;
-  const managed=await kvGet(configurationSnapshotKey(restaurant.id));
+  let managed=await kvGet(configurationSnapshotKey(restaurant.id));
+  if(managed?.bundle?.payload){
+    const verified=await readCachedConfigurationSnapshot(managed);
+    if(!verified){recordDiagnostic('configuration.cache_invalid',{restaurantId:restaurant.id});managed=null}
+    else managed={...managed,bundle:verified,bootstrap:{...(managed.bootstrap||{}),catalog:verified.document.catalog,layout:verified.document.layout,configurationBundleVersion:verified.version},tables:verified.document.tables||managed.tables,settings:normalizePosSettings(verified.settings)};
+  }
   if(managed?.bootstrap&&Number.isSafeInteger(Number(managed.bootstrap.configurationRevision))){
     state.bootstrap=managed.bootstrap;
     state.tables=Array.isArray(managed.tables)?managed.tables:state.tables;
