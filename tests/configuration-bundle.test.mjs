@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from '../src/configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles ,readCachedConfigurationSnapshot} from '../src/configuration-bundle.js';
 
 const document={schemaVersion:1,catalog:[{id:'a',name:'Plat'}],layout:{version:2},tables:[{id:'t',label:'1'}],floorPlan:null};
 const payload=JSON.stringify(document),checksum=createHash('sha256').update(payload).digest('hex');
@@ -25,3 +25,9 @@ assert.equal(atomic.sourceRevision,13);
 assert.deepEqual(atomic.document.catalog,document.catalog);
 assert.equal(atomic.settings.payments.cash,true);
 await assert.rejects(readConfigurationSnapshot({snapshot:{version:4,schema_version:1,source_revision:13,payload:payload+'x',checksum}}),/BUNDLE_CHECKSUM_INVALID/);
+
+const cachedPayload=JSON.stringify({schemaVersion:1,catalog:[],tables:[],layout:{}});
+const cachedBytes=new TextEncoder().encode(cachedPayload);const cachedHash=await crypto.subtle.digest('SHA-256',cachedBytes);const cachedChecksum=Array.from(new Uint8Array(cachedHash),x=>x.toString(16).padStart(2,'0')).join('');
+const cached=await readCachedConfigurationSnapshot({bundle:{version:3,sourceRevision:7,payload:cachedPayload,checksum:cachedChecksum},settings:{payments:{cash:true}}});
+assert.equal(cached.version,3);assert.equal(cached.document.schemaVersion,1);
+assert.equal(await readCachedConfigurationSnapshot({bundle:{version:3,sourceRevision:7,payload:cachedPayload,checksum:'0'.repeat(64)}}),null);
