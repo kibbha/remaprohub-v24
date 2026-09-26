@@ -23,3 +23,6 @@ const checks=[
 ];
 for(const [name,ok] of checks)if(!ok)throw new Error('Hub config sync guard failed: '+name);
 console.log('hub-config-sync.test.mjs: OK');
+
+assert.match(app,/configurationRevision:Number\(head\?\.revision\)\|\|Number\(snapshot\.sourceRevision\)\+1/,'atomic snapshot derives the current configuration revision when no head is supplied');
+assert.match(app,/await Promise\.all\(\[refreshOperators\(\),refreshTerminals\(\),refreshPrinters\(\)\]\)/,'atomic configuration refresh also reloads dynamic operator and device state');
