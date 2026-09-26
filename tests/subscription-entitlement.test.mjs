@@ -37,4 +37,4 @@ console.log('POS pre-launch subscription gate and offline continuity checks pass
 
 for(const token of ['noRestaurantAssigned','noRestaurantAssignedHint'])
   assert.ok(app.includes(token),'POS zero-restaurant recovery screen must include '+token);
-assert.ok(app.includes("(state.identity?.restaurants||[]).length"),'picker must explicitly handle an empty restaurant list');
+assert.ok(app.includes("const restaurants=state.identity?.restaurants||[]")&&app.includes("if(!restaurants.length)"),'picker must explicitly handle an empty restaurant list');
