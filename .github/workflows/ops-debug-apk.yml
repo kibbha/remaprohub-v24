@@ -1,4 +1,4 @@
-name: Android ReMaPro Ops V0.2.0 Training Test APK
+name: Android ReMaPro Ops V0.2.1 Indexing Fix APK
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push' || github.head_ref == 'build/ops-training-v020'
+    if: github.event_name == 'push' || github.head_ref == 'build/ops-indexing-v021'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -91,5 +91,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-Ops-V0.2.0-training-test-apk
+          name: ReMaPro-Ops-V0.2.1-indexing-fix-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
