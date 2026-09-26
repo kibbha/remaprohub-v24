@@ -133,7 +133,9 @@ Operating rules:
     token_usage:session.usage||{},metadata:{knowledge_ids:knowledge.map((x:any)=>x.id),...(metadata||{})},updated_at:new Date().toISOString()
   };
   if(row.ticket_id){
-    await ctx.supabaseAdmin.from("ai_agent_sessions").upsert(row,{onConflict:"ticket_id,agent_role"});
+    const {data:existing}=await ctx.supabaseAdmin.from("ai_agent_sessions").select("id").eq("ticket_id",row.ticket_id).eq("agent_role",role).maybeSingle();
+    if(existing?.id)await ctx.supabaseAdmin.from("ai_agent_sessions").update(row).eq("id",existing.id);
+    else await ctx.supabaseAdmin.from("ai_agent_sessions").insert(row);
   }else await ctx.supabaseAdmin.from("ai_agent_sessions").insert(row);
   return {output,sessionId:created.id,model:row.model,profileVersion:profile.version,usage:session.usage||{},knowledge,latencyMs:Date.now()-start};
 }
