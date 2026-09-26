@@ -229,7 +229,8 @@ function terminalsView(){
 }
 
 function connectedTerminal(method){
-  return state.terminals.find(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint))||null;
+  const candidates=state.terminals.filter(t=>t.active&&['configured','online'].includes(t.connection_status)&&(method==='card'?t.supports_card:t.supports_twint));
+  return candidates.find(t=>t.connection_status==='online')||candidates[0]||null;
 }
 async function prepareOrderForTerminalIntent(){
   if(!state.online){uiAlert('Une connexion est nécessaire pour le terminal.');return null}
