@@ -810,6 +810,7 @@ async function bootstrapRestaurant(restaurant){
   state.productionQueue=await kvGet(productionKey(restaurant.id))||[];
   state.terminals=await kvGet(terminalsKey(restaurant.id))||[];
   state.printers=await kvGet(printersKey(restaurant.id))||[];
+  state.providerConnections=await kvGet(providersKey(restaurant.id))||[];
   state.operators=await kvGet(operatorsKey(restaurant.id))||[];
   state.operatorRequired=state.operators.some(x=>x.active!==false);
   const cachedOperator=currentOperatorSession();
@@ -827,9 +828,9 @@ async function bootstrapRestaurant(restaurant){
   if(managed?.bootstrap&&Number.isSafeInteger(Number(managed.bootstrap.configurationRevision))){
     state.bootstrap=managed.bootstrap;
     state.tables=Array.isArray(managed.tables)?managed.tables:state.tables;
-    state.terminals=Array.isArray(managed.terminals)?managed.terminals:state.terminals;
-    state.printers=Array.isArray(managed.printers)?managed.printers:state.printers;
-    state.providerConnections=Array.isArray(managed.providers)?managed.providers:[];
+    state.terminals=publishedDeviceProfiles(state.terminals,managed.bundle,'terminals');
+    state.printers=publishedDeviceProfiles(state.printers,managed.bundle,'printers');
+    if(!state.providerConnections.length&&Array.isArray(managed.providers))state.providerConnections=managed.providers;
     state.configurationBundle=Number(managed.bundle?.version)===Number(managed.bootstrap.configurationBundleVersion)?managed.bundle:null;
     applyPosSettings(managed.settings);
     if(state.configurationBundle?.document?.floorPlan)state.floorPlan=state.configurationBundle.document.floorPlan;
