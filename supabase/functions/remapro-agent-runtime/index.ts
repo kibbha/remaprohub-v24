@@ -490,6 +490,31 @@ async function validSimulationWorkerToken(ctx:any,req:Request){
   return String(data.token_hash||"")===hash;
 }
 async function simulationWorkerTick(ctx:any){
+  const key=apiKey();
+  if(key){
+    const {data:pendingKnowledge,error:knowledgeError}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+      .select("id,title,content").eq("status","active").is("embedding",null)
+      .order("updated_at",{ascending:true}).limit(5);
+    if(!knowledgeError&&Array.isArray(pendingKnowledge)&&pendingKnowledge.length){
+      const model=Deno.env.get("OPENAI_EMBEDDING_MODEL")||"text-embedding-3-small";
+      let completed=0,failed=0;
+      for(const doc of pendingKnowledge){
+        try{
+          const value=await embedding(key,doc.title+"\n"+doc.content);
+          if(!Array.isArray(value)||value.length!==1536)throw new Error("Embedding dimension mismatch");
+          const {error:updateError}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+            .update({embedding:value,embedding_model:model,updated_at:new Date().toISOString()}).eq("id",doc.id);
+          if(updateError)throw updateError;
+          completed++;
+        }catch(error){
+          failed++;
+          console.warn("remapro_worker_embedding_failed",{documentId:doc.id,message:clean(error instanceof Error?error.message:String(error),500)});
+        }
+      }
+      if(completed>0)return {idle:false,step:"knowledge_indexed",completed,failed};
+    }
+  }
+
   const {data:campaign,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns")
     .select("*").eq("auto_run",true)
     .in("status",["draft","generating","ready","running"])
