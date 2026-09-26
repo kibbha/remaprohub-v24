@@ -60,8 +60,8 @@ async function loadTraining(force=false){
  state.trainingLoading=true;render();
  try{
   const [health,data]=await Promise.all([
-   cloudFunction('remapro-agent-runtime',{action:'health'},{attempts:1}),
-   cloudFunction('remapro-agent-runtime',{action:'training_dashboard'},{attempts:1})
+   cloudFunction('remapro-agent-runtime',{action:'health'},{attempts:1,timeoutMs:60000}),
+   cloudFunction('remapro-agent-runtime',{action:'training_dashboard'},{attempts:1,timeoutMs:60000})
   ]);
   state.trainingHealth=health||null;state.trainingProfiles=Array.isArray(data?.profiles)?data.profiles:[];
   state.trainingCases=Array.isArray(data?.cases)?data.cases:[];state.trainingKnowledge=Array.isArray(data?.knowledge)?data.knowledge:[];
@@ -72,7 +72,7 @@ async function loadTraining(force=false){
 async function runTrainingCase(caseId){
  state.trainingLoading=true;state.trainingOutput='';render();
  try{
-  const data=await cloudFunction('remapro-agent-runtime',{action:'run_training_case',caseId},{attempts:1});
+  const data=await cloudFunction('remapro-agent-runtime',{action:'run_training_case',caseId},{attempts:1,timeoutMs:60000});
   state.trainingOutput=`Score ${Math.round(Number(data?.score||0)*100)}% — ${data?.passed?'RÉUSSI':'À AMÉLIORER'}\n\n${data?.output||''}\n\n${(data?.result?.failures||[]).length?'Points à corriger : '+data.result.failures.join(' · '):''}`;
   state.trainingLoaded=false;await loadTraining(true);
  }catch(e){state.error=e?.message||String(e);state.trainingLoading=false;render()}
@@ -84,7 +84,7 @@ async function runNextTraining(){
 async function embedKnowledge(){
  state.trainingLoading=true;render();
  try{
-  const data=await cloudFunction('remapro-agent-runtime',{action:'embed_knowledge',limit:10},{attempts:1});
+  const data=await cloudFunction('remapro-agent-runtime',{action:'embed_knowledge',limit:10},{attempts:1,timeoutMs:60000});
   const ok=(data?.results||[]).filter(x=>x.ok).length;state.trainingOutput=`${ok} connaissance(s) indexée(s) sémantiquement.`;
   state.trainingLoaded=false;await loadTraining(true);
  }catch(e){state.error=e?.message||String(e);state.trainingLoading=false;render()}
@@ -93,7 +93,7 @@ async function runManualAgent(form){
  const d=new FormData(form),agentRole=String(d.get('agentRole')||''),input=String(d.get('input')||'').trim();if(!input)return;
  state.trainingLoading=true;state.trainingOutput='';render();
  try{
-  const data=await cloudFunction('remapro-agent-runtime',{action:'run_agent',agentRole,input},{attempts:1});
+  const data=await cloudFunction('remapro-agent-runtime',{action:'run_agent',agentRole,input},{attempts:1,timeoutMs:60000});
   state.trainingOutput=`${agentLabel(agentRole)} · ${data?.model||''} · profil v${data?.profileVersion||'?'}\n\n${data?.output||''}`;
  }catch(e){state.error=e?.message||String(e)}
  finally{state.trainingLoading=false;render()}
