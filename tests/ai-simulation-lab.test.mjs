@@ -53,3 +53,8 @@ for(const token of ['recoverStaleSimulationRuns','Recovered stale simulation run
 for(const token of ['knowledge_indexed','pendingKnowledge','remapro_worker_embedding_failed','limit(5)'])if(!runtime.includes(token))throw new Error('Missing worker knowledge-indexing token: '+token);
 const learning=fs.readFileSync(new URL('../supabase/migrations/20260926191656_remapro_ai_simulation_learning_round1.sql',import.meta.url),'utf8');
 for(const token of ['sensitive-billing-handling-v1','business-object-repro-v1','product-offline-risk-checklist-v1','approval-vs-diagnostic-v1','requires_human=true uniquement'])if(!learning.includes(token))throw new Error('Missing simulation learning round 1 token: '+token);
+
+const round2=fs.readFileSync(new URL('../supabase/migrations/20260926193041_remapro_ai_simulation_learning_round2.sql',import.meta.url),'utf8');
+for(const token of ['pos-payment-state-vs-sensitive-billing-v1','least-privilege-multi-location-permissions-v1','diagnostic-operational-cautions-v1','requires_human=false','moindre privilège'])if(!round2.includes(token))throw new Error('Missing simulation learning round 2 token: '+token);
+
+for(const token of ['nextSimulationRegression','regression_evaluated','regression_error','dailyLimitReached:true','Number(todayCount||0)>=10','.eq("category","simulation")'])if(!runtime.includes(token))throw new Error('Missing automatic simulation regression token: '+token);

@@ -301,3 +301,21 @@ Learning round 1 generalized the first simulation findings into versioned agent 
 Verified learning documents are added to `ai_knowledge_documents`. The unattended worker indexes up to five newly unembedded documents before resuming simulation work, so new knowledge becomes semantic-searchable without a manual Ops indexing step.
 
 Round 1 profile versions after promotion: Dispatcher v3, Support v3, Diagnostic v2, Developer Hub v2, Product v2.
+
+
+### Simulation learning round 2
+
+Round 2 targets two repeated pre-launch weaknesses plus the permissions scenario:
+- Dispatcher distinguishes POS payment-state incidents from account/subscription billing disputes. A technical payment-state bug may remain `requires_human=false` while still warning against a second charge; human review becomes mandatory only for an actual financial decision or protected action.
+- Diagnostic does not prescribe undocumented printer, terminal, kitchen, order-state or synchronization workarounds. Unverified operational cautions are explicitly marked as hypotheses to confirm.
+- Knowledge applies least privilege to multi-restaurant permissions, never infers undocumented role scope, requests role/organization/locations, and falls back to verified documentation or authorized human review before any permission change.
+
+Round 2 profile versions: Dispatcher v4, Diagnostic v3, Knowledge v2.
+New verified knowledge: POS payment-state vs sensitive billing, multi-location least privilege, and diagnostic operational cautions.
+
+
+#### Automatic promoted-case regression
+
+Before generating or executing another synthetic ticket, the server worker checks active training cases with `category=simulation`. If a promoted case has no completed evaluation for the current agent profile version, the worker evaluates exactly one such case and returns `regression_evaluated`.
+
+The worker caps these automatic regression evaluations at 10 per UTC day. A case is considered current only when it has a passed or failed evaluation matching the active profile version. This closes the loop between a simulation finding, profile/knowledge improvement and a measurable regression retest without allowing unbounded API consumption.
