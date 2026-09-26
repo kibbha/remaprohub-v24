@@ -834,18 +834,16 @@ async function bootstrapRestaurant(restaurant){
   if(state.online){
     try{
       await posFunction({action:'heartbeat',restaurantId:restaurant.id,device});
-      const before=await posFunction({action:'configuration_head',restaurantId:restaurant.id});
-      const [data,bundleResult]=await Promise.all([
-        posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id}),
-        before?.legacy===true?Promise.resolve({bundle:null}):posFunction({action:'bundle_current',restaurantId:restaurant.id})
-      ]);
       const head=await posFunction({action:'configuration_head',restaurantId:restaurant.id});
-      if(before?.legacy!==true&&head?.legacy!==true)assertConsistentConfigurationRevision(before,data,head);
-      const bundle=before?.legacy===true||head?.legacy===true?null:await readPublishedBundle(bundleResult,head);
-      if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
-      applyPosSettings(head.settings);
-      state.configurationBundle=bundle;
-      state.bootstrap=applyPublishedBundle(data,state.configurationBundle);await kvSet(catalogKey(restaurant.id),state.bootstrap);
+      if(head?.legacy===true){
+        const data=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
+        if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+        applyPosSettings(head.settings);state.configurationBundle=null;state.bootstrap=data;
+        await kvSet(catalogKey(restaurant.id),state.bootstrap);
+      }else{
+        await refreshHubManagedConfiguration(head);
+      }
+      const data=state.bootstrap||{};
       if(data.openSession){
         state.cashSession={id:data.openSession.id,businessDate:data.openSession.business_date||data.openSession.businessDate,status:'open',openingCash:Number(data.openSession.opening_cash??data.openSession.openingCash)||0,synced:true};
         await kvSet(sessionKey(restaurant.id),state.cashSession);
