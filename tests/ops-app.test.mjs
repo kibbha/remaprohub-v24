@@ -10,7 +10,7 @@ for(const token of ['platform_context','platform_inbox','platform_ticket','platf
 }
 if(cap.appId!=='com.remaprohub.ops')throw new Error('Wrong Ops package id');
 if(cap.appName!=='ReMaPro OPS')throw new Error('Wrong Ops app name');
-if(pkg.name!=='remapro-ops'||pkg.version!=='0.1.0')throw new Error('Wrong Ops package metadata');
+if(pkg.name!=='remapro-ops'||pkg.version!=='0.2.0')throw new Error('Wrong Ops package metadata');
 if(!index.includes('<title>ReMaPro Ops</title>'))throw new Error('Ops title missing');
 if(!manifest.includes('"short_name":"ReMaPro OPS"'))throw new Error('Ops manifest branding missing');
 if(app.includes('recordRestaurant(')||app.includes('renderPosLayoutEditor('))throw new Error('Ops must not expose restaurant-management UI');
