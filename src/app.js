@@ -2566,9 +2566,9 @@ async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
-  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncHubManagedConfiguration().then(changed=>{if(changed)render()}).catch(()=>{})});
+  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncHubManagedConfiguration().then(async changed=>{if(state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render();else if(state.restaurant)render()}).catch(error=>recordDiagnostic('network.resume_error',{message:error?.message||String(error)}))});
   window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncHubManagedConfiguration().then(changed=>{if(changed)render()}).catch(()=>{})});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncHubManagedConfiguration().then(async changed=>{if(state.online&&state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render()}).catch(error=>recordDiagnostic('visibility.resume_error',{message:error?.message||String(error)}))});
   startHubConfigurationPolling();
   setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
