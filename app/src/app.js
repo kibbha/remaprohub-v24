@@ -769,7 +769,7 @@ function posAdmin(){
           <button class="btn primary">Enregistrer</button>
         </form>
         <div class="pos-admin-warning">Les paiements automatiques restent désactivés tant que l’adaptateur officiel et les identifiants prestataire n’ont pas été installés côté serveur. Pour Tap to Pay, l’activation nécessite aussi le SDK Worldline officiel sur ReMaPro POS.</div>
-        <div class="pos-admin-list">${posAdminState.providerConnections.length?posAdminState.providerConnections.map(c=>`<div class="pos-admin-row"><span><strong>${esc(c.provider.toUpperCase())} · ${esc(c.integration_mode)}</strong><small>${esc(c.environment)} · ${esc(c.status)}${c.merchant_reference?' · '+esc(c.merchant_reference):''}</small></span><button class="btn compact" data-pos-provider-edit="${c.id}">Modifier</button></div>`).join(''):'<p class="muted">Aucune connexion prestataire préparée.</p>'}</div>
+        <div class="pos-admin-list">${posAdminState.providerConnections.length?posAdminState.providerConnections.map(c=>`<form class="pos-admin-row pos-device-row" data-pos-provider-form="${c.id}"><span><strong>${esc(c.provider.toUpperCase())} · ${esc(c.integration_mode)}</strong><small>${esc(c.environment)}</small></span><span class="actions"><select name="status"><option value="waiting_contract" ${c.status==='waiting_contract'?'selected':''}>Contrat à finaliser</option><option value="credentials_pending" ${c.status==='credentials_pending'?'selected':''}>Identifiants attendus</option><option value="ready_for_adapter" ${c.status==='ready_for_adapter'?'selected':''}>Prêt pour adaptateur</option><option value="disabled" ${c.status==='disabled'?'selected':''}>Désactivé</option></select><input name="merchantReference" maxlength="180" value="${esc(c.merchant_reference||'')}" placeholder="Référence marchand"><input name="notes" maxlength="1000" value="${esc(c.notes||'')}" placeholder="Note interne"><button class="btn compact">Enregistrer</button></span></form>`).join(''):'<p class="muted">Aucune connexion prestataire préparée.</p>'}</div>
       </section>
     </div>
   </section>`;
@@ -1264,18 +1264,10 @@ document.getElementById('posProviderAddForm')?.addEventListener('submit',async e
     await loadPosAdminData(false);
   }catch(error){posAdminState.error=error?.message||String(error);render()}
 });
-document.querySelectorAll('[data-pos-provider-edit]').forEach(b=>b.addEventListener('click',async()=>{
-  const c=posAdminState.providerConnections.find(x=>x.id===b.dataset.posProviderEdit);if(!c)return;
-  const status=prompt('Statut : waiting_contract, credentials_pending, ready_for_adapter, disabled',c.status||'waiting_contract');if(status===null)return;
-  const merchantReference=prompt('Référence marchand non secrète',c.merchant_reference||'');if(merchantReference===null)return;
-  const notes=prompt('Note interne',c.notes||'');if(notes===null)return;
-  try{
-    await savePosProviderConnection(cloudRestaurantId(),{
-      id:c.id,provider:c.provider,integrationMode:c.integration_mode,environment:c.environment,
-      status:status.trim(),merchantReference:merchantReference.trim(),publicConfig:c.public_config||{},notes:notes.trim()
-    });
-    await loadPosAdminData(false);
-  }catch(error){posAdminState.error=error?.message||String(error);render()}
+document.querySelectorAll('[data-pos-provider-form]').forEach(form=>form.addEventListener('submit',async e=>{
+  e.preventDefault();const row=posAdminState.providerConnections.find(x=>x.id===form.dataset.posProviderForm);if(!row)return;const d=new FormData(form);
+  const status=String(d.get('status')||'waiting_contract');if(!['waiting_contract','credentials_pending','ready_for_adapter','disabled'].includes(status))return;
+  try{await savePosProviderConnection(cloudRestaurantId(),{id:row.id,provider:row.provider,integrationMode:row.integration_mode,environment:row.environment,status,merchantReference:String(d.get('merchantReference')||'').trim(),publicConfig:row.public_config||{},notes:String(d.get('notes')||'').trim()});await loadPosAdminData(false)}catch(error){posAdminState.error=error?.message||String(error);render()}
 }));
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{const next=b.dataset.page;if(b.classList?.contains('back')){if(globalThis.history?.state?.remaproPage){globalThis.history.back();return}if(next===page&&editing){editing=null;render();return}}if(next===page)return;if(!canPage(next)){alert(t('accessDenied'));return}editing=null;page=next;globalThis.history?.pushState?.({remaproPage:page},'');render();if(financeScreen()&&!document.hidden)loadPosFinanceData(today(),{force:true})}));
 document.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>{period=b.dataset.period;render()}));
