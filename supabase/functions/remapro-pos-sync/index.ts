@@ -284,7 +284,7 @@ export default {
         "list_printers","upsert_printer",
         "inventory_movements","ack_inventory_movements","food_cost_report","accounting_export","daily_summary",
         "list_provider_connections","upsert_provider_connection",
-        "configuration_head","bundle_current","bundle_history","bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
+        "configuration_head","bundle_current","bundle_history","bundle_validate","bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore","availability_snapshot","layout_current","layout_admin","save_layout_draft","publish_layout","restore_layout_version","floor_plan_current","floor_plan_admin","save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
       ]);
       const permissionMap:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",service_report:"cash",
@@ -446,6 +446,21 @@ export default {
           .eq("restaurant_id",restaurantId).eq("version",head.version).single();
         if(error)return json({error:error.message},500);
         return json({ok:true,bundle:data});
+      }
+
+      if(action==="bundle_validate"){
+        if(!manager)return json({error:"Manager access required"},403);
+        let document=body.document;
+        if(!document){
+          const {data:draft,error:draftError}=await ctx.supabaseAdmin.from("pos_configuration_bundle_drafts")
+            .select("document").eq("restaurant_id",restaurantId).maybeSingle();
+          if(draftError)return json({error:draftError.message},500);
+          document=draft?.document;
+        }
+        if(!document)return json({error:"Bundle draft required"},400);
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_bundle_validate",{p_restaurant_id:restaurantId,p_document:document});
+        if(error)return json({error:error.message},409);
+        return json({ok:true,validation:data});
       }
 
       if(action==="bundle_save_draft"||action==="bundle_update_settings"||action==="bundle_publish"||action==="bundle_restore"){
