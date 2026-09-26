@@ -188,6 +188,34 @@ async function posAvailabilitySnapshot(db:any,restaurantId:string,organizationId
   };
 }
 
+async function organizationSubscriptionAccess(db:any,organizationId:string,now=new Date()){
+  const {data:subscription,error}=await db.from("subscriptions")
+    .select("status,trial_ends_at,current_period_end,created_at,plan:subscription_plans(code)")
+    .eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(error)throw new Error("Unable to verify subscription");
+  if(subscription){
+    const status=String(subscription.status||""),trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
+    const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
+    const allowed=status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
+    return{allowed,status,plan:String(subscription?.plan?.code||"standard"),trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
+  }
+  const {data:organization,error:orgError}=await db.from("organizations").select("created_at").eq("id",organizationId).maybeSingle();
+  if(orgError||!organization?.created_at)return{allowed:false,status:"missing",plan:"standard",trialEndsAt:null,currentPeriodEnd:null};
+  const end=new Date(organization.created_at).getTime()+7*86400000;
+  return{allowed:end>now.getTime(),status:"legacy_trial",plan:"standard",trialEndsAt:new Date(end).toISOString(),currentPeriodEnd:null};
+}
+
+const ENTITLEMENT_MUTATIONS=new Set([
+  "ack_inventory_movements","activate_floor_plan","append_order_items","bundle_publish","bundle_restore","bundle_save_draft","bundle_update_settings",
+  "cancel_open_order","cancel_terminal_intent","claim_direct_order","close_cash_session","commit_order","confirm_external_refund",
+  "create_terminal_intent","create_terminal_refund_intent","link_direct_order","merge_order_table","open_cash_session","pay_allocated_group",
+  "publish_floor_plan","publish_layout","recall_production_order","refund_order","reject_direct_order","restore_floor_plan_version",
+  "restore_layout_version","save_floor_plan","save_layout_draft","save_open_order","send_to_production","set_printer_status",
+  "set_production_priority","set_terminal_connection","settle_open_order","settle_open_order_allocated","settle_open_order_split",
+  "sync_catalog","sync_tables","transfer_open_order","unmerge_order_table","update_production_item","upsert_operator","upsert_printer",
+  "upsert_provider_connection","upsert_terminal"
+]);
+
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
@@ -220,6 +248,10 @@ export default {
           (m.restaurant_id===restaurantId && ["restaurant_admin","director","manager"].includes(m.role))
         )
       );
+      const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
+      if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
+        return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402);
+      }
 
       if(action==="list_operators"){
         const {data,error}=await ctx.supabaseAdmin.from("pos_operators")
@@ -536,6 +568,7 @@ export default {
         return json({
           ok:true,
           restaurant,
+          entitlement,
           profile:profileResult.data||null,
           catalog:catalogResult.data||[],
           layout:layoutResult?.data?{
