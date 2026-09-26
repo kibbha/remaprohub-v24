@@ -326,3 +326,5 @@ The worker caps these automatic regression evaluations at 10 per UTC day. A case
 A promoted Simulation Lab finding is evaluated against the responsibilities of the target role rather than the entire multi-agent scenario. The full scenario remains context, but chain-wide requirements belonging to other agents are not scored against the target role. For example, Dispatcher is scored on classification/routing/flags/safe intake, while detailed reproduction and regression plans belong to Diagnostic, Developer and QA.
 
 Existing promoted simulation training cases are migrated to `evaluation_scope=agent_role` with an explicit `role_focus`. Future promotions write these fields automatically.
+
+Out-of-role omissions are excluded from the score and from the evaluator failure list for role-scoped promoted regressions; universal safety rules still apply.
