@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readPublishedBundle,applyPublishedBundle,publishedDeviceProfiles} from '../src/configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from '../src/configuration-bundle.js';
 
 const document={schemaVersion:1,catalog:[{id:'a',name:'Plat'}],layout:{version:2},tables:[{id:'t',label:'1'}],floorPlan:null};
 const payload=JSON.stringify(document),checksum=createHash('sha256').update(payload).digest('hex');
@@ -18,3 +18,10 @@ assert.deepEqual(publishedDeviceProfiles([{id:'t',label:'Ancien',connection_stat
   [{id:'t',label:'Carte',supports_card:true,active:true,connection_status:'online'}]);
 assert.deepEqual(publishedDeviceProfiles([{id:'p',status:'online'}],{document:{}},'printers'),[{id:'p',status:'online'}]);
 console.log('configuration-bundle.test.mjs: OK');
+
+const atomic=await readConfigurationSnapshot({snapshot:{version:4,schema_version:1,source_revision:13,payload,checksum,settings:{payments:{cash:true}}}});
+assert.equal(atomic.version,4);
+assert.equal(atomic.sourceRevision,13);
+assert.deepEqual(atomic.document.catalog,document.catalog);
+assert.equal(atomic.settings.payments.cash,true);
+await assert.rejects(readConfigurationSnapshot({snapshot:{version:4,schema_version:1,source_revision:13,payload:payload+'x',checksum}}),/BUNDLE_CHECKSUM_INVALID/);
