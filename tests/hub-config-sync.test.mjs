@@ -32,3 +32,7 @@ assert.match(app,/visibilitychange[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}
 
 assert.match(app,/const runtime=await posFunction\(\{action:'bootstrap'[\s\S]{0,500}refreshHubManagedConfiguration\(head\)[\s\S]{0,600}runtime\?\.openSession/,'atomic startup keeps runtime cash session while static configuration comes from snapshot');
 assert.match(app,/state\.bootstrap=\{\.\.\.\(state\.bootstrap\|\|\{\}\),profile:runtime/,'runtime bootstrap merges only runtime metadata after atomic configuration');
+
+assert.match(app,/state\.providerConnections=await kvGet\(providersKey\(restaurant\.id\)\)\|\|\[\]/,'offline startup prefers dedicated dynamic caches for provider state');
+assert.match(app,/state\.terminals=publishedDeviceProfiles\(state\.terminals,managed\.bundle,'terminals'\)/,'published terminal profiles preserve the latest cached dynamic status');
+assert.match(app,/if\(!state\.providerConnections\.length&&Array\.isArray\(managed\.providers\)\)/,'managed provider copy is only a compatibility fallback');
