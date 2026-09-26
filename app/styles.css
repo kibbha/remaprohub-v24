@@ -818,3 +818,6 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
  .pos-layout-inline select[multiple]{grid-column:1/-1}
 }
 @media(pointer:coarse){.pos-admin-page button,.pos-admin-page input,.pos-admin-page select{min-height:44px}}
+
+.pos-layout-order-name{max-width:170px;min-height:34px;border:1px solid var(--line);border-radius:7px;padding:5px 7px;background:var(--surface,#fff);font-weight:700}
+@media(max-width:560px){.pos-layout-order-name{max-width:135px}}
