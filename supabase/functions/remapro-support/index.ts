@@ -152,7 +152,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
       }
     }
   }
-  if(triage.requires_approval){
+  if(triage.requires_human||triage.requires_approval){
     const {data:pending}=await ctx.supabaseAdmin.from("support_approvals").select("id").eq("ticket_id",ticket.id).eq("status","pending").limit(1);
     if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
       ticket_id:ticket.id,organization_id:ticket.organization_id,requested_by_agent:"dispatcher",
@@ -164,7 +164,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
-    status:triage.requires_approval?"waiting_approval":"triaged",
+    status:(triage.requires_human||triage.requires_approval)?"waiting_approval":"triaged",
     summary:clean(triage.summary,2000),assigned_agent:assigned,
     ai_classification:triage,engineering_context:engineeringContext,updated_at:new Date().toISOString()
   }).eq("id",ticket.id);
