@@ -27,3 +27,10 @@ for(const token of ['data-pos-catalog-row','name="price"','name="taxRate"','name
   assert.ok(app.includes(token),'Hub POS catalog/publication UI includes '+token);
 }
 assert.ok(app.includes("schedulePosCatalogAutoSync('catalog-editor')"),'catalog editor persists through the existing Hub catalog sync path');
+
+for(const token of ['data-pos-operator-form','data-pos-printer-form','data-pos-terminal-form']){
+  assert.ok(app.includes(token),'Hub POS device editor includes '+token);
+}
+for(const legacy of ["prompt('Nom affiché'","prompt('Adresse / ID matériel'","prompt('ID terminal prestataire'"]){
+  assert.ok(!app.includes(legacy),'legacy prompt editor removed: '+legacy);
+}
