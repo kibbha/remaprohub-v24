@@ -259,3 +259,27 @@ Failures create `ai_simulation_findings` with role, severity, category and sugge
 Each campaign has a daily execution cap and a batch size. ReMaPro Ops can run an **Auto** loop while the Ops app remains open. Auto mode generates more scenarios when needed and executes one scenario at a time. It stops for the current app session when the daily cap is reached.
 
 This preserves cost control and avoids long mobile/Edge Function batches. Server-side unattended scheduling can be added later without changing the simulation data model.
+
+
+### Unattended server worker
+
+Simulation campaigns can continue without ReMaPro Ops remaining open.
+
+The production project runs a Supabase Cron tick every 20 minutes. The cron invokes
+`remapro-agent-runtime` with a dedicated random worker token stored only in
+Supabase Vault. The runtime stores only the SHA-256 token hash in the server-only
+`ai_simulation_worker_auth` table and refuses the worker action unless the
+custom header matches.
+
+The runtime accepts two authentication paths:
+- normal Ops requests: verified user JWT + platform-operator authorization;
+- `simulation_worker_tick`: custom worker token, no user privileges.
+
+The Edge Function platform JWT precheck is disabled for this mixed-auth endpoint,
+while `@supabase/server` continues to validate normal user JWT calls internally.
+
+Each server tick handles at most one campaign. It generates a batch when the queue
+is empty or executes one queued simulation. The campaign daily execution cap is
+still enforced by `runSimulationBatch`, so the cron cannot bypass cost pacing.
+
+No worker credential is committed to GitHub or shipped in an APK.

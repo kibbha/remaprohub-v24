@@ -32,4 +32,4 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.remapro-agent-runtime]
-verify_jwt = true
+verify_jwt = false

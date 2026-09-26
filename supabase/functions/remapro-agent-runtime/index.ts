@@ -371,7 +371,7 @@ Message: ${scenario.message}
 Expected production task for your role: respond exactly as you would in production, but do not claim any action was executed.
 Prior simulated agent outputs:
 ${prior||"None"}`;
-      const result=await runManagedAgent(ctx,{role,input,metadata:{simulation_id:scenario.id,campaign_id:scenario.campaign_id,simulation:true}});
+      const result=await runManagedAgent(ctx,{role,input,metadata:{simulation_id:String(scenario.id),campaign_id:String(scenario.campaign_id),simulation:"true"}});
       chain[role]={output:result.output,model:result.model,profile_version:result.profileVersion,knowledge_ids:(result.knowledge||[]).map((x:any)=>x.id)};
       usage[role]=result.usage||{};
       for(const item of result.knowledge||[])knowledgeMap.set(item.id,item);
@@ -449,6 +449,38 @@ async function runSimulationBatch(ctx:any,campaign:any,requested:number){
   }
   return {processed:results.length,dailyLimitReached:false,results};
 }
+async function validSimulationWorkerToken(ctx:any,req:Request){
+  const token=String(req.headers.get("x-remapro-worker-token")||"");
+  if(token.length<32)return false;
+  const hash=await sha256Text(token);
+  const {data,error}=await ctx.supabaseAdmin.from("ai_simulation_worker_auth")
+    .select("token_hash,enabled").eq("singleton",true).maybeSingle();
+  if(error||!data?.enabled)return false;
+  return String(data.token_hash||"")===hash;
+}
+async function simulationWorkerTick(ctx:any){
+  const {data:campaign,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns")
+    .select("*").eq("auto_run",true)
+    .in("status",["draft","generating","ready","running"])
+    .order("updated_at",{ascending:true}).limit(1).maybeSingle();
+  if(error)throw error;
+  if(!campaign)return {idle:true,reason:"no_auto_campaign"};
+
+  const {count:queued}=await ctx.supabaseAdmin.from("ai_simulation_scenarios")
+    .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id).in("status",["queued","error"]);
+  const {count:generated}=await ctx.supabaseAdmin.from("ai_simulation_scenarios")
+    .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id);
+
+  if(Number(queued||0)===0&&Number(generated||0)<Number(campaign.target_cases||0)){
+    const generation=await generateSimulationBatch(ctx,campaign,Number(campaign.batch_size||5));
+    return {idle:false,campaignId:campaign.id,step:"generated",...generation};
+  }
+
+  const result=await runSimulationBatch(ctx,campaign,1);
+  await ctx.supabaseAdmin.from("ai_simulation_campaigns").update({updated_at:new Date().toISOString()}).eq("id",campaign.id);
+  return {idle:false,campaignId:campaign.id,step:"executed",...result};
+}
+
 async function promoteSimulationFinding(ctx:any,findingId:string,userId:string){
   const {data:finding,error}=await ctx.supabaseAdmin.from("ai_simulation_findings")
     .select("*,ai_simulation_scenarios(*)").eq("id",findingId).eq("status","open").maybeSingle();
@@ -469,12 +501,17 @@ async function promoteSimulationFinding(ctx:any,findingId:string,userId:string){
 }
 
 export default {
-  fetch:withSupabase({auth:"user"},async(req,ctx)=>{
+  fetch:withSupabase({auth:["user","none"]},async(req,ctx)=>{
     if(req.method!=="POST")return json({error:"Method not allowed"},405);
     try{
       const body=await req.json().catch(()=>({}));
-      const action=clean(body.action,60),userId=String(ctx.userClaims?.id||"");
-      if(!userId)return json({error:"Authentication required"},401);
+      const action=clean(body.action,60);
+      if(action==="simulation_worker_tick"){
+        if(ctx.authMode!=="none"||!(await validSimulationWorkerToken(ctx,req)))return json({error:"Worker authentication required"},401);
+        return json({ok:true,...await simulationWorkerTick(ctx)});
+      }
+      const userId=String(ctx.userClaims?.id||"");
+      if(ctx.authMode!=="user"||!userId)return json({error:"Authentication required"},401);
       const role=await platformRole(ctx,userId);
       if(!role)return json({error:"Platform operator required"},403);
 

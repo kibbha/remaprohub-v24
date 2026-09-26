@@ -33,3 +33,13 @@ for(const forbidden of [
   if(block.includes(forbidden)) throw new Error('Simulation execution leaked into production action surface: '+forbidden);
 }
 console.log('ReMaPro Simulation Lab isolation and schema checks passed');
+
+for(const token of [
+  'auth:["user","none"]','simulation_worker_tick','validSimulationWorkerToken',
+  'x-remapro-worker-token','ai_simulation_worker_auth','simulationWorkerTick'
+])if(!runtime.includes(token))throw new Error('Missing server simulation worker token: '+token);
+if(!runtime.includes('ctx.authMode!=="none"'))throw new Error('Simulation worker must require custom none-mode authentication');
+
+const config=fs.readFileSync(new URL('../supabase/config.toml',import.meta.url),'utf8');
+if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))throw new Error('Mixed user/custom-worker runtime must disable platform JWT precheck');
+if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
