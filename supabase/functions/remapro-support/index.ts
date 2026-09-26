@@ -186,10 +186,34 @@ export default {
 
       if(action==="platform_inbox"){
         if(!platformRole(ctx))return json({error:"Platform operator required"},403);
-        const {data,error}=await ctx.supabaseAdmin.from("support_tickets").select("*").order("updated_at",{ascending:false}).limit(Math.min(200,Math.max(1,Number(body.limit)||100)));
-        if(error)return json({error:"Unable to load platform inbox"},500);
-        return json({ok:true,tickets:data||[]});
+        const limit=Math.min(200,Math.max(1,Number(body.limit)||100));
+        const [ticketsResult,approvalsResult,runsResult]=await Promise.all([
+          ctx.supabaseAdmin.from("support_tickets").select("*").order("updated_at",{ascending:false}).limit(limit),
+          ctx.supabaseAdmin.from("support_approvals").select("*").eq("status","pending").order("created_at",{ascending:true}).limit(100),
+          ctx.supabaseAdmin.from("ai_agent_runs").select("*").order("created_at",{ascending:false}).limit(100)
+        ]);
+        if(ticketsResult.error||approvalsResult.error||runsResult.error)return json({error:"Unable to load platform inbox"},500);
+        return json({ok:true,tickets:ticketsResult.data||[],approvals:approvalsResult.data||[],runs:runsResult.data||[]});
       }
+      if(action==="platform_review_approval"){
+        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        const approvalId=clean(body.approvalId,64),decision=String(body.decision||"");
+        if(!validUuid(approvalId)||!["approved","rejected"].includes(decision))return json({error:"Valid approval decision required"},400);
+        const {data:approval,error:approvalError}=await ctx.supabaseAdmin.from("support_approvals")
+          .select("id,ticket_id,status").eq("id",approvalId).maybeSingle();
+        if(approvalError||!approval)return json({error:"Approval not found"},404);
+        if(approval.status!=="pending")return json({error:"Approval already reviewed"},409);
+        const reviewedAt=new Date().toISOString();
+        const {data,error}=await ctx.supabaseAdmin.from("support_approvals").update({
+          status:decision,reviewed_by:userId,reviewed_at:reviewedAt
+        }).eq("id",approvalId).eq("status","pending").select("*").maybeSingle();
+        if(error||!data)return json({error:"Unable to review approval"},500);
+        await ctx.supabaseAdmin.from("support_tickets").update({
+          status:decision==="approved"?"in_progress":"triaged",updated_at:reviewedAt
+        }).eq("id",approval.ticket_id);
+        return json({ok:true,approval:data});
+      }
+
       if(action==="platform_update"){
         if(!platformRole(ctx))return json({error:"Platform operator required"},403);
         const ticketId=clean(body.ticketId,64);if(!validUuid(ticketId))return json({error:"Valid ticket required"},400);
