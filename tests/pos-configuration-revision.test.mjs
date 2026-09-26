@@ -22,3 +22,8 @@ for(const code of ['LAYOUT_PRODUCT_MISSING','LAYOUT_MODIFIER_MISSING','MENU_CHOI
 }
 assert.ok(validation.includes('BUNDLE_VALIDATION_FAILED'),'publication is blocked when cross-validation fails');
 console.log('POS configuration revision checks passed');
+
+for(const token of ['data-pos-catalog-row','name="price"','name="taxRate"','name="category"','name="active"','pos-publication-preview']){
+  assert.ok(app.includes(token),'Hub POS catalog/publication UI includes '+token);
+}
+assert.ok(app.includes("schedulePosCatalogAutoSync('catalog-editor')"),'catalog editor persists through the existing Hub catalog sync path');
