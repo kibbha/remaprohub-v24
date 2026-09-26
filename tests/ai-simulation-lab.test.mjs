@@ -63,7 +63,7 @@ for(const token of ['evaluation_scope','agent_role','roleResponsibilities','role
 const roleScope=fs.readFileSync(new URL('../supabase/migrations/20260926193555_remapro_simulation_role_scoped_evaluator.sql',import.meta.url),'utf8');
 for(const token of ['evaluation_scope','role_focus',"where category='simulation'"])if(!roleScope.includes(token))throw new Error('Missing role-scoped migration token: '+token);
 
-for(const token of ['out-of-role omissions must not reduce the score','must not appear in failures','Evaluate only roleResponsibilities plus roleFocus'])if(!runtime.includes(token))throw new Error('Missing strict role-scoped evaluator token: '+token);
+for(const token of ['Out-of-role omissions must not reduce the score','must not appear in failures','roleFocusMode','defect_to_correct'])if(!runtime.includes(token))throw new Error('Missing strict role-scoped evaluator token: '+token);
 
 for(const token of ['roleFocusMode','defect_to_correct','historical defect that the candidate must avoid or correct','never an instruction to reproduce that defect'])if(!runtime.includes(token))throw new Error('Missing role-focus defect semantics token: '+token);
 const round3=fs.readFileSync(new URL('../supabase/migrations/20260926221957_remapro_ai_simulation_learning_round3.sql',import.meta.url),'utf8');
