@@ -228,20 +228,38 @@ export default {
       }
       if(action==="embed_knowledge"){
         if(!["owner","product"].includes(role))return json({error:"Owner or product role required"},403);
-        const key=apiKey();if(!key)return json({error:"OPENAI_API_KEY_NOT_CONFIGURED"},503);
-        const limit=Math.max(1,Math.min(20,Math.trunc(Number(body.limit)||10)));
-        const {data,error}=await ctx.supabaseAdmin.from("ai_knowledge_documents").select("id,title,content").eq("status","active").is("embedding",null).limit(limit);
+        const limit=Math.max(1,Math.min(10,Math.trunc(Number(body.limit)||5)));
+        const {data,error}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+          .select("id,title,content").eq("status","active").is("embedding",null).limit(limit);
         if(error)return json({error:"Unable to load knowledge"},500);
-        const results=[];
-        for(const doc of data||[]){
+        const docs=data||[],key=apiKey(),results:any[]=[];
+        if(!docs.length)return json({ok:true,completed:0,failed:0,remaining:0,retrievalMode:"hybrid",results:[]});
+        if(!key){
+          return json({ok:true,completed:0,failed:0,remaining:docs.length,retrievalMode:"scoped_text",
+            warning:"Semantic embeddings are not configured. Scoped verified knowledge retrieval remains active.",results:[]});
+        }
+        const model=Deno.env.get("OPENAI_EMBEDDING_MODEL")||"text-embedding-3-small";
+        for(const doc of docs){
           try{
             const value=await embedding(key,doc.title+"\n"+doc.content);
-            const model=Deno.env.get("OPENAI_EMBEDDING_MODEL")||"text-embedding-3-small";
-            const {error:updateError}=await ctx.supabaseAdmin.from("ai_knowledge_documents").update({embedding:value,embedding_model:model,updated_at:new Date().toISOString()}).eq("id",doc.id);
-            results.push({id:doc.id,ok:!updateError,error:updateError?.message||""});
-          }catch(error){results.push({id:doc.id,ok:false,error:error instanceof Error?error.message:String(error)})}
+            if(!Array.isArray(value)||value.length!==1536)throw new Error("Embedding dimension mismatch");
+            const {error:updateError}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+              .update({embedding:value,embedding_model:model,updated_at:new Date().toISOString()}).eq("id",doc.id);
+            if(updateError)throw updateError;
+            results.push({id:doc.id,ok:true,error:""});
+          }catch(error){
+            const message=clean(error instanceof Error?error.message:String(error),500);
+            console.warn("remapro_knowledge_embedding_failed",{documentId:doc.id,message});
+            results.push({id:doc.id,ok:false,error:message});
+          }
         }
-        return json({ok:true,results});
+        const completed=results.filter(x=>x.ok).length,failed=results.length-completed;
+        const {count}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+          .select("*",{count:"exact",head:true}).eq("status","active").is("embedding",null);
+        return json({ok:true,completed,failed,remaining:count||0,
+          retrievalMode:completed>0?"hybrid":"scoped_text",
+          warning:failed?"Some semantic embeddings failed. Scoped verified knowledge retrieval remains active.":"",
+          results});
       }
       if(action==="profile_update"){
         if(role!=="owner")return json({error:"Owner role required"},403);
