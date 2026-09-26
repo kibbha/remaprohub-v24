@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+const helpStart=app.indexOf('function help()');
+const helpEnd=app.indexOf('function securityGate()',helpStart);
+if(helpStart<0||helpEnd<0)throw new Error('Hub help function not found');
+const help=app.slice(helpStart,helpEnd);
+if(!help.includes('${supportPanel()}'))throw new Error('Hub customer support must remain visible');
+if(help.includes('${platformOpsPanel()}'))throw new Error('AI Operations platform console must not render inside customer Hub');
+if(!app.includes('function platformOpsPanel()'))throw new Error('Shared platform implementation can remain packaged for source compatibility');
+console.log('Hub customer/Ops UI separation OK');
