@@ -1,6 +1,6 @@
 import{initializeCloudSessionStorage,cloudSession,signInCloud,signOutCloud,cloudFunction}from'./cloud.js';
 
-const VERSION='0.1.0';
+const VERSION='0.2.0';
 const AGENTS=['dispatcher','support','diagnostic','developer_hub','developer_pos','qa','product','knowledge','release'];
 const root=document.getElementById('app');
 const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:''};
