@@ -161,3 +161,5 @@ for(const token of ['data-layout-option-form','data-layout-delete-option','data-
 }
 assert.ok(!layoutSource.includes("prompt('Nom de l’option')"),'modifier editing no longer depends on prompt dialogs');
 assert.ok(!layoutSource.includes("prompt('Nom du choix')"),'menu choice editing no longer depends on prompt dialogs');
+
+for(const token of ['data-layout-page-delete','data-layout-page-name','data-layout-category-name','data-layout-modifier-edit','data-layout-menu-edit','name="productIds"'])assert.ok(layoutSource.includes(token),'enhanced structured Hub editor includes '+token);
