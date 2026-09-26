@@ -1,4 +1,4 @@
-name: Android ReMaPro Ops V0.3.0 Simulation Lab APK
+name: Android ReMaPro Ops V0.3.1 Server Auto APK
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'push' || github.head_ref == 'build/ops-simulation-v030'
+    if: github.event_name == 'push' || github.head_ref == 'build/ops-server-auto-v031'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -91,5 +91,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ReMaPro-Ops-V0.3.0-simulation-lab-apk
+          name: ReMaPro-Ops-V0.3.1-server-auto-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
