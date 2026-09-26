@@ -552,6 +552,76 @@ export default {
           warning:failed?"Some semantic embeddings failed. Scoped verified knowledge retrieval remains active.":"",
           results});
       }
+      if(action==="simulation_dashboard"){
+        return json({ok:true,...await simulationDashboard(ctx)});
+      }
+      if(action==="simulation_create_campaign"){
+        if(!["owner","product","qa"].includes(role))return json({error:"Owner, product or QA role required"},403);
+        const target=Math.max(1,Math.min(5000,Math.trunc(Number(body.targetCases)||100)));
+        const daily=Math.max(1,Math.min(500,Math.trunc(Number(body.maxDailyCases)||25)));
+        const batch=Math.max(1,Math.min(20,Math.trunc(Number(body.batchSize)||5)));
+        const modes=(Array.isArray(body.modes)?body.modes:["standard","difficult","edge","multilingual","chaos"])
+          .filter((x:any)=>["standard","difficult","edge","multilingual","chaos"].includes(String(x)));
+        const applications=(Array.isArray(body.applications)?body.applications:["hub","pos"])
+          .filter((x:any)=>["hub","pos"].includes(String(x)));
+        const languages=(Array.isArray(body.languages)?body.languages:["fr","en","de","it"])
+          .filter((x:any)=>["fr","en","de","it"].includes(String(x)));
+        const difficulties=(Array.isArray(body.difficulties)?body.difficulties:["easy","normal","hard","critical"])
+          .filter((x:any)=>["easy","normal","hard","critical"].includes(String(x)));
+        if(!modes.length||!applications.length||!languages.length||!difficulties.length)return json({error:"Campaign dimensions cannot be empty"},400);
+        const {data,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns").insert({
+          name:clean(body.name,180)||`Simulation ReMaPro ${new Date().toISOString().slice(0,10)}`,
+          status:"draft",target_cases:target,max_daily_cases:daily,batch_size:batch,modes,applications,languages,difficulties,
+          category_mix:body.categoryMix&&typeof body.categoryMix==="object"?body.categoryMix:{},auto_run:!!body.autoRun,created_by:userId
+        }).select("*").single();
+        if(error||!data)return json({error:"Unable to create simulation campaign"},500);
+        return json({ok:true,campaign:data});
+      }
+      if(action==="simulation_campaign_action"){
+        if(!["owner","product","qa"].includes(role))return json({error:"Owner, product or QA role required"},403);
+        const campaignId=clean(body.campaignId,64),campaignAction=String(body.campaignAction||"");
+        if(!validUuid(campaignId)||!["pause","resume","cancel","auto_on","auto_off"].includes(campaignAction))return json({error:"Valid campaign action required"},400);
+        const patch:any={updated_at:new Date().toISOString()};
+        if(campaignAction==="pause")patch.status="paused";
+        if(campaignAction==="resume")patch.status="ready";
+        if(campaignAction==="cancel")patch.status="cancelled";
+        if(campaignAction==="auto_on")patch.auto_run=true;
+        if(campaignAction==="auto_off")patch.auto_run=false;
+        const {data,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns").update(patch).eq("id",campaignId).select("*").maybeSingle();
+        if(error||!data)return json({error:"Unable to update simulation campaign"},500);
+        return json({ok:true,campaign:data});
+      }
+      if(action==="simulation_generate_batch"){
+        if(!["owner","product","qa"].includes(role))return json({error:"Owner, product or QA role required"},403);
+        const campaignId=clean(body.campaignId,64);if(!validUuid(campaignId))return json({error:"Valid campaign required"},400);
+        const {data:campaign,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns").select("*").eq("id",campaignId).maybeSingle();
+        if(error||!campaign)return json({error:"Simulation campaign not found"},404);
+        if(["cancelled","completed"].includes(campaign.status))return json({error:"Campaign is not generatable"},409);
+        const result=await generateSimulationBatch(ctx,campaign,Number(body.count)||campaign.batch_size);
+        return json({ok:true,...result});
+      }
+      if(action==="simulation_run_batch"){
+        if(!["owner","product","qa","developer","support"].includes(role))return json({error:"Platform operator required"},403);
+        const campaignId=clean(body.campaignId,64);if(!validUuid(campaignId))return json({error:"Valid campaign required"},400);
+        const {data:campaign,error}=await ctx.supabaseAdmin.from("ai_simulation_campaigns").select("*").eq("id",campaignId).maybeSingle();
+        if(error||!campaign)return json({error:"Simulation campaign not found"},404);
+        if(["paused","cancelled","completed"].includes(campaign.status))return json({error:"Campaign is not runnable"},409);
+        const result=await runSimulationBatch(ctx,campaign,Number(body.count)||campaign.batch_size);
+        return json({ok:true,...result});
+      }
+      if(action==="simulation_promote_finding"){
+        if(!["owner","product","qa"].includes(role))return json({error:"Owner, product or QA role required"},403);
+        const findingId=clean(body.findingId,64);if(!validUuid(findingId))return json({error:"Valid finding required"},400);
+        return json({ok:true,trainingCase:await promoteSimulationFinding(ctx,findingId,userId)});
+      }
+      if(action==="simulation_dismiss_finding"){
+        if(!["owner","product","qa"].includes(role))return json({error:"Owner, product or QA role required"},403);
+        const findingId=clean(body.findingId,64);if(!validUuid(findingId))return json({error:"Valid finding required"},400);
+        const {data,error}=await ctx.supabaseAdmin.from("ai_simulation_findings").update({status:"dismissed",updated_at:new Date().toISOString()}).eq("id",findingId).select("*").maybeSingle();
+        if(error||!data)return json({error:"Finding not found"},404);
+        return json({ok:true,finding:data});
+      }
+
       if(action==="profile_update"){
         if(role!=="owner")return json({error:"Owner role required"},403);
         const agentRole=String(body.agentRole||"");if(!ROLES.has(agentRole))return json({error:"Valid agent role required"},400);
