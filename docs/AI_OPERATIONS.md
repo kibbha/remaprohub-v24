@@ -299,3 +299,5 @@ Learning round 1 generalized the first simulation findings into versioned agent 
 - Product includes offline/stale-data, sync-conflict and role-permission risks when relevant.
 
 Verified learning documents are added to `ai_knowledge_documents`. The unattended worker indexes up to five newly unembedded documents before resuming simulation work, so new knowledge becomes semantic-searchable without a manual Ops indexing step.
+
+Round 1 profile versions after promotion: Dispatcher v3, Support v3, Diagnostic v2, Developer Hub v2, Product v2.
