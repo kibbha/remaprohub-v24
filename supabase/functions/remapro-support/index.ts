@@ -87,7 +87,7 @@ async function trainedAgent(ctx:any,role:string,fallbackInstructions:string,defa
   const rows=knowledge||[];
   const verified=rows.length?rows.map((x:any,i:number)=>`[${i+1}] ${x.title} (${x.scope})\n${clean(x.content,2600)}`).join("\n\n"):"No verified ReMaPro knowledge retrieved.";
   return {
-    model:String(profile.model||defaultModel),
+    model:String(defaultModel||profile.model),
     instructions:`${profile.instructions||fallbackInstructions}
 
 Verified ReMaPro knowledge:
