@@ -40,5 +40,21 @@ export async function readConfigurationSnapshot(result) {
   if(actual!==checksum)throw new Error('BUNDLE_CHECKSUM_INVALID');
   const document=JSON.parse(payload);
   if(document?.schemaVersion!==1||!Array.isArray(document.catalog)||!Array.isArray(document.tables))throw new Error('BUNDLE_SCHEMA_INVALID');
-  return{version:Number(snapshot.version),sourceRevision:Number(snapshot.source_revision),publishedAt:snapshot.published_at||snapshot.headPublishedAt||'',settings:snapshot.settings||document.settings||null,document};
+  return{version:Number(snapshot.version),sourceRevision:Number(snapshot.source_revision),publishedAt:snapshot.published_at||snapshot.headPublishedAt||'',settings:snapshot.settings||document.settings||null,payload,checksum,document};
+}
+
+export async function readCachedConfigurationSnapshot(cached){
+  if(!cached?.bundle)return null;
+  const bundle=cached.bundle,payload=String(bundle.payload||''),checksum=String(bundle.checksum||'').toLowerCase();
+  if(!payload||!(/^[0-9a-f]{64}$/.test(checksum)))return null;
+  try{
+    const bytes=new TextEncoder().encode(payload),hash=await crypto.subtle.digest('SHA-256',bytes);
+    const actual=Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+    if(actual!==checksum)return null;
+    const document=JSON.parse(payload);
+    if(document?.schemaVersion!==1||!Array.isArray(document.catalog)||!Array.isArray(document.tables))return null;
+    const version=Number(bundle.version),sourceRevision=Number(bundle.sourceRevision);
+    if(!Number.isSafeInteger(version)||version<1||!Number.isSafeInteger(sourceRevision)||sourceRevision<0)return null;
+    return{version,sourceRevision,publishedAt:bundle.publishedAt||'',settings:cached.settings||document.settings||null,payload,checksum,document};
+  }catch{return null}
 }
