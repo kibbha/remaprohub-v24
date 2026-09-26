@@ -25,7 +25,7 @@ const state={
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
-  pendingQueue:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},support:{tickets:[],loaded:false,loading:false,error:'',lastReply:''},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
+  pendingQueue:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},support:{tickets:[],loaded:false,loading:false,error:'',lastReply:'',selectedTicket:null,messages:[],conversationLoading:false},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null,directOrderPollTimer=null,hubConfigPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false,hubConfigSyncInFlight=false;
@@ -2114,15 +2114,29 @@ async function trackTrainingProgress(stepIndex,status='in_progress'){
 }
 
 function posSupportCopy(){const copy={
-fr:{title:'Support ReMaPro',sub:'Signalez un problème, posez une question ou proposez une amélioration. Les agents IA ReMaPro analysent la demande et créent un suivi.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.'},
-en:{title:'ReMaPro Support',sub:'Report a problem, ask a question or suggest an improvement. ReMaPro AI agents analyse the request and track it.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.'},
-de:{title:'ReMaPro Support',sub:'Problem melden, Frage stellen oder Verbesserung vorschlagen. ReMaPro KI-Agenten analysieren und verfolgen die Anfrage.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.'},
-it:{title:'Supporto ReMaPro',sub:'Segnala un problema, fai una domanda o proponi un miglioramento. Gli agenti IA ReMaPro analizzano e seguono la richiesta.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.'}
+fr:{title:'Support ReMaPro',sub:'Signalez un problème, posez une question ou proposez une amélioration. Les agents IA ReMaPro analysent la demande et créent un suivi.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.',open:'Ouvrir',back:'Retour aux demandes',conversation:'Conversation',answer:'Répondre',resolve:'Marquer résolu',resolved:'Résolu',you:'Vous',ai:'ReMaPro IA',operator:'Support ReMaPro',system:'Système'},
+en:{title:'ReMaPro Support',sub:'Report a problem, ask a question or suggest an improvement. ReMaPro AI agents analyse the request and track it.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.',open:'Open',back:'Back to requests',conversation:'Conversation',answer:'Reply',resolve:'Mark resolved',resolved:'Resolved',you:'You',ai:'ReMaPro AI',operator:'ReMaPro Support',system:'System'},
+de:{title:'ReMaPro Support',sub:'Problem melden, Frage stellen oder Verbesserung vorschlagen. ReMaPro KI-Agenten analysieren und verfolgen die Anfrage.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.',open:'Öffnen',back:'Zurück zu Anfragen',conversation:'Unterhaltung',answer:'Antworten',resolve:'Als gelöst markieren',resolved:'Gelöst',you:'Sie',ai:'ReMaPro KI',operator:'ReMaPro Support',system:'System'},
+it:{title:'Supporto ReMaPro',sub:'Segnala un problema, fai una domanda o proponi un miglioramento. Gli agenti IA ReMaPro analizzano e seguono la richiesta.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.',open:'Apri',back:'Torna alle richieste',conversation:'Conversazione',answer:'Rispondi',resolve:'Segna risolto',resolved:'Risolto',you:'Tu',ai:'ReMaPro IA',operator:'Supporto ReMaPro',system:'Sistema'}
 };return copy[academyLocale()]||copy.fr}
 function posSupportPanel(){
   const u=posSupportCopy(),org=academyOrgId(),rid=state.restaurant?.id||'';
   if(!currentSession()||!org)return '<section class="academy-training-panel"><h2>'+u.title+'</h2><p class="muted">'+u.signin+'</p></section>';
   if(!state.support.loaded&&!state.support.loading)setTimeout(()=>refreshPosSupportTickets(),0);
+  const selected=state.support.selectedTicket;
+  if(selected){
+    const closed=['resolved','closed'].includes(String(selected.status||''));
+    const senderLabel=type=>type==='customer'?u.you:type==='ai'?u.ai:type==='operator'?u.operator:u.system;
+    const thread=(state.support.messages||[]).map(m=>'<div class="notice"><strong>'+esc(senderLabel(m.sender_type))+'</strong><p>'+esc(m.body||'')+'</p><small class="muted">'+esc(m.created_at?new Date(m.created_at).toLocaleString(academyLocale()):'')+'</small></div>').join('');
+    return '<section class="academy-training-panel pos-support-panel"><h2>'+u.title+'</h2>'
+      +'<button type="button" class="secondary" data-pos-support-back>← '+u.back+'</button>'
+      +'<h3>'+esc(selected.subject)+'</h3><p class="muted">'+u.status+': '+esc(selected.status||'open')+' · '+u.priority+': '+esc(selected.priority||'normal')+'</p>'
+      +'<h3>'+u.conversation+'</h3>'+(thread||'<p class="muted">'+u.loading+'</p>')
+      +(closed?'<div class="notice"><strong>'+u.resolved+'</strong></div>':
+        '<form id="pos-support-reply-form"><label class="field"><span>'+u.answer+'</span><textarea name="message" maxlength="6000" rows="4" required placeholder="'+u.message+'"></textarea></label>'
+        +'<div class="actions"><button class="primary" '+(state.support.conversationLoading?'disabled':'')+'>'+u.answer+'</button><button type="button" class="secondary" data-pos-support-resolve>'+u.resolve+'</button></div></form>')
+      +'</section>';
+  }
   const tickets=(state.support.tickets||[]).slice(0,8);
   return '<section class="academy-training-panel pos-support-panel"><h2>'+u.title+'</h2><p class="muted">'+u.sub+'</p>'
     +(state.support.error?'<div class="notice error">'+esc(state.support.error)+'</div>':'')
@@ -2131,7 +2145,7 @@ function posSupportPanel(){
     +'<label class="field"><span>'+u.message+'</span><textarea name="message" maxlength="6000" rows="5" required></textarea></label>'
     +'<button class="primary" '+(state.support.loading?'disabled':'')+'>'+(state.support.loading?u.loading:u.send)+'</button></form>'
     +'<h3>'+u.recent+'</h3><div class="academy-path-grid">'
-    +(tickets.length?tickets.map(x=>'<article class="academy-path-card"><strong>'+esc(x.subject)+'</strong><small>'+esc((x.application||'pos').toUpperCase())+' · '+u.priority+': '+esc(x.priority||'normal')+' · '+u.status+': '+esc(x.status||'open')+'</small></article>').join(''):'<p class="muted">'+u.empty+'</p>')
+    +(tickets.length?tickets.map(x=>'<article class="academy-path-card"><strong>'+esc(x.subject)+'</strong><small>'+esc((x.application||'pos').toUpperCase())+' · '+u.priority+': '+esc(x.priority||'normal')+' · '+u.status+': '+esc(x.status||'open')+'</small><button type="button" class="secondary" data-pos-support-open="'+esc(x.id)+'">'+u.open+'</button></article>').join(''):'<p class="muted">'+u.empty+'</p>')
     +'</div></section>';
 }
 async function refreshPosSupportTickets(){
@@ -2153,8 +2167,40 @@ async function submitPosSupportTicket(form){
   }catch(error){state.support.error=error?.message||String(error)}
   finally{state.support.loading=false;await refreshPosSupportTickets()}
 }
+async function loadPosSupportConversation(ticketId){
+  const org=academyOrgId(),rid=state.restaurant?.id||'';if(!org||!ticketId)return false;
+  state.support.conversationLoading=true;state.support.error='';
+  try{
+    const data=await supportFunction({action:'get_ticket',organizationId:org,restaurantId:rid,ticketId});
+    state.support.selectedTicket=data?.ticket||null;state.support.messages=Array.isArray(data?.messages)?data.messages:[];return !!state.support.selectedTicket;
+  }catch(error){state.support.error=error?.message||String(error);return false}
+  finally{state.support.conversationLoading=false;if(state.view==='academy')render()}
+}
+async function replyPosSupportConversation(form){
+  const ticketId=state.support.selectedTicket?.id,org=academyOrgId(),rid=state.restaurant?.id||'',d=new FormData(form),message=String(d.get('message')||'').trim();
+  if(!ticketId||!org||!message)return;
+  state.support.conversationLoading=true;state.support.error='';
+  try{
+    await supportFunction({action:'reply',organizationId:org,restaurantId:rid,ticketId,message,context:{screen:state.view,online:state.online,network:state.online?'online':'offline',cashSession:state.cashSession?.id||'',activeOrderId:state.activeOrderId||'',locale:academyLocale(),restaurantName:state.restaurant?.name||''}});
+    state.support.loaded=false;
+  }catch(error){state.support.error=error?.message||String(error)}
+  finally{state.support.conversationLoading=false;await loadPosSupportConversation(ticketId);await refreshPosSupportTickets()}
+}
+async function resolvePosSupportConversation(){
+  const ticketId=state.support.selectedTicket?.id,org=academyOrgId(),rid=state.restaurant?.id||'';if(!ticketId||!org)return;
+  state.support.conversationLoading=true;state.support.error='';
+  try{
+    await supportFunction({action:'resolve',organizationId:org,restaurantId:rid,ticketId});
+    state.support.loaded=false;
+  }catch(error){state.support.error=error?.message||String(error)}
+  finally{state.support.conversationLoading=false;await loadPosSupportConversation(ticketId);await refreshPosSupportTickets()}
+}
 function bindPosSupport(){
   document.getElementById('pos-support-form')?.addEventListener('submit',e=>{e.preventDefault();submitPosSupportTicket(e.currentTarget)});
+  document.getElementById('pos-support-reply-form')?.addEventListener('submit',e=>{e.preventDefault();replyPosSupportConversation(e.currentTarget)});
+  document.querySelectorAll('[data-pos-support-open]').forEach(b=>b.addEventListener('click',()=>loadPosSupportConversation(b.dataset.posSupportOpen)));
+  document.querySelector('[data-pos-support-back]')?.addEventListener('click',()=>{state.support.selectedTicket=null;state.support.messages=[];render()});
+  document.querySelector('[data-pos-support-resolve]')?.addEventListener('click',()=>resolvePosSupportConversation());
 }
 
 function academyView(){
