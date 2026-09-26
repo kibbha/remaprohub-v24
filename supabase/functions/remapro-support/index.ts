@@ -158,8 +158,15 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
       }
     }
   }
-  const needsFixApproval=triage.category==="bug";
-  const needsHumanReview=!needsFixApproval&&(triage.requires_human||triage.requires_approval);
+  let existingJob:any=null,jobLookupFailed=false;
+  if(triage.category==="bug"){
+    const {data:job,error:jobError}=await ctx.supabaseAdmin.from("ai_engineering_jobs")
+      .select("id,status,github_pr_number,github_pr_url").eq("ticket_id",ticket.id).maybeSingle();
+    existingJob=job||null;jobLookupFailed=!!jobError;
+  }
+  const activeJob=!!existingJob&&!["cancelled","failed","completed"].includes(String(existingJob.status||""));
+  const needsFixApproval=triage.category==="bug"&&!activeJob&&!jobLookupFailed;
+  const needsHumanReview=triage.category!=="bug"&&(triage.requires_human||triage.requires_approval);
   if(needsFixApproval||needsHumanReview){
     const approvalAction=needsFixApproval?"execute_fix":"human_review";
     const {data:pending}=await ctx.supabaseAdmin.from("support_approvals")
@@ -173,10 +180,11 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   }
   const assigned=AGENT.has(String(triage.route))?triage.route:"support";
   const engineeringContext={...context,...(diagnostic||{}),specialist:specialist||null,qa:qa||null};
+  const nextStatus=(needsFixApproval||needsHumanReview)?"waiting_approval":activeJob?(existingJob.status==="awaiting_merge_approval"?"waiting_approval":"in_progress"):"triaged";
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
-    status:(needsFixApproval||needsHumanReview)?"waiting_approval":"triaged",
+    status:nextStatus,
     summary:clean(triage.summary,2000),assigned_agent:assigned,
     ai_classification:triage,engineering_context:engineeringContext,updated_at:new Date().toISOString()
   }).eq("id",ticket.id);
