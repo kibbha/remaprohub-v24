@@ -34,3 +34,10 @@ for(const token of ['data-pos-operator-form','data-pos-printer-form','data-pos-t
 for(const legacy of ["prompt('Nom affiché'","prompt('Adresse / ID matériel'","prompt('ID terminal prestataire'"]){
   assert.ok(!app.includes(legacy),'legacy prompt editor removed: '+legacy);
 }
+
+assert.ok(app.includes('data-pos-provider-form'),'payment providers use the structured inline editor');
+assert.ok(!app.includes("prompt('Statut : waiting_contract"),'legacy payment-provider prompt editor is removed');
+const bundleCardStart=app.indexOf('function posBundleCard()');
+const methodLabelsAt=app.indexOf('const methodLabels=',bundleCardStart);
+const previewAt=app.indexOf('const preview=',bundleCardStart);
+assert.ok(methodLabelsAt>bundleCardStart&&methodLabelsAt<previewAt,'payment labels are initialized before publication preview rendering');
