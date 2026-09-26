@@ -49,3 +49,7 @@ for(const token of ['claim_failed','.eq("id",scenario.id).in("status",["queued",
 const concurrency=fs.readFileSync(new URL('../supabase/migrations/20260926191529_remapro_simulation_concurrency_lock.sql',import.meta.url),'utf8');
 for(const token of ['ai_simulation_one_running_per_campaign_idx',"where status='running'"])if(!concurrency.includes(token))throw new Error('Missing Simulation Lab concurrency migration token: '+token);
 for(const token of ['recoverStaleSimulationRuns','Recovered stale simulation run after 10 minutes','busy:true','recoveredStale'])if(!runtime.includes(token))throw new Error('Missing Simulation Lab concurrency runtime token: '+token);
+
+for(const token of ['knowledge_indexed','pendingKnowledge','remapro_worker_embedding_failed','limit(5)'])if(!runtime.includes(token))throw new Error('Missing worker knowledge-indexing token: '+token);
+const learning=fs.readFileSync(new URL('../supabase/migrations/20260926191656_remapro_ai_simulation_learning_round1.sql',import.meta.url),'utf8');
+for(const token of ['sensitive-billing-handling-v1','business-object-repro-v1','product-offline-risk-checklist-v1','approval-vs-diagnostic-v1','requires_human=true uniquement'])if(!learning.includes(token))throw new Error('Missing simulation learning round 1 token: '+token);

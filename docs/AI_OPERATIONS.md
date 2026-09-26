@@ -283,3 +283,21 @@ is empty or executes one queued simulation. The campaign daily execution cap is
 still enforced by `runSimulationBatch`, so the cron cannot bypass cost pacing.
 
 No worker credential is committed to GitHub or shipped in an APK.
+
+
+### Simulation learning loop
+
+Simulation findings are triaged by severity:
+- high and medium findings can be promoted into permanent `ai_training_cases`;
+- low findings stay observational until repeated or manually promoted;
+- technical errors are resolved separately from model-quality findings.
+
+Learning round 1 generalized the first simulation findings into versioned agent guidance:
+- Dispatcher separates diagnosis/routing from true human-review and approval requirements.
+- Support handles sensitive billing with data minimization and no refund promises before human verification.
+- Diagnostic and Developer Hub request non-sensitive business-object identifiers and distinguish persistence, derived calculation and stale display.
+- Product includes offline/stale-data, sync-conflict and role-permission risks when relevant.
+
+Verified learning documents are added to `ai_knowledge_documents`. The unattended worker indexes up to five newly unembedded documents before resuming simulation work, so new knowledge becomes semantic-searchable without a manual Ops indexing step.
+
+Round 1 profile versions after promotion: Dispatcher v3, Support v3, Diagnostic v2, Developer Hub v2, Product v2.
