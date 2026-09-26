@@ -43,3 +43,5 @@ if(!runtime.includes('ctx.authMode!=="none"'))throw new Error('Simulation worker
 const config=fs.readFileSync(new URL('../supabase/config.toml',import.meta.url),'utf8');
 if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))throw new Error('Mixed user/custom-worker runtime must disable platform JWT precheck');
 if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
+
+for(const token of ['claim_failed','.eq("id",scenario.id).in("status",["queued","error"])','if(!claimed)continue'])if(!runtime.includes(token))throw new Error('Missing atomic simulation claim token: '+token);
