@@ -23,3 +23,5 @@ console.log('ReMaPro POS clarity redesign checks passed');
 assert.ok(css.includes('Current approved ReMaPro POS palette: warm cream'),'approved warm cream POS palette is retained');
 assert.ok(css.includes('Approved horizontal category navigation on service screens.'),'approved horizontal category navigation is retained');
 assert.ok(css.includes('grid-template-columns:minmax(0,1fr) minmax(320px,380px)'),'tablet service layout keeps products and ticket side by side');
+
+assert.ok(app.includes('aria-pressed'),'POS category/page navigation exposes its active state');
