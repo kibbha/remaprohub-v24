@@ -270,22 +270,29 @@ export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSel
   root.querySelectorAll('[data-layout-button-mod]').forEach(el=>el.addEventListener('change',()=>mutate(doc=>{const b=doc.buttons.find(x=>x.id===getSelected());if(!b)return;const id=el.dataset.layoutButtonMod;b.modifierGroupIds=el.checked?[...new Set([...b.modifierGroupIds,id])]:b.modifierGroupIds.filter(x=>x!==id)})));
   root.querySelector('#posLayoutDeleteButton')?.addEventListener('click',()=>mutate(doc=>{doc.buttons=doc.buttons.filter(x=>x.id!==getSelected());setSelected(doc.buttons.find(x=>x.pageId===getPage?.())?.id||'')}));
   root.querySelector('#posLayoutModifierForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>doc.modifierGroups.push({id:uid('mod'),name:String(d.get('name')||'Modificateurs'),type:String(d.get('type')||'supplement'),required:d.get('required')==='on',min:Number(d.get('min'))||0,max:Math.max(1,Number(d.get('max'))||1),station:String(d.get('station')||''),options:[]}))});
-  root.querySelectorAll('[data-layout-add-option]').forEach(el=>el.addEventListener('click',()=>{const name=prompt('Nom de l’option');if(!name?.trim())return;const raw=prompt('Supplément prix CHF','0');if(raw===null)return;const station=prompt('Routage : kitchen, bar, none ou vide','')??'';mutate(doc=>{const g=doc.modifierGroups.find(x=>x.id===el.dataset.layoutAddOption);if(g)g.options.push({id:uid('opt'),name:name.trim(),priceDelta:Number(String(raw).replace(',','.'))||0,station:['kitchen','bar','none'].includes(station)?station:'',ingredientId:'',omitIngredient:g.type==='without'})})}));
+  root.querySelectorAll('[data-layout-option-form]').forEach(form=>form.addEventListener('submit',e=>{
+    e.preventDefault();const d=new FormData(form),name=String(d.get('name')||'').trim();if(!name)return;
+    mutate(doc=>{const g=doc.modifierGroups.find(x=>x.id===form.dataset.layoutOptionForm);if(g)g.options.push({id:uid('opt'),name,priceDelta:Number(d.get('priceDelta'))||0,station:['kitchen','bar','none'].includes(String(d.get('station')))?String(d.get('station')):'',ingredientId:'',omitIngredient:g.type==='without'})});
+  }));
+  root.querySelectorAll('[data-layout-delete-option]').forEach(el=>el.addEventListener('click',()=>{
+    const [groupId,optionId]=String(el.dataset.layoutDeleteOption||'').split(':');
+    mutate(doc=>{const g=doc.modifierGroups.find(x=>x.id===groupId);if(g)g.options=g.options.filter(x=>x.id!==optionId)});
+  }));
+  root.querySelectorAll('[data-layout-delete-modifier]').forEach(el=>el.addEventListener('click',()=>{
+    const id=String(el.dataset.layoutDeleteModifier||'');if(!id)return;
+    if(typeof globalThis.confirm==='function'&&!globalThis.confirm('Supprimer ce groupe de modificateurs et toutes ses associations ?'))return;
+    mutate(doc=>{doc.modifierGroups=doc.modifierGroups.filter(x=>x.id!==id);doc.buttons=doc.buttons.map(b=>({...b,modifierGroupIds:b.modifierGroupIds.filter(x=>x!==id)}));doc.productModifiers=doc.productModifiers.map(p=>({...p,groupIds:p.groupIds.filter(x=>x!==id)}));doc.menus=doc.menus.map(m=>({...m,choices:m.choices.map(ch=>({...ch,modifierGroupIds:ch.modifierGroupIds.filter(x=>x!==id)}))}))});
+  }));
   root.querySelector('#posLayoutMenuForm')?.addEventListener('submit',e=>{e.preventDefault();const d=new FormData(e.currentTarget);mutate(doc=>doc.menus.push({id:uid('menu'),name:String(d.get('name')||'Menu'),productId:String(d.get('productId')||''),price:Number(d.get('price'))||0,choices:[]}))});
-  root.querySelectorAll('[data-layout-add-choice]').forEach(el=>el.addEventListener('click',()=>{
-    const name=prompt('Nom du choix');if(!name?.trim())return;
-    const required=confirm('Ce choix est-il obligatoire ?');
-    const minRaw=prompt('Minimum',required?'1':'0');if(minRaw===null)return;
-    const maxRaw=prompt('Maximum','1');if(maxRaw===null)return;
-    const current=normalizePosLayout(getLayout());
-    const source=prompt('Catégorie source (nom exact), ou vide pour choisir des produits précis / tout le catalogue','')??'';
-    const category=current.categories.find(c=>c.name.toLowerCase()===source.trim().toLowerCase());
-    let productIds=[];
-    if(!category){
-      const productNames=prompt('Produits autorisés séparés par des virgules (vide = tout le catalogue)','')??'';
-      const wanted=productNames.split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
-      if(wanted.length)productIds=(catalog||[]).filter(p=>wanted.includes(String(p.name||'').trim().toLowerCase())).map(p=>String(p.id));
-    }
-    mutate(doc=>{const m=doc.menus.find(x=>x.id===el.dataset.layoutAddChoice);if(m)m.choices.push({id:uid('choice'),name:name.trim(),required,min:Math.max(0,Number(minRaw)||0),max:Math.max(1,Number(maxRaw)||1),categoryId:category?.id||'',productIds,modifierGroupIds:[]})});
+  root.querySelectorAll('[data-layout-choice-form]').forEach(form=>form.addEventListener('submit',e=>{
+    e.preventDefault();const d=new FormData(form),name=String(d.get('name')||'').trim(),min=Math.max(0,Number(d.get('min'))||0),max=Math.max(1,Number(d.get('max'))||1);if(!name||max<min)return;
+    mutate(doc=>{const m=doc.menus.find(x=>x.id===form.dataset.layoutChoiceForm);if(m)m.choices.push({id:uid('choice'),name,required:d.get('required')==='on',min,max,categoryId:String(d.get('categoryId')||''),productIds:[],modifierGroupIds:[]})});
+  }));
+  root.querySelectorAll('[data-layout-delete-choice]').forEach(el=>el.addEventListener('click',()=>{
+    const [menuId,choiceId]=String(el.dataset.layoutDeleteChoice||'').split(':');mutate(doc=>{const m=doc.menus.find(x=>x.id===menuId);if(m)m.choices=m.choices.filter(x=>x.id!==choiceId)});
+  }));
+  root.querySelectorAll('[data-layout-delete-menu]').forEach(el=>el.addEventListener('click',()=>{
+    const id=String(el.dataset.layoutDeleteMenu||'');if(!id)return;if(typeof globalThis.confirm==='function'&&!globalThis.confirm('Supprimer ce menu ?'))return;
+    mutate(doc=>{doc.menus=doc.menus.filter(x=>x.id!==id)});
   }));
 }
