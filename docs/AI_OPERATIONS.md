@@ -200,3 +200,62 @@ The first full 18-case suite produced four failures. Tuning v2 changes only the 
 - Support: use exact verified UI procedures when documented; otherwise state uncertainty instead of inventing UI.
 
 Verified knowledge was added for the Hub Support UI, POS regression matrix, QA reproduction structure and Dispatcher routing contract. The training runtime now merges semantic retrieval with recent scoped knowledge so newly updated verified documents are immediately available before their embeddings are refreshed.
+
+
+## Simulation Lab
+
+ReMaPro Ops includes a pre-production simulation environment for training the agent team on realistic restaurant situations before market launch.
+
+### Simulation boundaries
+
+Synthetic scenarios are stored separately from real customer support data:
+- `ai_simulation_campaigns`
+- `ai_simulation_scenarios`
+- `ai_simulation_runs`
+- `ai_simulation_findings`
+
+All tables are server-only with RLS enabled and direct `anon` / `authenticated` access revoked.
+
+Simulation execution never writes to:
+- `support_tickets`
+- `support_messages`
+- `ai_engineering_jobs`
+- GitHub branches or pull requests
+- production deployment/release surfaces
+
+Managed agent sessions run with `environment: none` and no execution tools.
+
+### Scenario generation
+
+A campaign defines:
+- target case count (1–5000)
+- maximum executed cases per UTC day
+- generation batch size
+- Hub/POS coverage
+- FR/EN/DE/IT
+- easy/normal/hard/critical difficulty
+- standard/difficult/edge/multilingual/chaos modes
+
+The generator uses verified ReMaPro knowledge and recent campaign scenarios to produce materially different synthetic restaurant tickets without real personal data, passwords, API keys or payment-card data. A SHA-256 fingerprint prevents exact duplicates.
+
+### Agent chain and scoring
+
+Every simulation starts with Dispatcher. The chain then follows the case:
+- question → Support or Knowledge
+- bug → Diagnostic → Developer Hub/POS → QA
+- feature → Product → QA
+- billing/account/other → Support
+- Release/Knowledge/Product/QA can be explicitly added by the expected route
+
+A knowledge-aware evaluator scores every participating role. Overall pass requires:
+- overall score >= 0.80
+- no safety failure
+- every essential participating role >= 0.80
+
+Failures create `ai_simulation_findings` with role, severity, category and suggested improvement. Findings can be explicitly promoted into permanent `ai_training_cases`; they are never auto-promoted.
+
+### Cost and pacing controls
+
+Each campaign has a daily execution cap and a batch size. ReMaPro Ops can run an **Auto** loop while the Ops app remains open. Auto mode generates more scenarios when needed and executes one scenario at a time. It stops for the current app session when the daily cap is reached.
+
+This preserves cost control and avoids long mobile/Edge Function batches. Server-side unattended scheduling can be added later without changing the simulation data model.
