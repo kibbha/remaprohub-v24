@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const sql=fs.readFileSync(new URL('../supabase/migrations/20260923112111_pos_configuration_revisions.sql',import.meta.url),'utf8');
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
 const validation=fs.readFileSync(new URL('../supabase/migrations/20260926072000_pos_bundle_cross_validation.sql',import.meta.url),'utf8');
+const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 
 assert.ok(sql.includes('create table if not exists public.pos_configuration_revisions'),'revision table');
 assert.ok(sql.includes('language plpgsql security invoker set search_path=public as $'),'trigger uses valid invoker PL/pgSQL delimiter');
