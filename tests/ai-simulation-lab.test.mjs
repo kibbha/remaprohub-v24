@@ -39,3 +39,7 @@ for(const token of [
   'x-remapro-worker-token','ai_simulation_worker_auth','simulationWorkerTick'
 ])if(!runtime.includes(token))throw new Error('Missing server simulation worker token: '+token);
 if(!runtime.includes('ctx.authMode!=="none"'))throw new Error('Simulation worker must require custom none-mode authentication');
+
+const config=fs.readFileSync(new URL('../supabase/config.toml',import.meta.url),'utf8');
+if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))throw new Error('Mixed user/custom-worker runtime must disable platform JWT precheck');
+if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
