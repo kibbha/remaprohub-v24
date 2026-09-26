@@ -1,5 +1,5 @@
 import {parseCashAmount,mergePendingOrders,closingChecks,syncIndicator} from './service-flow.js';
-import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction,supportFunction} from './cloud.js';
+import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,subscriptionAccessForIdentity,posFunction,academyFunction,supportFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
@@ -18,7 +18,7 @@ import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './
 
 const APP_VERSION='0.27.0';
 const state={
-  identity:null,restaurant:null,bootstrap:null,configurationBundle:null,posSettings:normalizePosSettings(null),category:'',productSearch:'',cart:[],
+  identity:null,restaurant:null,entitlement:null,bootstrap:null,configurationBundle:null,posSettings:normalizePosSettings(null),category:'',productSearch:'',cart:[],
   busy:false,error:'',queueCount:0,online:navigator.onLine,cashSession:null,
   receipts:[],serviceType:'dine_in',tableLabel:'',covers:1,
   tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',pendingNewOrder:false,view:'sale',activeOrderId:null,activeTableId:null,
@@ -91,6 +91,15 @@ function isManager(){
     ((!m.restaurant_id&&['network_admin','network_manager'].includes(m.role)) ||
      (m.restaurant_id===restaurant.id&&['restaurant_admin','director','manager'].includes(m.role)))
   );
+}
+function currentSubscriptionAccess(){
+  if(!state.restaurant)return{allowed:false,status:'missing'};
+  if(state.entitlement?.allowed===false)return state.entitlement;
+  return subscriptionAccessForIdentity(state.identity,state.restaurant.organization_id);
+}
+function subscriptionRequiredView(){
+  const access=currentSubscriptionAccess();
+  return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('subscriptionRequired')}</h1><p>${t('subscriptionRequiredHint')}</p><p class="muted">${esc(state.restaurant?.name||'')} · ${esc(access.status||'expired')}</p><button class="primary wide" type="button" id="open-academy">? ${t('academy')}</button><button class="secondary wide" type="button" id="switch-restaurant">${t('switchRestaurant')}</button><button class="secondary" type="button" id="logout">${t('logout')}</button></div></div>`;
 }
 function posOrgAdmin(){
   const org=academyOrgId?.()||state.restaurant?.organization_id||'';
@@ -795,11 +804,12 @@ async function flushQueue(options={}){
 }
 async function queueCommand(action,payload,options={}){
   if(state.trainingMode)throw new Error('TRAINING_REAL_ACTION_BLOCKED');
+  if(!currentSubscriptionAccess().allowed)throw new Error('SUBSCRIPTION_REQUIRED');
   const item=queuedItem(action,state.restaurant.id,payload,options);
   await queuePut(item);await updateQueueCount();return item;
 }
 async function bootstrapRestaurant(restaurant){
-  state.restaurant=restaurant;state.error='';state.closingReport=null;state.serviceReport=null;state.closingError='';
+  state.restaurant=restaurant;state.entitlement=subscriptionAccessForIdentity(state.identity,restaurant.organization_id);state.error='';state.closingReport=null;state.serviceReport=null;state.closingError='';
   state.syncConfirmedAt=await kvGet('syncConfirmedAt:'+restaurant.id)||'';
   state.lastClosedSession=await kvGet('lastClosedSession:'+restaurant.id)||null;
   applyPosSettings(null);
@@ -848,11 +858,12 @@ async function bootstrapRestaurant(restaurant){
       if(head?.legacy===true){
         const data=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
         if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
-        applyPosSettings(head.settings);state.configurationBundle=null;state.bootstrap=data;
+        applyPosSettings(head.settings);state.configurationBundle=null;state.bootstrap=data;state.entitlement=data?.entitlement||state.entitlement;
         await kvSet(catalogKey(restaurant.id),state.bootstrap);
       }else{
         const runtime=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
         if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+        state.entitlement=runtime?.entitlement||state.entitlement;
         await refreshHubManagedConfiguration(head);
         state.bootstrap={...(state.bootstrap||{}),profile:runtime?.profile||state.bootstrap?.profile||null,serverCursor:Number(runtime?.serverCursor)||Number(state.bootstrap?.serverCursor)||0,capabilities:runtime?.capabilities||state.bootstrap?.capabilities||{}};
         if(runtime?.openSession)state.bootstrap.openSession=runtime.openSession;else delete state.bootstrap.openSession;
@@ -909,7 +920,7 @@ async function loadAccount(){
 }
 async function logoutPos(){
   signOut();clearOperatorSession();await kvDelete('identity');
-  state.identity=null;state.restaurant=null;state.operator=null;state.cashSession=null;state.view='sale';render();
+  state.identity=null;state.restaurant=null;state.entitlement=null;state.operator=null;state.cashSession=null;state.view='sale';render();
 }
 async function openSession(openingCash){
   const amount=parseCashAmount(openingCash);
@@ -2267,7 +2278,11 @@ function posBrandLockup({auth=false,version=false}={}){
   return '<div class="brand-lockup '+(auth?'auth':'')+'" aria-label="ReMaPro POS"><img src="./assets/icon.svg" alt="" aria-hidden="true"><span class="brand-wordmark"><strong>ReMaPro</strong><b>POS</b></span>'+(version?'<small>v'+APP_VERSION+'</small>':'')+'</div>';
 }
 function loginView(){return `<div class="login-wrap"><form class="card" id="login-form">${posBrandLockup({auth:true})}<p>${t('loginSubtitle')}</p><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label>${!cloudConfigured()?'<div class="notice error">Configuration Supabase non injectée.</div>':''}${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<label class="field">E-mail<input name="email" type="email" autocomplete="username" required></label><label class="field">Mot de passe<input name="password" type="password" autocomplete="current-password" required></label><button class="primary" type="submit" ${state.busy?'disabled':''}>${state.busy?'Connexion…':'Se connecter'}</button><button class="secondary wide" type="button" id="open-academy">? Académie / Aide</button><p class="muted">v${APP_VERSION}</p></form></div>`}
-function pickerView(){return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('chooseRestaurant')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><label class="field">Établissement<select id="restaurant-select"><option value="">Sélectionner…</option>${(state.identity?.restaurants||[]).map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary wide" id="open-academy">? Académie / Aide</button><button class="secondary" id="logout">Déconnexion</button></div></div>`}
+function pickerView(){
+  const restaurants=state.identity?.restaurants||[];
+  if(!restaurants.length)return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('noRestaurantAssigned')}</h1><p>${t('noRestaurantAssignedHint')}</p><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><button class="primary wide" type="button" id="open-academy">? ${t('academy')}</button><button class="secondary" id="logout">${t('logout')}</button></div></div>`;
+  return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('chooseRestaurant')}</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><label class="field">${t('establishment')}<select id="restaurant-select"><option value="">${t('select')}</option>${restaurants.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select></label><button class="secondary wide" id="open-academy">? ${t('academy')}</button><button class="secondary" id="logout">${t('logout')}</button></div></div>`;
+}
 function closedSessionSummary(){
   const last=state.lastClosedSession;
   if(!last||last.status!=='closed')return '';
@@ -2563,6 +2578,7 @@ function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();translateDom(app);return}
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<button class="secondary wide" id="open-academy">? Académie / Aide</button></div></div>`;wire();translateDom(app);return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();translateDom(app);return}
+  if(!currentSubscriptionAccess().allowed){app.innerHTML=subscriptionRequiredView();wire();translateDom(app);return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();translateDom(app);return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();translateDom(app);return}
   app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():state.view==='closing'?closingView():mainView();wire();translateDom(app);
@@ -2674,6 +2690,7 @@ async function init(){
   if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
+  window.addEventListener('remapro:subscription-required',event=>{state.entitlement=event?.detail||{allowed:false,status:'expired'};state.error='';render()});
   window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncHubManagedConfiguration().then(async changed=>{if(state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render();else if(state.restaurant)render()}).catch(error=>recordDiagnostic('network.resume_error',{message:error?.message||String(error)}))});
   window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncHubManagedConfiguration().then(async changed=>{if(state.online&&state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render()}).catch(error=>recordDiagnostic('visibility.resume_error',{message:error?.message||String(error)}))});
