@@ -11,7 +11,7 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
-import {readPublishedBundle,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
 import {normalizePosSettings,paymentAllowed} from './payment-policy.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
@@ -1869,7 +1869,46 @@ async function refreshCatalog(){
 }
 
 async function refreshHubManagedConfiguration(head=null){
-  const device=await ensureDevice(),restaurantId=state.restaurant.id;
+  const restaurantId=state.restaurant.id;
+  const atomic=await posFunction({action:'configuration_snapshot',restaurantId}).catch(()=>null);
+  if(atomic?.snapshot){
+    const snapshot=await readConfigurationSnapshot(atomic);
+    if(state.restaurant?.id!==restaurantId)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+    const document=snapshot.document,nextBootstrap={
+      ...(state.bootstrap||{}),
+      restaurant:state.bootstrap?.restaurant||state.restaurant,
+      catalog:document.catalog,
+      layout:document.layout,
+      configurationRevision:Number(head?.revision)||Number(state.bootstrap?.configurationRevision)||0,
+      configurationUpdatedAt:head?.updatedAt||snapshot.publishedAt||null,
+      configurationBundleVersion:snapshot.version
+    };
+    const nextTables=document.tables||[],nextTerminals=publishedDeviceProfiles(state.terminals||[],snapshot,'terminals');
+    const nextPrinters=publishedDeviceProfiles(state.printers||[],snapshot,'printers');
+    const nextProviders=state.providerConnections||[];
+    await kvSet(configurationSnapshotKey(restaurantId),{
+      bootstrap:nextBootstrap,tables:nextTables,terminals:nextTerminals,
+      printers:nextPrinters,providers:nextProviders,bundle:snapshot,settings:normalizePosSettings(snapshot.settings)
+    });
+    applyPosSettings(snapshot.settings);
+    state.configurationBundle=snapshot;
+    state.bootstrap=nextBootstrap;
+    state.tables=nextTables;
+    if(document.floorPlan)state.floorPlan=document.floorPlan;
+    state.terminals=nextTerminals;
+    state.printers=nextPrinters;
+    await Promise.all([
+      kvSet(catalogKey(restaurantId),state.bootstrap),
+      kvSet(tablesKey(restaurantId),state.tables),
+      kvSet(terminalsKey(restaurantId),state.terminals),
+      kvSet(printersKey(restaurantId),state.printers)
+    ]);
+    ensureLayoutSelection(publishedLayout(state.bootstrap));
+    return;
+  }
+
+  // Compatibility path for a backend that has not deployed atomic snapshots yet.
+  const device=await ensureDevice();
   const [bootstrap,tables,terminals,printers,providers,bundleResult]=await Promise.all([
     posFunction({action:'bootstrap',restaurantId,deviceId:device.id}),
     posFunction({action:'list_tables',restaurantId}),
@@ -1878,8 +1917,6 @@ async function refreshHubManagedConfiguration(head=null){
     posFunction({action:'list_provider_connections',restaurantId}).catch(()=>({rows:[]})),
     posFunction({action:'bundle_current',restaurantId})
   ]);
-  // These endpoints are separate reads. A publication during the fetch can mix
-  // two revisions, so keep the previous offline snapshot and retry next poll.
   const after=await posFunction({action:'configuration_head',restaurantId});
   assertConsistentConfigurationRevision(head,bootstrap,after);
   const bundle=await readPublishedBundle(bundleResult,after);
@@ -1894,22 +1931,15 @@ async function refreshHubManagedConfiguration(head=null){
     printers:nextPrinters,providers:nextProviders,bundle,settings:normalizePosSettings(after.settings)
   });
   applyPosSettings(after.settings);
-  state.configurationBundle=bundle;
-  state.bootstrap=nextBootstrap;
-  state.tables=nextTables;
+  state.configurationBundle=bundle;state.bootstrap=nextBootstrap;state.tables=nextTables;
   if(bundle?.document.floorPlan)state.floorPlan=bundle.document.floorPlan;
-  state.terminals=nextTerminals;
-  state.printers=nextPrinters;
-  state.providerConnections=nextProviders;
+  state.terminals=nextTerminals;state.printers=nextPrinters;state.providerConnections=nextProviders;
   await Promise.all([
-    kvSet(catalogKey(restaurantId),state.bootstrap),
-    kvSet(tablesKey(restaurantId),state.tables),
-    kvSet(terminalsKey(restaurantId),state.terminals),
-    kvSet(printersKey(restaurantId),state.printers),
+    kvSet(catalogKey(restaurantId),state.bootstrap),kvSet(tablesKey(restaurantId),state.tables),
+    kvSet(terminalsKey(restaurantId),state.terminals),kvSet(printersKey(restaurantId),state.printers),
     kvSet(providersKey(restaurantId),state.providerConnections)
   ]);
-  await refreshOperators();
-  ensureLayoutSelection(publishedLayout(state.bootstrap));
+  await refreshOperators();ensureLayoutSelection(publishedLayout(state.bootstrap));
 }
 async function syncHubManagedConfiguration({force=false}={}){
   if(hubConfigSyncInFlight||!state.online||!state.restaurant||!currentSession())return false;
