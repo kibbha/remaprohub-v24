@@ -73,3 +73,13 @@ state from leaking across account changes.
 The allowlist has RLS enabled, no direct `anon`/`authenticated` privileges, and is
 read only by service-role server code. Operator bootstrap records are operational
 data and are intentionally not committed to this public repository.
+
+
+## Bug execution approval
+
+Every diagnosed bug now creates exactly one pending `execute_fix` approval. This is
+the human gate that authorizes the engineering worker to prepare code on an isolated
+branch. Criticality does not bypass the gate.
+
+The second gate remains independent: after the worker creates a PR and QA succeeds,
+the system creates `merge_pr`. Approval of `execute_fix` never authorizes merge.
