@@ -16,3 +16,5 @@ console.log('ReMaPro agent training runtime checks passed');
 for(const token of ['match_count:6','const merged=[...semantic,...(recent||[])]','slice(0,10)'])if(!runtime.includes(token))throw new Error('Missing hybrid knowledge retrieval token: '+token);
 const tuning=fs.readFileSync(new URL('../supabase/migrations/20260926162922_remapro_ai_agent_tuning_v2.sql',import.meta.url),'utf8');
 for(const token of ['hub-support-ui-v1','pos-regression-v1','qa-reproduction-v1','dispatcher-routing-contract-v1','category doit être bug et route doit être developer_pos','test de régression paiement','scénario de reproduction concret'])if(!tuning.includes(token))throw new Error('Missing tuning v2 token: '+token);
+
+for(const token of ['verifiedKnowledge','authoritative ReMaPro product evidence','Do not penalize a product/UI statement as invented','knowledge_ids'])if(!runtime.includes(token))throw new Error('Missing knowledge-aware evaluator token: '+token);
