@@ -423,7 +423,30 @@ ${prior||"None"}`;
     throw error;
   }
 }
+async function recoverStaleSimulationRuns(ctx:any,campaignId:string){
+  const cutoff=new Date(Date.now()-10*60*1000).toISOString();
+  const {data:stale,error}=await ctx.supabaseAdmin.from("ai_simulation_runs")
+    .select("id,scenario_id").eq("campaign_id",campaignId).eq("status","running").lt("created_at",cutoff);
+  if(error)throw error;
+  if(!stale?.length)return 0;
+  const runIds=stale.map((x:any)=>x.id),scenarioIds=stale.map((x:any)=>x.scenario_id).filter(Boolean);
+  const now=new Date().toISOString();
+  await ctx.supabaseAdmin.from("ai_simulation_runs").update({
+    status:"error",passed:false,error_message:"Recovered stale simulation run after 10 minutes",completed_at:now
+  }).in("id",runIds).eq("status","running");
+  if(scenarioIds.length){
+    await ctx.supabaseAdmin.from("ai_simulation_scenarios").update({
+      status:"error",last_error:"Recovered stale simulation run after 10 minutes",completed_at:now,updated_at:now
+    }).in("id",scenarioIds).eq("status","running");
+  }
+  return stale.length;
+}
 async function runSimulationBatch(ctx:any,campaign:any,requested:number){
+  const recoveredStale=await recoverStaleSimulationRuns(ctx,String(campaign.id));
+  const {count:activeRuns,error:activeError}=await ctx.supabaseAdmin.from("ai_simulation_runs")
+    .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id).eq("status","running");
+  if(activeError)throw activeError;
+  if(Number(activeRuns||0)>0)return {processed:0,dailyLimitReached:false,busy:true,recoveredStale,results:[]};
   const today=new Date();today.setUTCHours(0,0,0,0);
   const {count:todayCount}=await ctx.supabaseAdmin.from("ai_simulation_runs")
     .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id).gte("created_at",today.toISOString());
@@ -447,7 +470,7 @@ async function runSimulationBatch(ctx:any,campaign:any,requested:number){
   if(Number(pending||0)===0){
     await ctx.supabaseAdmin.from("ai_simulation_campaigns").update({status:"completed",completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",campaign.id);
   }
-  return {processed:results.length,dailyLimitReached:false,results};
+  return {processed:results.length,dailyLimitReached:false,busy:false,recoveredStale,results};
 }
 async function validSimulationWorkerToken(ctx:any,req:Request){
   const token=String(req.headers.get("x-remapro-worker-token")||"");
