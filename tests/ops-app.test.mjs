@@ -33,7 +33,7 @@ const simulationTokens=[
 ];
 for(const token of simulationTokens)if(!app.includes(token))throw new Error('Missing Ops Simulation Lab token: '+token);
 
-for(const token of ['scheduleSimulationAuto','runSimulationAutoStep','maxDailyCases','Auto ON','Auto OFF','simulationAutoBlocked'])if(!app.includes(token))throw new Error('Missing Simulation Lab auto-mode token: '+token);
+for(const token of ['scheduleSimulationAuto','runSimulationAutoStep','maxDailyCases','simulationAutoBlocked','auto_on','auto_off'])if(!app.includes(token))throw new Error('Missing Simulation Lab auto-mode token: '+token);
 
 const simStart=app.indexOf('function simulationView()');
 const simEnd=app.indexOf('function jobsView()',simStart);
