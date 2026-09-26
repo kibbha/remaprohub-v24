@@ -495,7 +495,7 @@ async function refreshPrinters(){
 }
 function printerRoleLabel(role){return({receipt:'Ticket client',kitchen:'Cuisine',bar:'Bar'})[role]||role||'—'}
 function printerTypeLabel(type){return({bluetooth:'Bluetooth',usb:'USB',system:'Impression système',network:'Réseau/TCP'})[type]||type||'—'}
-function activePrinter(role){return state.printers.find(p=>p.active&&p.role===role)||null}
+function activePrinter(role){const candidates=state.printers.filter(p=>p.active&&p.role===role);return candidates.find(p=>p.status==='online')||candidates.find(p=>p.status!=='error'&&p.status!=='offline')||candidates[0]||null}
 async function markPrinter(printer,status){
   if(!state.online||!printer?.id)return;
   try{await posFunction({action:'set_printer_status',restaurantId:state.restaurant.id,printerId:printer.id,status})}catch{}
