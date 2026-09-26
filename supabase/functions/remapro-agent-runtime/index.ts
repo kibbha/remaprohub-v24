@@ -489,6 +489,30 @@ async function validSimulationWorkerToken(ctx:any,req:Request){
   if(error||!data?.enabled)return false;
   return String(data.token_hash||"")===hash;
 }
+async function nextSimulationRegression(ctx:any){
+  const {data:cases,error}=await ctx.supabaseAdmin.from("ai_training_cases")
+    .select("*").eq("status","active").eq("category","simulation")
+    .order("updated_at",{ascending:false}).limit(40);
+  if(error)throw error;
+  const rows=cases||[];
+  if(!rows.length)return {testCase:null,dailyLimitReached:false};
+  const ids=rows.map((x:any)=>x.id).filter(Boolean);
+  const today=new Date();today.setUTCHours(0,0,0,0);
+  const {count:todayCount}=await ctx.supabaseAdmin.from("ai_evaluation_runs")
+    .select("*",{count:"exact",head:true}).in("training_case_id",ids).gte("created_at",today.toISOString());
+  if(Number(todayCount||0)>=10)return {testCase:null,dailyLimitReached:true};
+  for(const testCase of rows){
+    const profile=await loadProfile(ctx,testCase.agent_role);
+    const {data:done,error:doneError}=await ctx.supabaseAdmin.from("ai_evaluation_runs")
+      .select("id,status,profile_version").eq("training_case_id",testCase.id)
+      .eq("profile_version",profile.version).in("status",["passed","failed"])
+      .order("created_at",{ascending:false}).limit(1).maybeSingle();
+    if(doneError)throw doneError;
+    if(!done)return {testCase,dailyLimitReached:false};
+  }
+  return {testCase:null,dailyLimitReached:false};
+}
+
 async function simulationWorkerTick(ctx:any){
   const key=apiKey();
   if(key){
@@ -512,6 +536,19 @@ async function simulationWorkerTick(ctx:any){
         }
       }
       if(completed>0)return {idle:false,step:"knowledge_indexed",completed,failed};
+    }
+  }
+
+  const regression=await nextSimulationRegression(ctx);
+  if(regression.testCase){
+    try{
+      const evaluated=await evaluateCase(ctx,regression.testCase);
+      return {idle:false,step:"regression_evaluated",caseId:regression.testCase.id,
+        agentRole:regression.testCase.agent_role,name:regression.testCase.name,...evaluated};
+    }catch(error){
+      const message=clean(error instanceof Error?error.message:String(error),800);
+      console.warn("remapro_worker_regression_failed",{caseId:regression.testCase.id,message});
+      return {idle:false,step:"regression_error",caseId:regression.testCase.id,error:message};
     }
   }
 
