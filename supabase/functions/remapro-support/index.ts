@@ -158,11 +158,17 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
       }
     }
   }
-  if(triage.requires_human||triage.requires_approval){
-    const {data:pending}=await ctx.supabaseAdmin.from("support_approvals").select("id").eq("ticket_id",ticket.id).eq("status","pending").limit(1);
+  const needsFixApproval=triage.category==="bug";
+  const needsHumanReview=!needsFixApproval&&(triage.requires_human||triage.requires_approval);
+  if(needsFixApproval||needsHumanReview){
+    const approvalAction=needsFixApproval?"execute_fix":"human_review";
+    const {data:pending}=await ctx.supabaseAdmin.from("support_approvals")
+      .select("id").eq("ticket_id",ticket.id).eq("status","pending").eq("action",approvalAction).limit(1);
     if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
-      ticket_id:ticket.id,organization_id:ticket.organization_id,requested_by_agent:"dispatcher",
-      action:"human_review",payload:{category:triage.category,priority:triage.priority,summary:triage.summary}
+      ticket_id:ticket.id,organization_id:ticket.organization_id,
+      requested_by_agent:needsFixApproval?(ticket.application==="pos"?"developer_pos":"developer_hub"):"dispatcher",
+      action:approvalAction,
+      payload:{category:triage.category,priority:triage.priority,summary:triage.summary,application:ticket.application}
     });
   }
   const assigned=AGENT.has(String(triage.route))?triage.route:"support";
@@ -170,7 +176,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
-    status:(triage.requires_human||triage.requires_approval)?"waiting_approval":"triaged",
+    status:(needsFixApproval||needsHumanReview)?"waiting_approval":"triaged",
     summary:clean(triage.summary,2000),assigned_agent:assigned,
     ai_classification:triage,engineering_context:engineeringContext,updated_at:new Date().toISOString()
   }).eq("id",ticket.id);
@@ -239,7 +245,7 @@ export default {
           await ctx.supabaseAdmin.from("support_tickets").update({
             status:decision==="approved"?"in_progress":"triaged",updated_at:reviewedAt
           }).eq("id",approval.ticket_id);
-          if(decision==="approved"&&approval.action==="human_review"&&ticket.category==="bug"){
+          if(decision==="approved"&&["execute_fix","human_review"].includes(String(approval.action))&&ticket.category==="bug"){
             const baseBranch=ticket.application==="pos"?"pos/remapro-pos":"rebuild/remaprohub-clean";
             const role=ticket.application==="pos"?"developer_pos":"developer_hub";
             const context=ticket.engineering_context&&typeof ticket.engineering_context==="object"?ticket.engineering_context:{};
