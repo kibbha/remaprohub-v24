@@ -147,7 +147,7 @@ const appSource=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8')
 assert.ok(appSource.includes("moduleSectionNav([['touches','Caisse'],['categories','Catégories'],['menus','Menus & options']],'pos-layout-editor')"));
 assert.ok(appSource.includes('moduleSectionScopes[scope]'));
 const edge=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.ts',import.meta.url),'utf8');
-for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-add-option','data-layout-add-choice','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
+for(const token of ['dragstart','drop','data-layout-page-select','data-layout-page-move','data-layout-category-move','data-layout-option-form','data-layout-choice-form','posLayoutItemPrice','Auto : Caisse','defaultCategory(type)'])assert.ok(source.includes(token),token);
 assert.ok(source.includes('Remettre la quantité disponible'));
 assert.ok(source.includes('posLayoutAvailabilityReset'));
 
