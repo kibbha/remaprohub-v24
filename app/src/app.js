@@ -1252,7 +1252,7 @@ document.querySelectorAll('[data-pos-terminal-form]').forEach(form=>form.addEven
 }));
 document.getElementById('posProviderAddForm')?.addEventListener('submit',async e=>{
   e.preventDefault();const d=new FormData(e.currentTarget),provider=String(d.get('provider')||''),integrationMode=String(d.get('integrationMode')||'');
-  const valid=provider==='worldline'?['terminal_api_cloud','tim'].includes(integrationMode):provider==='twint'?['direct','terminal_psp'].includes(integrationMode):false;
+  const valid=provider==='worldline'?['terminal_api_cloud','tim','tap_to_pay'].includes(integrationMode):provider==='twint'?['direct','terminal_psp'].includes(integrationMode):false;
   if(!valid){alert('Le mode choisi ne correspond pas au prestataire.');return}
   try{
     await savePosProviderConnection(cloudRestaurantId(),{
