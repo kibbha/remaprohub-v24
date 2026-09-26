@@ -34,3 +34,9 @@ const simulationTokens=[
 for(const token of simulationTokens)if(!app.includes(token))throw new Error('Missing Ops Simulation Lab token: '+token);
 
 for(const token of ['scheduleSimulationAuto','runSimulationAutoStep','maxDailyCases','Auto ON','Auto OFF','simulationAutoBlocked'])if(!app.includes(token))throw new Error('Missing Simulation Lab auto-mode token: '+token);
+
+const simStart=app.indexOf('function simulationView()');
+const simEnd=app.indexOf('function jobsView()',simStart);
+if(simStart<0||simEnd<0)throw new Error('Simulation Lab view block not found');
+const simBlock=app.slice(simStart,simEnd);
+for(const forbidden of ['open_ticket','platform_review_approval','platform_job_action'])if(simBlock.includes(forbidden))throw new Error('Simulation Lab UI must stay isolated from production action: '+forbidden);
