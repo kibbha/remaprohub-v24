@@ -1,6 +1,8 @@
 name: Android ReMaPro Ops V0.1.0 Test APK
 
 on:
+  pull_request:
+    branches: [rebuild/remaprohub-clean]
   push:
     branches: [rebuild/remaprohub-clean]
     paths:
@@ -11,6 +13,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name == 'push' || github.head_ref == 'ops/remapro-ops'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
