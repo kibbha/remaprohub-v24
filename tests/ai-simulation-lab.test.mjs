@@ -59,6 +59,8 @@ for(const token of ['pos-payment-state-vs-sensitive-billing-v1','least-privilege
 
 for(const token of ['nextSimulationRegression','regression_evaluated','regression_error','dailyLimitReached:true','Number(todayCount||0)>=10','.eq("category","simulation")'])if(!runtime.includes(token))throw new Error('Missing automatic simulation regression token: '+token);
 
-for(const token of ['evaluation_scope','agent_role','roleResponsibilities','roleFocus','never fail Dispatcher for missing Developer/QA artifacts'])if(!runtime.includes(token))throw new Error('Missing role-scoped evaluator token: '+token);
+for(const token of ['evaluation_scope','agent_role','roleResponsibilities','roleFocus','Never fail or criticize Dispatcher for missing Developer/QA artifacts'])if(!runtime.includes(token))throw new Error('Missing role-scoped evaluator token: '+token);
 const roleScope=fs.readFileSync(new URL('../supabase/migrations/20260926193555_remapro_simulation_role_scoped_evaluator.sql',import.meta.url),'utf8');
 for(const token of ['evaluation_scope','role_focus',"where category='simulation'"])if(!roleScope.includes(token))throw new Error('Missing role-scoped migration token: '+token);
+
+for(const token of ['out-of-role omissions must not reduce the score','must not appear in failures','Evaluate only roleResponsibilities plus roleFocus'])if(!runtime.includes(token))throw new Error('Missing strict role-scoped evaluator token: '+token);
