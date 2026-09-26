@@ -1197,7 +1197,8 @@ document.getElementById('posApplyInventory')?.addEventListener('click',()=>apply
 document.querySelectorAll('[data-pos-components]').forEach(b=>b.addEventListener('click',()=>{const [collection,index]=String(b.dataset.posComponents||'').split(':');openPosStockComponents(collection,Number(index))}));
 document.querySelectorAll('[data-pos-catalog-row]').forEach(form=>form.addEventListener('submit',e=>{
   e.preventDefault();const [collection,indexRaw]=String(form.dataset.posCatalogRow||'').split(':'),index=Number(indexRaw),item=state[collection]?.[index];if(!item)return;
-  const d=new FormData(form),price=Math.max(0,Number(d.get('price'))||0),taxRate=Math.max(0,Math.min(100,Number(d.get('taxRate'))||0)),category=String(d.get('category')||'').trim()||(collection==='recipes'?'Recettes':'Produits');
+  const d=new FormData(form),rawPrice=String(d.get('price')??'').trim(),rawTax=String(d.get('taxRate')??'').trim(),price=Number(rawPrice),taxRate=Number(rawTax),category=String(d.get('category')||'').trim()||(collection==='recipes'?'Recettes':'Produits');
+  if(rawPrice===''||!Number.isFinite(price)||price<0||rawTax===''||!Number.isFinite(taxRate)||taxRate<0||taxRate>100){posAdminState.error='Prix ou TVA invalide. Corrigez la ligne avant de l’enregistrer.';render();return}
   item.price=price;if(collection==='recipes'&&Object.prototype.hasOwnProperty.call(item,'sellingPrice'))item.sellingPrice=price;
   item.taxRate=taxRate;item.category=category;item.productionStation=posAdminStation(d.get('station'));item.active=d.get('active')==='on';
   persist();schedulePosCatalogAutoSync('catalog-editor');render();
