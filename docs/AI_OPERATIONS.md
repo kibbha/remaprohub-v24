@@ -58,3 +58,18 @@ platform-owner approval may move the job to `merge_approved`.
 The backend itself has no GitHub merge capability. Execution and merge are performed
 by the authorized worker through the GitHub connector, which keeps GitHub credentials
 out of Supabase.
+
+
+## Platform operator authorization
+
+Global AI Operations access is controlled by the server-only
+`public.platform_operators` allowlist. Restaurant organization roles such as
+`network_admin` do not grant platform access.
+
+The Hub asks `remapro-support` for `platform_context` after authentication and
+binds the returned role to the current authenticated user ID. This prevents role
+state from leaking across account changes.
+
+The allowlist has RLS enabled, no direct `anon`/`authenticated` privileges, and is
+read only by service-role server code. Operator bootstrap records are operational
+data and are intentionally not committed to this public repository.
