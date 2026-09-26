@@ -29,3 +29,6 @@ assert.match(app,/await Promise\.all\(\[refreshOperators\(\),refreshTerminals\(\
 
 assert.match(app,/network\.online'[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'network resume refreshes dynamic POS state without replacing local queue data');
 assert.match(app,/visibilitychange[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'foreground resume refreshes dynamic POS state');
+
+assert.match(app,/const runtime=await posFunction\(\{action:'bootstrap'[\s\S]{0,500}refreshHubManagedConfiguration\(head\)[\s\S]{0,600}runtime\?\.openSession/,'atomic startup keeps runtime cash session while static configuration comes from snapshot');
+assert.match(app,/state\.bootstrap=\{\.\.\.\(state\.bootstrap\|\|\{\}\),profile:runtime/,'runtime bootstrap merges only runtime metadata after atomic configuration');
