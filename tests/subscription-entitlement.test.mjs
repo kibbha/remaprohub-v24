@@ -24,7 +24,9 @@ const i18n=fs.readFileSync(new URL('../src/i18n.js',import.meta.url),'utf8');
 
 for(const token of ['currentSubscriptionAccess','subscriptionRequiredView','SUBSCRIPTION_REQUIRED','remapro:subscription-required'])
   assert.ok(app.includes(token),'POS app entitlement gate must include '+token);
-assert.ok(app.indexOf("if(!currentSubscriptionAccess().allowed)")<app.indexOf("if(state.operatorRequired&&!state.operator)"),'subscription gate must run before operator/service opening');
+const renderStart=app.indexOf('function render(){'),renderEnd=app.indexOf('function wire(){',renderStart),renderBlock=app.slice(renderStart,renderEnd);
+assert.ok(renderStart>=0&&renderEnd>renderStart,'POS render block must exist');
+assert.ok(renderBlock.indexOf("if(!currentSubscriptionAccess().allowed)")<renderBlock.indexOf("if(state.operatorRequired&&!state.operator)"),'subscription gate must run before operator/service opening');
 assert.ok(app.includes("if(!currentSubscriptionAccess().allowed)throw new Error('SUBSCRIPTION_REQUIRED')"),'offline queue must reject new mutations after local entitlement expiry');
 for(const token of ['organizations?select=id,created_at','subscriptions?select=organization_id,status,trial_ends_at,current_period_end','remapro:subscription-required'])
   assert.ok(cloud.includes(token),'POS identity/server response handling must include '+token);
