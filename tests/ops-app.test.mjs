@@ -29,11 +29,12 @@ for(const token of ['trainingAction','Aucune vectorisation effectuée','limit:5'
 const simulationTokens=[
   'Simulation Lab','simulation_dashboard','simulation_create_campaign','simulation_generate_batch',
   'simulation_run_batch','simulation_promote_finding','Faiblesses détectées','Générer ','Tester 1',
-  "const VERSION='0.3.0'"
+  "const VERSION='0.3.1'"
 ];
 for(const token of simulationTokens)if(!app.includes(token))throw new Error('Missing Ops Simulation Lab token: '+token);
 
-for(const token of ['maxDailyCases','auto_on','auto_off','Auto serveur','tick toutes les 20 minutes'])if(!app.includes(token))throw new Error('Missing Simulation Lab server-auto token: '+token);\nfor(const forbidden of ['scheduleSimulationAuto','runSimulationAutoStep','simulationAutoBlocked'])if(app.includes(forbidden))throw new Error('Local Simulation Auto loop must be removed: '+forbidden);
+for(const token of ['maxDailyCases','auto_on','auto_off','Auto serveur','tick toutes les 20 minutes'])if(!app.includes(token))throw new Error('Missing Simulation Lab server-auto token: '+token);
+for(const forbidden of ['scheduleSimulationAuto','runSimulationAutoStep','simulationAutoBlocked'])if(app.includes(forbidden))throw new Error('Local Simulation Auto loop must be removed: '+forbidden);
 
 const simStart=app.indexOf('function simulationView()');
 const simEnd=app.indexOf('function jobsView()',simStart);
