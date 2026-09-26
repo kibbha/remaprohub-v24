@@ -95,3 +95,11 @@ and mark the ticket resolved.
 Replies are re-triaged by the Support/Dispatcher chain so new technical details can
 update diagnosis, engineering context and approval state without opening a duplicate
 ticket.
+
+
+### Conversation updates while engineering is active
+
+If a customer adds new details to a bug that already has an active engineering job,
+the ticket is re-triaged and its diagnostic context is refreshed, but ReMaPro does not
+create a second `execute_fix` approval. The ticket follows the existing engineering
+job until completion, cancellation or failure.
