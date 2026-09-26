@@ -861,6 +861,8 @@ async function bootstrapRestaurant(restaurant){
       if(data.openSession){
         state.cashSession={id:data.openSession.id,businessDate:data.openSession.business_date||data.openSession.businessDate,status:'open',openingCash:Number(data.openSession.opening_cash??data.openSession.openingCash)||0,synced:true};
         await kvSet(sessionKey(restaurant.id),state.cashSession);
+      }else if(state.online){
+        state.cashSession=null;await kvDelete(sessionKey(restaurant.id));
       }
       await refreshOperators();
       await Promise.all([refreshOperationalData(),refreshAvailability()]);
