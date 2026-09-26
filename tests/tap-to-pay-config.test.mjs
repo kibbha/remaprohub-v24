@@ -16,3 +16,5 @@ assert.ok(migration.includes("integration_mode in ('cloud','tap_to_pay','externa
 assert.ok(migration.includes("integration_mode in ('terminal_api_cloud','tim','tap_to_pay','direct','terminal_psp')"));
 assert.ok(migration.includes("v_provider='worldline' and v_mode not in ('terminal_api_cloud','tim','tap_to_pay')"));
 console.log('Worldline Tap to Pay Hub/backend readiness checks passed');
+
+assert.ok(app.includes("provider==='worldline'?['terminal_api_cloud','tim','tap_to_pay'].includes(integrationMode)"),'Hub accepts Worldline Tap to Pay provider mode');
