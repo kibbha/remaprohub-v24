@@ -841,7 +841,11 @@ async function bootstrapRestaurant(restaurant){
         applyPosSettings(head.settings);state.configurationBundle=null;state.bootstrap=data;
         await kvSet(catalogKey(restaurant.id),state.bootstrap);
       }else{
+        const runtime=await posFunction({action:'bootstrap',restaurantId:restaurant.id,deviceId:device.id});
+        if(state.restaurant?.id!==restaurant.id)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
         await refreshHubManagedConfiguration(head);
+        state.bootstrap={...(state.bootstrap||{}),profile:runtime?.profile||state.bootstrap?.profile||null,serverCursor:Number(runtime?.serverCursor)||Number(state.bootstrap?.serverCursor)||0,capabilities:runtime?.capabilities||state.bootstrap?.capabilities||{}};
+        if(runtime?.openSession)state.bootstrap.openSession=runtime.openSession;else delete state.bootstrap.openSession;
       }
       const data=state.bootstrap||{};
       if(data.openSession){
