@@ -187,31 +187,75 @@ export default {
       if(action==="platform_inbox"){
         if(!platformRole(ctx))return json({error:"Platform operator required"},403);
         const limit=Math.min(200,Math.max(1,Number(body.limit)||100));
-        const [ticketsResult,approvalsResult,runsResult]=await Promise.all([
+        const [ticketsResult,approvalsResult,runsResult,jobsResult]=await Promise.all([
           ctx.supabaseAdmin.from("support_tickets").select("*").order("updated_at",{ascending:false}).limit(limit),
           ctx.supabaseAdmin.from("support_approvals").select("*").eq("status","pending").order("created_at",{ascending:true}).limit(100),
-          ctx.supabaseAdmin.from("ai_agent_runs").select("*").order("created_at",{ascending:false}).limit(100)
+          ctx.supabaseAdmin.from("ai_agent_runs").select("*").order("created_at",{ascending:false}).limit(100),
+          ctx.supabaseAdmin.from("ai_engineering_jobs").select("*").order("updated_at",{ascending:false}).limit(100)
         ]);
-        if(ticketsResult.error||approvalsResult.error||runsResult.error)return json({error:"Unable to load platform inbox"},500);
-        return json({ok:true,tickets:ticketsResult.data||[],approvals:approvalsResult.data||[],runs:runsResult.data||[]});
+        if(ticketsResult.error||approvalsResult.error||runsResult.error||jobsResult.error)return json({error:"Unable to load platform inbox"},500);
+        return json({ok:true,tickets:ticketsResult.data||[],approvals:approvalsResult.data||[],runs:runsResult.data||[],jobs:jobsResult.data||[]});
       }
       if(action==="platform_review_approval"){
         if(!platformRole(ctx))return json({error:"Platform operator required"},403);
         const approvalId=clean(body.approvalId,64),decision=String(body.decision||"");
         if(!validUuid(approvalId)||!["approved","rejected"].includes(decision))return json({error:"Valid approval decision required"},400);
         const {data:approval,error:approvalError}=await ctx.supabaseAdmin.from("support_approvals")
-          .select("id,ticket_id,status").eq("id",approvalId).maybeSingle();
+          .select("id,ticket_id,status,action,payload").eq("id",approvalId).maybeSingle();
         if(approvalError||!approval)return json({error:"Approval not found"},404);
         if(approval.status!=="pending")return json({error:"Approval already reviewed"},409);
+        const {data:ticket,error:ticketError}=await ctx.supabaseAdmin.from("support_tickets")
+          .select("id,organization_id,application,category,assigned_agent,engineering_context").eq("id",approval.ticket_id).maybeSingle();
+        if(ticketError||!ticket)return json({error:"Ticket not found"},404);
         const reviewedAt=new Date().toISOString();
         const {data,error}=await ctx.supabaseAdmin.from("support_approvals").update({
           status:decision,reviewed_by:userId,reviewed_at:reviewedAt
         }).eq("id",approvalId).eq("status","pending").select("*").maybeSingle();
         if(error||!data)return json({error:"Unable to review approval"},500);
-        await ctx.supabaseAdmin.from("support_tickets").update({
-          status:decision==="approved"?"in_progress":"triaged",updated_at:reviewedAt
-        }).eq("id",approval.ticket_id);
-        return json({ok:true,approval:data});
+        let engineeringJob=null;
+        if(approval.action==="merge_pr"){
+          const jobId=String(approval.payload?.jobId||"");
+          if(!validUuid(jobId))return json({error:"Merge approval is missing a valid engineering job"},400);
+          const nextStatus=decision==="approved"?"merge_approved":"pr_open";
+          const {data:job,error:jobError}=await ctx.supabaseAdmin.from("ai_engineering_jobs").update({
+            status:nextStatus,updated_at:reviewedAt,last_error:decision==="approved"?"":"Merge approval rejected"
+          }).eq("id",jobId).select("*").maybeSingle();
+          if(jobError||!job)return json({error:"Unable to update merge gate"},500);
+          engineeringJob=job;
+          await ctx.supabaseAdmin.from("support_tickets").update({
+            status:decision==="approved"?"in_progress":"waiting_approval",updated_at:reviewedAt
+          }).eq("id",approval.ticket_id);
+        }else{
+          await ctx.supabaseAdmin.from("support_tickets").update({
+            status:decision==="approved"?"in_progress":"triaged",updated_at:reviewedAt
+          }).eq("id",approval.ticket_id);
+          if(decision==="approved"&&approval.action==="human_review"&&ticket.category==="bug"){
+            const baseBranch=ticket.application==="pos"?"pos/remapro-pos":"rebuild/remaprohub-clean";
+            const role=ticket.application==="pos"?"developer_pos":"developer_hub";
+            const context=ticket.engineering_context&&typeof ticket.engineering_context==="object"?ticket.engineering_context:{};
+            const {data:job,error:jobError}=await ctx.supabaseAdmin.from("ai_engineering_jobs").upsert({
+              ticket_id:ticket.id,organization_id:ticket.organization_id,application:ticket.application,
+              repository_full_name:"kibbha/remaprohub-v24",base_branch:baseBranch,status:"awaiting_execution",
+              requested_by_agent:role,approved_by:userId,execution_plan:context.specialist||{},
+              qa_plan:context.qa||{},last_error:"",updated_at:reviewedAt
+            },{onConflict:"ticket_id"}).select("*").single();
+            if(jobError)return json({error:"Approval recorded but engineering job could not be queued"},500);
+            engineeringJob=job;
+          }
+        }
+        return json({ok:true,approval:data,engineeringJob});
+      }
+
+      if(action==="platform_job_action"){
+        if(!platformRole(ctx))return json({error:"Platform operator required"},403);
+        const jobId=clean(body.jobId,64),jobAction=String(body.jobAction||"");
+        if(!validUuid(jobId)||!["retry","cancel"].includes(jobAction))return json({error:"Valid job action required"},400);
+        const patch:any={updated_at:new Date().toISOString()};
+        if(jobAction==="retry"){patch.status="awaiting_execution";patch.last_error="";patch.locked_at=null;patch.locked_by=null}
+        else patch.status="cancelled";
+        const {data,error}=await ctx.supabaseAdmin.from("ai_engineering_jobs").update(patch).eq("id",jobId).select("*").maybeSingle();
+        if(error||!data)return json({error:"Unable to update engineering job"},500);
+        return json({ok:true,job:data});
       }
 
       if(action==="platform_update"){

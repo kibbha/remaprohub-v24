@@ -37,3 +37,24 @@ The panel reads the global support inbox, recent agent runs and pending human-re
 approvals through `remapro-support`. Restaurant accounts cannot call these platform
 actions. Approval decisions update the approval record and move the ticket back into
 the controlled workflow; they do not merge or deploy code automatically.
+
+
+## Engineering execution queue
+
+Approved bug tickets now create one row in `ai_engineering_jobs`.
+
+Routing is deterministic:
+- Hub -> `rebuild/remaprohub-clean`
+- POS -> `pos/remapro-pos`
+
+The job carries the Developer Agent execution plan and QA acceptance plan. The
+platform console shows the engineering queue and permits retry/cancel operations.
+
+A pull request is not merge-authorized by the initial bug approval. After the
+engineering worker creates a PR and QA succeeds, a separate
+`support_approvals.action = merge_pr` approval must be created. Only an explicit
+platform-owner approval may move the job to `merge_approved`.
+
+The backend itself has no GitHub merge capability. Execution and merge are performed
+by the authorized worker through the GitHub connector, which keeps GitHub credentials
+out of Supabase.

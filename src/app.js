@@ -12,7 +12,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:''},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:'',platformLoaded:false,platformLoading:false,platformError:'',platformTickets:[],platformApprovals:[],platformRuns:[],platformJobs:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
 const state=load(),markCloudWorkspaceDirty=()=>{if(!cloudSession())return;const current=activeRestaurant(state);if(!current?.cloudId)return;const next=exportWorkspace(state),previous=current.workspace&&typeof current.workspace==='object'&&!Array.isArray(current.workspace)?current.workspace:{},writeKeys=cloudIdentity?cloudWorkspaceWriteKeys(cloudIdentity,current.cloudId):Object.keys(next),dirty=new Set(Array.isArray(current.cloudDirtyKeys)?current.cloudDirtyKeys:[]);for(const key of writeKeys)if(JSON.stringify(previous[key])!==JSON.stringify(next[key]))dirty.add(key);current.cloudDirtyKeys=[...dirty];current.cloudDirty=current.cloudDirtyKeys.length>0||current.cloudDirty},persist=()=>{markCloudWorkspaceDirty();save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -905,10 +905,10 @@ const isPlatformOperator=()=>['owner','support','developer','qa','release','prod
 function platformOpsPanel(){
   if(!isPlatformOperator())return '';
   const u=language()==='fr'
-    ?{title:'ReMaPro AI Operations',sub:'Supervision plateforme · tickets, agents et validations humaines',tickets:'Tickets',approvals:'Validations',runs:'Exécutions agents',approve:'Approuver',reject:'Rejeter',none:'Aucune validation en attente.',loading:'Chargement…'}
-    :{title:'ReMaPro AI Operations',sub:'Platform supervision · tickets, agents and human approvals',tickets:'Tickets',approvals:'Approvals',runs:'Agent runs',approve:'Approve',reject:'Reject',none:'No pending approval.',loading:'Loading…'};
+    ?{title:'ReMaPro AI Operations',sub:'Supervision plateforme · tickets, agents, travaux d’ingénierie et validations humaines',tickets:'Tickets',approvals:'Validations',runs:'Exécutions agents',jobs:'Travaux développeur',approve:'Approuver',reject:'Rejeter',retry:'Relancer',cancel:'Annuler',none:'Aucune validation en attente.',loading:'Chargement…'}
+    :{title:'ReMaPro AI Operations',sub:'Platform supervision · tickets, agents, engineering jobs and human approvals',tickets:'Tickets',approvals:'Approvals',runs:'Agent runs',jobs:'Developer jobs',approve:'Approve',reject:'Reject',retry:'Retry',cancel:'Cancel',none:'No pending approval.',loading:'Loading…'};
   if(!supportState.platformLoaded&&!supportState.platformLoading)setTimeout(()=>refreshPlatformOps(),0);
-  const tickets=supportState.platformTickets||[],approvals=supportState.platformApprovals||[],runs=supportState.platformRuns||[];
+  const tickets=supportState.platformTickets||[],approvals=supportState.platformApprovals||[],runs=supportState.platformRuns||[],jobs=supportState.platformJobs||[];
   const active=tickets.filter(x=>!['resolved','closed'].includes(x.status)).length;
   const critical=tickets.filter(x=>x.priority==='critical'&&!['resolved','closed'].includes(x.status)).length;
   return card(u.title,`<p class="muted">${u.sub}</p>
@@ -917,9 +917,12 @@ function platformOpsPanel(){
       <div class="kpi"><span>${u.tickets}</span><strong>${active}</strong><small>${critical} critical</small></div>
       <div class="kpi"><span>${u.approvals}</span><strong>${approvals.length}</strong><small>human gate</small></div>
       <div class="kpi"><span>${u.runs}</span><strong>${runs.length}</strong><small>latest 100</small></div>
+      <div class="kpi"><span>${u.jobs}</span><strong>${jobs.filter(x=>!['completed','cancelled'].includes(x.status)).length}</strong><small>engineering queue</small></div>
     </div>
     <h3>${u.approvals}</h3>
     ${approvals.length?approvals.map(a=>`<div class="row"><span><strong>${esc(a.action)}</strong><br><small class="muted">${esc(a.requested_by_agent||'agent')} · ${esc(a.ticket_id||'')}</small></span><span class="actions"><button class="btn compact primary" data-platform-approval="${esc(a.id)}" data-decision="approved">${u.approve}</button><button class="btn compact" data-platform-approval="${esc(a.id)}" data-decision="rejected">${u.reject}</button></span></div>`).join(''):`<p class="muted">${u.none}</p>`}
+    <h3>${u.jobs}</h3>
+    ${jobs.length?jobs.slice(0,12).map(j=>`<div class="row"><span><strong>${esc((j.application||'').toUpperCase())} · ${esc(j.status||'queued')}</strong><br><small class="muted">${esc(j.base_branch||'')} ${j.work_branch?'→ '+esc(j.work_branch):''}</small></span><span class="actions">${j.status==='failed'?'<button class="btn compact primary" data-platform-job="'+esc(j.id)+'" data-job-action="retry">'+u.retry+'</button>':''}${!['completed','cancelled'].includes(j.status)?'<button class="btn compact" data-platform-job="'+esc(j.id)+'" data-job-action="cancel">'+u.cancel+'</button>':''}</span></div>`).join(''):`<p class="muted">${u.loading}</p>`}
     <h3>${u.tickets}</h3>
     ${tickets.slice(0,12).map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc((x.application||'').toUpperCase())} · ${esc(x.priority||'normal')} · ${esc(x.assigned_agent||'support')}</small></span><span><small>${esc(x.status||'open')}</small></span></div>`).join('')||`<p class="muted">${u.loading}</p>`}
     <h3>${u.runs}</h3>
@@ -934,6 +937,7 @@ async function refreshPlatformOps(){
     supportState.platformTickets=Array.isArray(data?.tickets)?data.tickets:[];
     supportState.platformApprovals=Array.isArray(data?.approvals)?data.approvals:[];
     supportState.platformRuns=Array.isArray(data?.runs)?data.runs:[];
+    supportState.platformJobs=Array.isArray(data?.jobs)?data.jobs:[];
     supportState.platformLoaded=true;return true;
   }catch(error){supportState.platformError=error?.message||String(error);return false}
   finally{supportState.platformLoading=false;if(page==='help')render()}
@@ -948,9 +952,20 @@ async function reviewPlatformApproval(approvalId,decision){
   finally{supportState.platformLoading=false;await refreshPlatformOps()}
 }
 
+async function platformJobAction(jobId,jobAction){
+  if(!isPlatformOperator())return;
+  supportState.platformLoading=true;
+  try{
+    await cloudFunction('remapro-support',{action:'platform_job_action',jobId,jobAction},{attempts:1});
+    supportState.platformLoaded=false;
+  }catch(error){supportState.platformError=error?.message||String(error)}
+  finally{supportState.platformLoading=false;await refreshPlatformOps()}
+}
+
 function bindSupportPanel(){
   document.getElementById('supportTicketForm')?.addEventListener('submit',e=>{e.preventDefault();submitSupportTicket(e.currentTarget)});
   document.querySelectorAll('[data-platform-approval]').forEach(b=>b.addEventListener('click',()=>reviewPlatformApproval(b.dataset.platformApproval,b.dataset.decision)));
+  document.querySelectorAll('[data-platform-job]').forEach(b=>b.addEventListener('click',()=>platformJobAction(b.dataset.platformJob,b.dataset.jobAction)));
 }
 
 function help(){ensureAcademyStyles();if(!academyState.loaded&&!academyState.loading)setTimeout(()=>refreshAcademyProgress(),0);return `<section>${head(t('help'))}${renderAcademyCenter({application:'hub',scope:academyState.scope,locale:language(),query:academyState.query,role:academyState.role,module:academyState.module,progressRows:currentAcademyProgress(),selectedTopic:academyState.selectedTopic,selectedPath:academyState.selectedPath,troubleshoot:academyState.troubleshoot,manager:cloudManager(),canManageVisibility:cloudOrgAdmin(),managerVisibility:academyState.managerVisibility,managerRows:academyState.managerRows})}${supportPanel()}${platformOpsPanel()}</section>`}
