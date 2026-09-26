@@ -36,18 +36,21 @@ async function loadProfile(ctx:any,role:string){
 }
 async function retrieveKnowledge(ctx:any,key:string,profile:any,input:string){
   const scopes=Array.isArray(profile?.knowledge_scopes)?profile.knowledge_scopes:["global"];
+  const scopeSet=[...new Set(["global",...scopes])];
+  let semantic:any[]=[];
   if(key){
     try{
       const emb=await embedding(key,input);
-      const {data,error}=await ctx.supabaseAdmin.rpc("match_ai_knowledge",{query_embedding:emb,filter_scopes:scopes,match_count:8});
-      if(!error&&Array.isArray(data)&&data.length)return data;
+      const {data,error}=await ctx.supabaseAdmin.rpc("match_ai_knowledge",{query_embedding:emb,filter_scopes:scopes,match_count:6});
+      if(!error&&Array.isArray(data))semantic=data;
     }catch{}
   }
-  const scopeSet=[...new Set(["global",...scopes])];
-  const {data}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
+  const {data:recent}=await ctx.supabaseAdmin.from("ai_knowledge_documents")
     .select("id,scope,title,content,tags,source_type").eq("status","active").in("scope",scopeSet)
-    .order("updated_at",{ascending:false}).limit(8);
-  return data||[];
+    .order("updated_at",{ascending:false}).limit(6);
+  const merged=[...semantic,...(recent||[])];
+  const seen=new Set<string>();
+  return merged.filter((row:any)=>row?.id&&!seen.has(row.id)&&(seen.add(row.id),true)).slice(0,10);
 }
 function knowledgeBlock(rows:any[]){
   if(!rows?.length)return "No verified ReMaPro knowledge snippets were retrieved.";

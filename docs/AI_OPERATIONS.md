@@ -189,3 +189,14 @@ Real GitHub engineering remains in the separate approval-gated ReMaPro engineeri
 `execute_fix/execute_feature -> engineering job -> PR/tests -> merge_pr -> merge`.
 
 This separation means training an agent never grants it additional production permissions.
+
+
+### Evaluation-driven tuning v2
+
+The first full 18-case suite produced four failures. Tuning v2 changes only the affected roles:
+- Dispatcher: canonical routing fields and explicit POS/Hub developer routes.
+- Developer POS: mandatory payment + offline regression coverage for payment/table/order changes.
+- QA: concrete reproduction scenario required before happy-path/regression planning.
+- Support: use exact verified UI procedures when documented; otherwise state uncertainty instead of inventing UI.
+
+Verified knowledge was added for the Hub Support UI, POS regression matrix, QA reproduction structure and Dispatcher routing contract. The training runtime now merges semantic retrieval with recent scoped knowledge so newly updated verified documents are immediately available before their embeddings are refreshed.

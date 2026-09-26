@@ -12,3 +12,7 @@ for(const token of ['trainedAgent','ai_agent_profiles','ai_knowledge_documents',
 if(!config.includes('[functions.remapro-agent-runtime]'))throw new Error('Agent runtime config missing');
 if(runtime.includes('service_role')&&runtime.includes('globalThis.'))throw new Error('Do not expose server role secrets to clients');
 console.log('ReMaPro agent training runtime checks passed');
+
+for(const token of ['match_count:6','const merged=[...semantic,...(recent||[])]','slice(0,10)'])if(!runtime.includes(token))throw new Error('Missing hybrid knowledge retrieval token: '+token);
+const tuning=fs.readFileSync(new URL('../supabase/migrations/20260926162922_remapro_ai_agent_tuning_v2.sql',import.meta.url),'utf8');
+for(const token of ['hub-support-ui-v1','pos-regression-v1','qa-reproduction-v1','dispatcher-routing-contract-v1','category doit être bug et route doit être developer_pos','test de régression paiement','scénario de reproduction concret'])if(!tuning.includes(token))throw new Error('Missing tuning v2 token: '+token);
