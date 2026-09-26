@@ -1,9 +1,9 @@
 import{initializeCloudSessionStorage,cloudSession,signInCloud,signOutCloud,cloudFunction}from'./cloud.js';
 
-const VERSION='0.2.1';
+const VERSION='0.3.0';
 const AGENTS=['dispatcher','support','diagnostic','developer_hub','developer_pos','qa','product','knowledge','release'];
 const root=document.getElementById('app');
-const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingAction:'',trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:''};
+const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingAction:'',trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:'',simulationLoaded:false,simulationLoading:false,simulationAction:'',simulationCampaigns:[],simulationScenarios:[],simulationRuns:[],simulationFindings:[],simulationOutput:''};
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('fr-CH',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return String(v)}};
 const statusLabel=v=>({open:'Ouvert',triaged:'Trié',in_progress:'En cours',waiting_customer:'Attente client',waiting_approval:'Validation',resolved:'Résolu',closed:'Fermé',awaiting_execution:'À exécuter',executing:'Développement',testing:'Tests',pr_open:'PR ouverte',awaiting_merge_approval:'Fusion à valider',merge_approved:'Fusion autorisée',failed:'Échec',completed:'Terminé',cancelled:'Annulé'}[v]||String(v||'—'));
@@ -15,9 +15,9 @@ const render=()=>{root.innerHTML=!state.session?loginView():!state.operator?deni
 function loginView(){return `<main class="auth-shell"><section class="auth-card"><div class="brand-mark"><span>R</span><b>OPS</b></div><p class="eyebrow">REMAPRO INTERNAL</p><h1>ReMaPro Ops</h1><p class="muted">Console privée de supervision des agents IA, du support et des évolutions ReMaPro.</p>${state.error?`<div class="alert error">${esc(state.error)}</div>`:''}<form id="loginForm" class="form"><label>E-mail<input name="email" type="email" required autocomplete="username"></label><label>Mot de passe<input name="password" type="password" required autocomplete="current-password"></label><button class="primary" ${state.loading?'disabled':''}>${state.loading?'Connexion…':'Connexion propriétaire'}</button></form><small>Ops v${VERSION} · accès plateforme uniquement</small></section></main>`}
 function deniedView(){return `<main class="auth-shell"><section class="auth-card"><div class="brand-mark"><span>R</span><b>OPS</b></div><h1>Accès refusé</h1><p class="muted">Ce compte est authentifié mais n’est pas autorisé comme opérateur plateforme ReMaPro.</p><button id="logoutBtn">Se déconnecter</button></section></main>`}
 function navButton(id,label){return `<button class="nav-btn ${state.view===id?'active':''}" data-view="${id}">${label}</button>`}
-function shellView(){return `<div class="ops-shell"><aside><div class="side-brand"><div class="brand-mark small"><span>R</span><b>OPS</b></div><div><strong>ReMaPro Ops</strong><small>${esc(state.operator.role||'operator')}</small></div></div><nav>${navButton('dashboard','Vue d’ensemble')}${navButton('tickets','Support')}${navButton('agents','Agents IA')}${navButton('training','Entraînement')}${navButton('jobs','Développement')}${navButton('approvals','Validations')}</nav><div class="side-foot"><small>Dernière synchro<br>${fmtDate(state.lastRefresh)}</small><button id="logoutBtn" class="ghost">Déconnexion</button></div></aside><main class="content"><header><div><p class="eyebrow">REMAPRO INTERNAL</p><h1>${viewTitle()}</h1></div><button id="refreshBtn" class="refresh" ${state.loading?'disabled':''}>${state.loading?'Actualisation…':'Actualiser'}</button></header>${state.error?`<div class="alert error">${esc(state.error)}</div>`:''}${state.selected&&state.ticketDetail?ticketDetailView():contentView()}</main></div>`}
-function viewTitle(){return({dashboard:'AI Operations',tickets:'Support clients',agents:'Équipe IA',training:'Entraînement IA',jobs:'Travaux développeur',approvals:'Validations humaines'}[state.view]||'ReMaPro Ops')}
-function contentView(){if(state.loading&&!state.lastRefresh)return'<section class="loading-card">Chargement de ReMaPro Ops…</section>';if(state.view==='tickets')return ticketsView();if(state.view==='agents')return agentsView();if(state.view==='training')return trainingView();if(state.view==='jobs')return jobsView();if(state.view==='approvals')return approvalsView();return dashboardView()}
+function shellView(){return `<div class="ops-shell"><aside><div class="side-brand"><div class="brand-mark small"><span>R</span><b>OPS</b></div><div><strong>ReMaPro Ops</strong><small>${esc(state.operator.role||'operator')}</small></div></div><nav>${navButton('dashboard','Vue d’ensemble')}${navButton('tickets','Support')}${navButton('agents','Agents IA')}${navButton('training','Entraînement')}${navButton('simulation','Simulation Lab')}${navButton('jobs','Développement')}${navButton('approvals','Validations')}</nav><div class="side-foot"><small>Dernière synchro<br>${fmtDate(state.lastRefresh)}</small><button id="logoutBtn" class="ghost">Déconnexion</button></div></aside><main class="content"><header><div><p class="eyebrow">REMAPRO INTERNAL</p><h1>${viewTitle()}</h1></div><button id="refreshBtn" class="refresh" ${state.loading?'disabled':''}>${state.loading?'Actualisation…':'Actualiser'}</button></header>${state.error?`<div class="alert error">${esc(state.error)}</div>`:''}${state.selected&&state.ticketDetail?ticketDetailView():contentView()}</main></div>`}
+function viewTitle(){return({dashboard:'AI Operations',tickets:'Support clients',agents:'Équipe IA',training:'Entraînement IA',simulation:'Simulation Lab',jobs:'Travaux développeur',approvals:'Validations humaines'}[state.view]||'ReMaPro Ops')}
+function contentView(){if(state.loading&&!state.lastRefresh)return'<section class="loading-card">Chargement de ReMaPro Ops…</section>';if(state.view==='tickets')return ticketsView();if(state.view==='agents')return agentsView();if(state.view==='training')return trainingView();if(state.view==='simulation')return simulationView();if(state.view==='jobs')return jobsView();if(state.view==='approvals')return approvalsView();return dashboardView()}
 function kpi(label,value,sub,kind=''){return `<article class="kpi ${kind}"><span>${label}</span><strong>${value}</strong><small>${sub}</small></article>`}
 function dashboardView(){
  const active=state.tickets.filter(activeTicket),critical=active.filter(x=>x.priority==='critical'),auto=state.runs.filter(x=>x.status==='completed').length,openJobs=state.jobs.filter(x=>!['completed','cancelled'].includes(x.status));
@@ -112,6 +112,133 @@ async function runManualAgent(form){
  }catch(e){state.error=e?.message||String(e)}
  finally{state.trainingAction='';render()}
 }
+
+function simulationStatusLabel(v){return({draft:"Brouillon",generating:"Génération",ready:"Prête",running:"En cours",paused:"Pause",completed:"Terminée",failed:"Échec",cancelled:"Annulée",queued:"En attente",passed:"Réussi",error:"Erreur"}[v]||String(v||"—"))}
+function simulationPercent(v){return v==null?"—":Math.round(Number(v)*100)+"%"}
+function simulationView(){
+ if(!state.simulationLoaded&&!state.simulationLoading)setTimeout(function(){loadSimulation()},0);
+ if(state.simulationLoading&&!state.simulationLoaded)return '<section class="loading-card">Chargement du Simulation Lab…</section>';
+ var campaigns=state.simulationCampaigns||[],runs=state.simulationRuns||[],findings=state.simulationFindings||[];
+ var completed=runs.filter(function(x){return ["passed","failed"].includes(x.status)}),passed=completed.filter(function(x){return x.passed}).length;
+ var generated=campaigns.reduce(function(n,c){return n+Number(c.generated_count||0)},0);
+ var executed=campaigns.reduce(function(n,c){return n+Number(c.executed_count||0)},0);
+ var html='<section class="kpis">'+
+   kpi("Campagnes",campaigns.length,"simulation pré-production")+
+   kpi("Situations",generated,"tickets synthétiques générés")+
+   kpi("Exécutées",executed,findings.length+" faiblesse(s) ouverte(s)",findings.some(function(x){return x.severity==="critical"})?"danger":findings.length?"warn":"")+
+   kpi("Réussite",completed.length?Math.round(passed/completed.length*100)+"%":"—",completed.length+" simulation(s) notée(s)")+
+   '</section>';
+ if(state.simulationOutput)html+='<div class="alert simulation-info">'+esc(state.simulationOutput)+'</div>';
+ html+='<section class="grid two"><article class="panel"><div class="panel-head"><div><h2>Nouvelle campagne</h2><small>Crée une école de faux tickets réalistes. Aucune action réelle n’est exécutée.</small></div></div>'+
+ '<form id="simulationCampaignForm" class="form compact-form">'+
+ '<label>Nom<input name="name" maxlength="180" value="Pré-lancement ReMaPro" required></label>'+
+ '<div class="form-grid"><label>Objectif de cas<input name="targetCases" type="number" min="10" max="5000" value="100" required></label><label>Maximum / jour<input name="maxDailyCases" type="number" min="1" max="500" value="25" required></label><label>Lot de génération<input name="batchSize" type="number" min="1" max="20" value="10" required></label></div>'+
+ '<fieldset><legend>Applications</legend><label class="check"><input type="checkbox" name="applications" value="hub" checked> Hub</label><label class="check"><input type="checkbox" name="applications" value="pos" checked> POS</label></fieldset>'+
+ '<fieldset><legend>Langues</legend><label class="check"><input type="checkbox" name="languages" value="fr" checked> FR</label><label class="check"><input type="checkbox" name="languages" value="en" checked> EN</label><label class="check"><input type="checkbox" name="languages" value="de" checked> DE</label><label class="check"><input type="checkbox" name="languages" value="it" checked> IT</label></fieldset>'+
+ '<fieldset><legend>Modes</legend><label class="check"><input type="checkbox" name="modes" value="standard" checked> Standard</label><label class="check"><input type="checkbox" name="modes" value="difficult" checked> Difficile</label><label class="check"><input type="checkbox" name="modes" value="edge" checked> Cas limite</label><label class="check"><input type="checkbox" name="modes" value="multilingual" checked> Multilingue</label><label class="check"><input type="checkbox" name="modes" value="chaos" checked> Chaos</label></fieldset>'+
+ '<button class="primary" '+(state.simulationAction?'disabled':'')+'>'+(state.simulationAction==="create"?"Création…":"Créer la campagne")+'</button></form></article>'+
+ '<article class="panel"><div class="panel-head"><div><h2>Principe</h2><small>Les simulations utilisent les vrais profils et connaissances ReMaPro.</small></div></div>'+
+ '<div class="simulation-rule"><b>1.</b><span>Générateur → crée des tickets plausibles, sans données personnelles réelles.</span></div>'+
+ '<div class="simulation-rule"><b>2.</b><span>Dispatcher → Support/Diagnostic/Product/Developer/QA selon le cas.</span></div>'+
+ '<div class="simulation-rule"><b>3.</b><span>Évaluateur → note chaque rôle, sécurité comprise.</span></div>'+
+ '<div class="simulation-rule"><b>4.</b><span>Une faiblesse peut être promue en test de régression permanent.</span></div>'+
+ '<div class="simulation-rule"><b>5.</b><span>Aucun merge, paiement, déploiement ou changement client n’est disponible en simulation.</span></div></article></section>';
+ html+='<section class="panel"><div class="panel-head"><div><h2>Campagnes</h2><small>Génère par lots ; exécute un cas à la fois pour rester fiable sur mobile.</small></div><button id="simulationRefreshBtn" class="small">Actualiser</button></div>'+
+   (campaigns.length?campaigns.map(simulationCampaignRow).join(""):'<p class="empty">Aucune campagne. Crée la première ci-dessus.</p>')+'</section>';
+ html+='<section class="grid two"><article class="panel"><div class="panel-head"><div><h2>Faiblesses détectées</h2><small>Transforme les cas utiles en tests permanents.</small></div></div>'+
+   (findings.length?findings.slice(0,30).map(simulationFindingRow).join(""):'<p class="empty">Aucune faiblesse ouverte.</p>')+
+   '</article><article class="panel"><div class="panel-head"><div><h2>Situations récentes</h2><small>100 derniers tickets synthétiques.</small></div></div>'+
+   ((state.simulationScenarios||[]).slice(0,30).map(simulationScenarioRow).join("")||'<p class="empty">Aucune situation générée.</p>')+
+   '</article></section>';
+ return html;
+}
+function simulationCampaignRow(c){
+ var generated=Number(c.generated_count||0),target=Number(c.target_cases||0),executed=Number(c.executed_count||0);
+ var progress=target?Math.min(100,Math.round(generated/target*100)):0;
+ var stopped=["completed","cancelled"].includes(c.status),paused=c.status==="paused";
+ return '<div class="simulation-campaign"><div class="simulation-campaign-head"><span><strong>'+esc(c.name)+'</strong><small>'+esc(simulationStatusLabel(c.status))+' · '+generated+'/'+target+' générés · '+executed+' exécutés · réussite '+simulationPercent(c.pass_rate)+'</small></span><span class="app-chip">'+esc(c.max_daily_cases)+' / jour</span></div>'+
+ '<div class="progress"><span style="width:'+progress+'%"></span></div>'+
+ '<div class="simulation-stats"><span>'+(c.passed_count||0)+' réussis</span><span>'+(c.failed_count||0)+' à améliorer</span><span>'+(c.open_findings||0)+' faiblesses</span></div>'+
+ '<div class="actions simulation-actions"><button class="small primary" data-sim-generate="'+esc(c.id)+'" '+(stopped||state.simulationAction?'disabled':'')+'>Générer '+Math.min(20,Number(c.batch_size||10))+'</button>'+
+ '<button class="small" data-sim-run="'+esc(c.id)+'" '+(stopped||paused||state.simulationAction?'disabled':'')+'>Tester 1</button>'+
+ (paused?'<button class="small" data-sim-campaign="'+esc(c.id)+'" data-sim-campaign-action="resume">Reprendre</button>':!stopped?'<button class="small" data-sim-campaign="'+esc(c.id)+'" data-sim-campaign-action="pause">Pause</button>':'')+
+ '</div></div>';
+}
+function simulationScenarioRow(s){
+ return '<div class="line"><span><strong>'+esc(s.subject)+'</strong><small>'+esc((s.application||"").toUpperCase())+' · '+esc(s.language)+' · '+esc(s.category)+' · '+esc(s.difficulty)+' · '+esc(s.mode)+'</small></span><span><b class="sim-status '+esc(s.status)+'">'+esc(simulationStatusLabel(s.status))+'</b><small>'+fmtDate(s.created_at)+'</small></span></div>';
+}
+function simulationFindingRow(f){
+ return '<div class="finding-row severity-'+esc(f.severity)+'"><span class="approval-icon">!</span><span class="grow"><strong>'+esc(agentLabel(f.agent_role))+' · '+esc(f.finding_type)+'</strong><small>'+esc(f.severity)+' · '+fmtDate(f.created_at)+'</small><p>'+esc(f.summary)+'</p></span><span class="actions">'+
+ (f.agent_role!=="system"?'<button class="small primary" data-sim-promote="'+esc(f.id)+'">Promouvoir</button>':'')+
+ '<button class="small" data-sim-dismiss="'+esc(f.id)+'">Ignorer</button></span></div>';
+}
+async function loadSimulation(force){
+ force=!!force;if(state.simulationLoading||(!force&&state.simulationLoaded))return;
+ state.simulationLoading=true;if(!state.simulationLoaded)render();
+ try{
+  var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_dashboard"},{attempts:1,timeoutMs:60000});
+  state.simulationCampaigns=Array.isArray(data&&data.campaigns)?data.campaigns:[];
+  state.simulationScenarios=Array.isArray(data&&data.scenarios)?data.scenarios:[];
+  state.simulationRuns=Array.isArray(data&&data.runs)?data.runs:[];
+  state.simulationFindings=Array.isArray(data&&data.findings)?data.findings:[];
+  state.simulationLoaded=true;
+ }catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationLoading=false;render()}
+}
+async function createSimulationCampaign(form){
+ if(state.simulationAction)return;
+ var d=new FormData(form),values=function(name){return d.getAll(name).map(String)};
+ state.simulationAction="create";state.error="";render();
+ try{
+  var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_create_campaign",name:String(d.get("name")||"").trim(),
+   targetCases:Number(d.get("targetCases")||100),maxDailyCases:Number(d.get("maxDailyCases")||25),batchSize:Number(d.get("batchSize")||10),
+   applications:values("applications"),languages:values("languages"),modes:values("modes"),difficulties:["easy","normal","hard","critical"]},
+   {attempts:1,timeoutMs:60000});
+  state.simulationOutput="Campagne « "+String(data&&data.campaign&&data.campaign.name||"")+" » créée. Commence par générer un lot de situations.";
+ }catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
+async function generateSimulation(campaignId){
+ if(state.simulationAction)return;
+ var c=state.simulationCampaigns.find(function(x){return x.id===campaignId}),count=Math.min(20,Number(c&&c.batch_size||10));
+ state.simulationAction="generate";state.error="";render();
+ try{
+  var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_generate_batch",campaignId:campaignId,count:count},{attempts:1,timeoutMs:120000});
+  state.simulationOutput=Number(data&&data.generated||0)+" situation(s) générée(s). "+Number(data&&data.remaining||0)+" restante(s) pour atteindre l’objectif.";
+ }catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
+async function runSimulation(campaignId){
+ if(state.simulationAction)return;
+ state.simulationAction="run";state.error="";render();
+ try{
+  var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_run_batch",campaignId:campaignId,count:1},{attempts:1,timeoutMs:180000});
+  var result=(data&&data.results||[])[0];
+  state.simulationOutput=data&&data.dailyLimitReached?"Limite quotidienne atteinte pour cette campagne.":result&&result.error?"Simulation en erreur : "+result.error:result?"Simulation notée "+Math.round(Number(result.score||0)*100)+"% — "+(result.passed?"RÉUSSIE":"À AMÉLIORER")+".":"Aucune situation en attente à exécuter.";
+ }catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
+async function simulationCampaignAction(campaignId,campaignAction){
+ if(state.simulationAction)return;state.simulationAction="campaign";state.error="";render();
+ try{await cloudFunction("remapro-agent-runtime",{action:"simulation_campaign_action",campaignId:campaignId,campaignAction:campaignAction},{attempts:1,timeoutMs:60000})}
+ catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
+async function promoteSimulationFinding(findingId){
+ if(state.simulationAction)return;state.simulationAction="promote";state.error="";render();
+ try{
+  var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_promote_finding",findingId:findingId},{attempts:1,timeoutMs:60000});
+  state.simulationOutput="Faiblesse promue en test permanent : "+String(data&&data.trainingCase&&data.trainingCase.name||"")+".";
+  state.trainingLoaded=false;
+ }catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
+async function dismissSimulationFinding(findingId){
+ if(state.simulationAction)return;state.simulationAction="dismiss";state.error="";render();
+ try{await cloudFunction("remapro-agent-runtime",{action:"simulation_dismiss_finding",findingId:findingId},{attempts:1,timeoutMs:60000})}
+ catch(e){state.error=e&&e.message||String(e)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
+}
 function jobsView(){return `<section class="panel"><div class="panel-head"><h2>File d’ingénierie</h2><small>Hub et POS · aucune fusion sans validation finale</small></div>${jobRows(state.jobs)}</section>`}
 function jobRows(rows){return rows.length?rows.map(j=>`<div class="job-row"><span class="app-chip ${esc(j.application)}">${esc((j.application||'').toUpperCase())}</span><span class="grow"><strong>${esc(statusLabel(j.status))}</strong><small>${esc(j.base_branch||'')} ${j.work_branch?'→ '+esc(j.work_branch):''}</small>${j.github_pr_number?`<em>PR #${esc(j.github_pr_number)}</em>`:''}${j.last_error?`<em class="error-text">${esc(short(j.last_error))}</em>`:''}</span><span class="actions">${j.status==='failed'?`<button class="primary small" data-job="${esc(j.id)}" data-job-action="retry">Relancer</button>`:''}${!['completed','cancelled'].includes(j.status)?`<button class="small" data-job="${esc(j.id)}" data-job-action="cancel">Annuler</button>`:''}</span></div>`).join(''):'<p class="empty">Aucun travail développeur.</p>'}
 function approvalsView(){return `<section class="panel"><div class="panel-head"><h2>Décisions en attente</h2><small>Les agents ne peuvent pas franchir ces étapes sans ton accord.</small></div>${approvalRows(state.approvals)}</section>`}
@@ -137,7 +264,7 @@ function bind(){
  document.getElementById('loginForm')?.addEventListener('submit',async e=>{e.preventDefault();state.loading=true;state.error='';render();const d=new FormData(e.currentTarget);try{await signInCloud(String(d.get('email')||''),String(d.get('password')||''));state.session=cloudSession();await loadPlatform()}catch(err){state.error=err?.message||'Connexion impossible';state.loading=false;render()}});
  document.getElementById('logoutBtn')?.addEventListener('click',logout);
  document.getElementById('refreshBtn')?.addEventListener('click',loadPlatform);
- document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{state.view=b.dataset.view;state.selected=null;state.ticketDetail=null;if(state.view==='training'&&!state.trainingLoaded)setTimeout(()=>loadTraining(),0);render()}));
+ document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{state.view=b.dataset.view;state.selected=null;state.ticketDetail=null;if(state.view==='training'&&!state.trainingLoaded)setTimeout(()=>loadTraining(),0);if(state.view==='simulation'&&!state.simulationLoaded)setTimeout(()=>loadSimulation(),0);render()}));
  document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{state.ticketFilter=b.dataset.filter;render()}));
  document.querySelectorAll('[data-ticket]').forEach(b=>b.addEventListener('click',()=>openTicket(b.dataset.ticket)));
  document.querySelectorAll('[data-approval]').forEach(b=>b.addEventListener('click',()=>reviewApproval(b.dataset.approval,b.dataset.decision)));
@@ -148,6 +275,13 @@ function bind(){
  document.getElementById('runNextTrainingBtn')?.addEventListener('click',runNextTraining);
  document.getElementById('embedKnowledgeBtn')?.addEventListener('click',embedKnowledge);
  document.getElementById('manualAgentForm')?.addEventListener('submit',e=>{e.preventDefault();runManualAgent(e.currentTarget)});
+ document.getElementById('simulationCampaignForm')?.addEventListener('submit',e=>{e.preventDefault();createSimulationCampaign(e.currentTarget)});
+ document.getElementById('simulationRefreshBtn')?.addEventListener('click',()=>loadSimulation(true));
+ document.querySelectorAll('[data-sim-generate]').forEach(b=>b.addEventListener('click',()=>generateSimulation(b.dataset.simGenerate)));
+ document.querySelectorAll('[data-sim-run]').forEach(b=>b.addEventListener('click',()=>runSimulation(b.dataset.simRun)));
+ document.querySelectorAll('[data-sim-campaign]').forEach(b=>b.addEventListener('click',()=>simulationCampaignAction(b.dataset.simCampaign,b.dataset.simCampaignAction)));
+ document.querySelectorAll('[data-sim-promote]').forEach(b=>b.addEventListener('click',()=>promoteSimulationFinding(b.dataset.simPromote)));
+ document.querySelectorAll('[data-sim-dismiss]').forEach(b=>b.addEventListener('click',()=>dismissSimulationFinding(b.dataset.simDismiss)));
 }
 async function boot(){try{await initializeCloudSessionStorage();state.session=cloudSession();if(state.session)await loadPlatform();else render()}catch(e){state.error=e?.message||String(e);render()}}
 boot();
