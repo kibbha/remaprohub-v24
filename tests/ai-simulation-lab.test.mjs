@@ -45,3 +45,7 @@ if(!config.includes('[functions.remapro-agent-runtime]\nverify_jwt = false'))thr
 if(!runtime.includes('ctx.authMode!=="user"||!userId'))throw new Error('Normal Ops actions must still require user auth');
 
 for(const token of ['claim_failed','.eq("id",scenario.id).in("status",["queued","error"])','if(!claimed)continue'])if(!runtime.includes(token))throw new Error('Missing atomic simulation claim token: '+token);
+
+for(const token of ['knowledge_indexed','pendingKnowledge','remapro_worker_embedding_failed','limit(5)'])if(!runtime.includes(token))throw new Error('Missing worker knowledge-indexing token: '+token);
+const learning=fs.readFileSync(new URL('../supabase/migrations/20260926191656_remapro_ai_simulation_learning_round1.sql',import.meta.url),'utf8');
+for(const token of ['sensitive-billing-handling-v1','business-object-repro-v1','product-offline-risk-checklist-v1','approval-vs-diagnostic-v1','requires_human=true uniquement'])if(!learning.includes(token))throw new Error('Missing simulation learning round 1 token: '+token);
