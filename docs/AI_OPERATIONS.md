@@ -83,3 +83,15 @@ branch. Criticality does not bypass the gate.
 
 The second gate remains independent: after the worker creates a PR and QA succeeds,
 the system creates `merge_pr`. Approval of `execute_fix` never authorizes merge.
+
+
+## Customer support conversations
+
+Hub and POS support surfaces now use the existing authenticated ticket API for a
+complete conversation lifecycle. A restaurant user can open one of their authorized
+tickets, read the chronological message history, reply with fresh application context,
+and mark the ticket resolved.
+
+Replies are re-triaged by the Support/Dispatcher chain so new technical details can
+update diagnosis, engineering context and approval state without opening a duplicate
+ticket.
