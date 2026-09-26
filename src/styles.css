@@ -494,3 +494,20 @@ body:has(.pos-sale-shell){background:#111213;color:#f3f2ef}
 .service-close-page{max-width:920px;margin:auto;padding:20px 16px 100px;display:grid;gap:16px}.service-close-page .card{margin:0;min-width:0}.service-close-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-close-checks button{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:64px;text-align:left}.service-close-checks strong{font-size:24px}.service-close-checks .needs-action{border-color:#d49b65;background:#fff1e3;color:#703b10}.service-payment-rows>div,.service-last-close>div{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid #d8d0c5}.service-last-close{padding:12px;margin:12px 0;border:1px solid #95b6a0;border-radius:12px;background:#eef7f0;color:#24563a}.service-last-close h2{font-size:16px}.service-last-close p{font-size:12px}.mobile-sale-switch{display:none}
 @media(max-width:820px){.mobile-sale-switch{display:flex;gap:8px;margin:8px}.mobile-sale-switch button{flex:1;min-height:44px;border:1px solid #555;border-radius:10px;background:#292a2c;color:#eee;font-weight:700}.mobile-sale-switch button[aria-pressed=true]{background:#ed762d;color:#21150f;border-color:#ed762d}.mobile-panel-products .cart{display:none}.mobile-panel-cart .products,.mobile-panel-cart .categories{display:none}.pos-sale-shell.mobile-panel-cart .cart{min-height:55vh}.service-sync-chip{max-width:none;font-size:11px;min-height:36px}.service-close-page{padding:12px 10px 100px}}
 @media(max-width:420px){.service-close-checks{grid-template-columns:1fr}}
+
+
+/* Touch ergonomics: restaurant service on phone/tablet */
+.pos-sale-shell button,.pos-sale-shell .category,.pos-sale-shell .product,.pos-sale-shell .nav-tab{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.pos-sale-shell .category,.pos-sale-shell .nav-tab,.pos-sale-shell .pos-quick-actions button{min-height:44px}
+.pos-sale-shell .product{min-height:82px}
+.pos-sale-shell .categories,.pos-sale-shell .layout-subcategory-tabs{scrollbar-width:thin;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+.pos-sale-shell .product:active{transform:scale(.985)}
+.pos-sale-shell button:focus-visible,.pos-sale-shell .product:focus-visible,.pos-sale-shell .category:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+@media(max-width:820px){
+  .pos-sale-shell .categories{scroll-snap-type:x proximity}
+  .pos-sale-shell .category{scroll-snap-align:start;min-height:44px}
+  .pos-sale-shell .product{min-height:76px}
+}
+@media(pointer:coarse){
+  .pos-sale-shell button,.pos-sale-shell input,.pos-sale-shell select{min-height:44px}
+}
