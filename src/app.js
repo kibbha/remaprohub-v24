@@ -12,7 +12,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:'',platformLoaded:false,platformLoading:false,platformError:'',platformTickets:[],platformApprovals:[],platformRuns:[],platformJobs:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:'',platformLoaded:false,platformLoading:false,platformContextLoading:false,platformRoleChecked:false,platformRole:'',platformUserId:'',platformError:'',platformTickets:[],platformApprovals:[],platformRuns:[],platformJobs:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
 const state=load(),markCloudWorkspaceDirty=()=>{if(!cloudSession())return;const current=activeRestaurant(state);if(!current?.cloudId)return;const next=exportWorkspace(state),previous=current.workspace&&typeof current.workspace==='object'&&!Array.isArray(current.workspace)?current.workspace:{},writeKeys=cloudIdentity?cloudWorkspaceWriteKeys(cloudIdentity,current.cloudId):Object.keys(next),dirty=new Set(Array.isArray(current.cloudDirtyKeys)?current.cloudDirtyKeys:[]);for(const key of writeKeys)if(JSON.stringify(previous[key])!==JSON.stringify(next[key]))dirty.add(key);current.cloudDirtyKeys=[...dirty];current.cloudDirty=current.cloudDirtyKeys.length>0||current.cloudDirty},persist=()=>{markCloudWorkspaceDirty();save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -900,9 +900,33 @@ async function submitSupportTicket(form){
   finally{supportState.loading=false;await refreshSupportTickets()}
 }
 
-const platformRole=()=>String(cloudIdentity?.user?.app_metadata?.remapro_platform_role||'');
-const isPlatformOperator=()=>['owner','support','developer','qa','release','product'].includes(platformRole());
+const currentPlatformUserId=()=>String(cloudIdentity?.user?.id||cloudSession()?.user?.id||'');
+const platformRole=()=>supportState.platformUserId===currentPlatformUserId()?String(supportState.platformRole||''):'';
+const isPlatformOperator=()=>!!currentPlatformUserId()&&['owner','support','developer','qa','release','product'].includes(platformRole());
+async function refreshPlatformContext(){
+  const userId=currentPlatformUserId();
+  if(!userId){supportState.platformUserId='';supportState.platformRole='';supportState.platformRoleChecked=false;return false}
+  if(supportState.platformContextLoading)return false;
+  supportState.platformContextLoading=true;
+  try{
+    const data=await cloudFunction('remapro-support',{action:'platform_context'},{attempts:1});
+    supportState.platformUserId=userId;
+    supportState.platformRole=String(data?.role||'');
+    supportState.platformRoleChecked=true;
+    return !!data?.isPlatformOperator;
+  }catch(error){
+    supportState.platformUserId=userId;
+    supportState.platformRole='';
+    supportState.platformRoleChecked=true;
+    return false;
+  }finally{
+    supportState.platformContextLoading=false;
+    if(page==='help')render();
+  }
+}
 function platformOpsPanel(){
+  const userId=currentPlatformUserId();
+  if(userId&&(!supportState.platformRoleChecked||supportState.platformUserId!==userId)&&!supportState.platformContextLoading)setTimeout(()=>refreshPlatformContext(),0);
   if(!isPlatformOperator())return '';
   const u=language()==='fr'
     ?{title:'ReMaPro AI Operations',sub:'Supervision plateforme · tickets, agents, travaux d’ingénierie et validations humaines',tickets:'Tickets',approvals:'Validations',runs:'Exécutions agents',jobs:'Travaux développeur',approve:'Approuver',reject:'Rejeter',retry:'Relancer',cancel:'Annuler',none:'Aucune validation en attente.',loading:'Chargement…'}
