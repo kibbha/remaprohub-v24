@@ -154,3 +154,10 @@ assert.ok(source.includes('posLayoutAvailabilityReset'));
 assert.ok(edge.includes('Standalone layout item requires name, price and valid tax rate'));
 assert.ok(edge.includes('standaloneLayoutItems:true'));
 console.log('Hub POS layout editor issue #6 checks passed');
+
+const layoutSource=fs.readFileSync(new URL('../app/src/pos-layout.js',import.meta.url),'utf8');
+for(const token of ['data-layout-option-form','data-layout-delete-option','data-layout-delete-modifier','data-layout-choice-form','data-layout-delete-choice','data-layout-delete-menu']){
+  assert.ok(layoutSource.includes(token),'structured Hub editor includes '+token);
+}
+assert.ok(!layoutSource.includes("prompt('Nom de l’option')"),'modifier editing no longer depends on prompt dialogs');
+assert.ok(!layoutSource.includes("prompt('Nom du choix')"),'menu choice editing no longer depends on prompt dialogs');
