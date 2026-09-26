@@ -12,7 +12,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:'',platformLoaded:false,platformLoading:false,platformContextLoading:false,platformRoleChecked:false,platformRole:'',platformUserId:'',platformError:'',platformTickets:[],platformApprovals:[],platformRuns:[],platformJobs:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:'',selectedTicket:null,messages:[],conversationLoading:false,platformLoaded:false,platformLoading:false,platformContextLoading:false,platformRoleChecked:false,platformRole:'',platformUserId:'',platformError:'',platformTickets:[],platformApprovals:[],platformRuns:[],platformJobs:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
 const state=load(),markCloudWorkspaceDirty=()=>{if(!cloudSession())return;const current=activeRestaurant(state);if(!current?.cloudId)return;const next=exportWorkspace(state),previous=current.workspace&&typeof current.workspace==='object'&&!Array.isArray(current.workspace)?current.workspace:{},writeKeys=cloudIdentity?cloudWorkspaceWriteKeys(cloudIdentity,current.cloudId):Object.keys(next),dirty=new Set(Array.isArray(current.cloudDirtyKeys)?current.cloudDirtyKeys:[]);for(const key of writeKeys)if(JSON.stringify(previous[key])!==JSON.stringify(next[key]))dirty.add(key);current.cloudDirtyKeys=[...dirty];current.cloudDirty=current.cloudDirtyKeys.length>0||current.cloudDirty},persist=()=>{markCloudWorkspaceDirty();save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -860,15 +860,28 @@ function bindHubAcademy(){
 
 
 function supportCopy(){const copy={
-fr:{title:'Support ReMaPro',sub:'Une question, un bug ou une suggestion ? Votre demande est analysée par nos agents IA et reste suivie dans un ticket.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes récentes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.'},
-en:{title:'ReMaPro Support',sub:'Question, bug or suggestion? Your request is analysed by our AI agents and tracked in a ticket.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My recent requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.'},
-de:{title:'ReMaPro Support',sub:'Frage, Fehler oder Vorschlag? Ihre Anfrage wird von unseren KI-Agenten analysiert und als Ticket verfolgt.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine letzten Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.'},
-it:{title:'Supporto ReMaPro',sub:'Domanda, bug o suggerimento? La richiesta viene analizzata dai nostri agenti IA e seguita tramite ticket.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste recenti',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.'}
+fr:{title:'Support ReMaPro',sub:'Une question, un bug ou une suggestion ? Votre demande est analysée par nos agents IA et reste suivie dans un ticket.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes récentes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.',open:'Ouvrir',back:'Retour aux demandes',conversation:'Conversation',answer:'Répondre',resolve:'Marquer résolu',resolved:'Résolu',you:'Vous',ai:'ReMaPro IA',operator:'Support ReMaPro',system:'Système'},
+en:{title:'ReMaPro Support',sub:'Question, bug or suggestion? Your request is analysed by our AI agents and tracked in a ticket.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My recent requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.',open:'Open',back:'Back to requests',conversation:'Conversation',answer:'Reply',resolve:'Mark resolved',resolved:'Resolved',you:'You',ai:'ReMaPro AI',operator:'ReMaPro Support',system:'System'},
+de:{title:'ReMaPro Support',sub:'Frage, Fehler oder Vorschlag? Ihre Anfrage wird von unseren KI-Agenten analysiert und als Ticket verfolgt.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine letzten Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.',open:'Öffnen',back:'Zurück zu Anfragen',conversation:'Unterhaltung',answer:'Antworten',resolve:'Als gelöst markieren',resolved:'Gelöst',you:'Sie',ai:'ReMaPro KI',operator:'ReMaPro Support',system:'System'},
+it:{title:'Supporto ReMaPro',sub:'Domanda, bug o suggerimento? La richiesta viene analizzata dai nostri agenti IA e seguita tramite ticket.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste recenti',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.',open:'Apri',back:'Torna alle richieste',conversation:'Conversazione',answer:'Rispondi',resolve:'Segna risolto',resolved:'Risolto',you:'Tu',ai:'ReMaPro IA',operator:'Supporto ReMaPro',system:'Sistema'}
 };return copy[language()]||copy.fr}
 function supportPanel(){
   const u=supportCopy(),org=cloudOrganizationId(),rid=cloudRestaurantId();
   if(!cloudSession()||!org)return card(u.title,`<p class="muted">${u.signin}</p>`);
   if(!supportState.loaded&&!supportState.loading)setTimeout(()=>refreshSupportTickets(),0);
+  const selected=supportState.selectedTicket;
+  if(selected){
+    const closed=['resolved','closed'].includes(String(selected.status||''));
+    const senderLabel=type=>type==='customer'?u.you:type==='ai'?u.ai:type==='operator'?u.operator:u.system;
+    const thread=(supportState.messages||[]).map(m=>`<div class="notice"><strong>${esc(senderLabel(m.sender_type))}</strong><p>${esc(m.body||'')}</p><small class="muted">${esc(m.created_at?new Date(m.created_at).toLocaleString(language()):'')}</small></div>`).join('');
+    return card(u.title,`<button type="button" class="btn compact" data-support-back>← ${u.back}</button>
+      <h3>${esc(selected.subject)}</h3>
+      <p class="muted">${u.status}: ${esc(selected.status||'open')} · ${u.priority}: ${esc(selected.priority||'normal')}</p>
+      <h3>${u.conversation}</h3>
+      ${thread||`<p class="muted">${u.loading}</p>`}
+      ${closed?`<div class="notice"><strong>${u.resolved}</strong></div>`:`<form id="supportReplyForm" class="form"><textarea name="message" maxlength="6000" rows="4" required placeholder="${u.message}"></textarea><div class="actions"><button class="btn primary" ${supportState.conversationLoading?'disabled':''}>${u.answer}</button><button type="button" class="btn" data-support-resolve>${u.resolve}</button></div></form>`}
+    `);
+  }
   const tickets=(supportState.tickets||[]).slice(0,8);
   return card(u.title,`<p class="muted">${u.sub}</p>
     ${supportState.error?`<div class="notice error">${esc(supportState.error)}</div>`:''}
@@ -879,7 +892,7 @@ function supportPanel(){
       <button class="btn primary" ${supportState.loading?'disabled':''}>${supportState.loading?u.loading:u.send}</button>
     </form>
     <h3>${u.recent}</h3>
-    <div>${tickets.length?tickets.map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc(x.application?.toUpperCase()||'')} · ${u.priority}: ${esc(x.priority||'normal')}</small></span><span><small>${u.status}: ${esc(x.status||'open')}</small></span></div>`).join(''):`<p class="muted">${u.empty}</p>`}</div>`);
+    <div>${tickets.length?tickets.map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc(x.application?.toUpperCase()||'')} · ${u.priority}: ${esc(x.priority||'normal')} · ${u.status}: ${esc(x.status||'open')}</small></span><button type="button" class="btn compact" data-support-open="${esc(x.id)}">${u.open}</button></div>`).join(''):`<p class="muted">${u.empty}</p>`}</div>`);
 }
 async function refreshSupportTickets(){
   const org=cloudOrganizationId(),rid=cloudRestaurantId();if(!cloudSession()||!org||supportState.loading)return false;
@@ -898,6 +911,35 @@ async function submitSupportTicket(form){
     supportState.lastReply=String(data?.assistantReply||supportCopy().sent);supportState.loaded=false;
   }catch(error){supportState.error=error?.message||String(error)}
   finally{supportState.loading=false;await refreshSupportTickets()}
+}
+
+async function loadSupportConversation(ticketId){
+  const org=cloudOrganizationId(),rid=cloudRestaurantId();if(!org||!ticketId)return false;
+  supportState.conversationLoading=true;supportState.error='';
+  try{
+    const data=await cloudFunction('remapro-support',{action:'get_ticket',organizationId:org,restaurantId:rid,ticketId},{attempts:1});
+    supportState.selectedTicket=data?.ticket||null;supportState.messages=Array.isArray(data?.messages)?data.messages:[];return !!supportState.selectedTicket;
+  }catch(error){supportState.error=error?.message||String(error);return false}
+  finally{supportState.conversationLoading=false;if(page==='help')render()}
+}
+async function replySupportConversation(form){
+  const ticketId=supportState.selectedTicket?.id,org=cloudOrganizationId(),rid=cloudRestaurantId(),d=new FormData(form),message=String(d.get('message')||'').trim();
+  if(!ticketId||!org||!message)return;
+  supportState.conversationLoading=true;supportState.error='';
+  try{
+    await cloudFunction('remapro-support',{action:'reply',organizationId:org,restaurantId:rid,ticketId,message,context:{screen:page,online:navigator.onLine,syncState:cloudSyncState,locale:language(),restaurantName:activeRestaurant(state)?.name||''}},{attempts:1});
+    supportState.loaded=false;
+  }catch(error){supportState.error=error?.message||String(error)}
+  finally{supportState.conversationLoading=false;await loadSupportConversation(ticketId);await refreshSupportTickets()}
+}
+async function resolveSupportConversation(){
+  const ticketId=supportState.selectedTicket?.id,org=cloudOrganizationId(),rid=cloudRestaurantId();if(!ticketId||!org)return;
+  supportState.conversationLoading=true;supportState.error='';
+  try{
+    await cloudFunction('remapro-support',{action:'resolve',organizationId:org,restaurantId:rid,ticketId},{attempts:1});
+    supportState.loaded=false;
+  }catch(error){supportState.error=error?.message||String(error)}
+  finally{supportState.conversationLoading=false;await loadSupportConversation(ticketId);await refreshSupportTickets()}
 }
 
 const currentPlatformUserId=()=>String(cloudIdentity?.user?.id||cloudSession()?.user?.id||'');
@@ -988,6 +1030,10 @@ async function platformJobAction(jobId,jobAction){
 
 function bindSupportPanel(){
   document.getElementById('supportTicketForm')?.addEventListener('submit',e=>{e.preventDefault();submitSupportTicket(e.currentTarget)});
+  document.getElementById('supportReplyForm')?.addEventListener('submit',e=>{e.preventDefault();replySupportConversation(e.currentTarget)});
+  document.querySelectorAll('[data-support-open]').forEach(b=>b.addEventListener('click',()=>loadSupportConversation(b.dataset.supportOpen)));
+  document.querySelector('[data-support-back]')?.addEventListener('click',()=>{supportState.selectedTicket=null;supportState.messages=[];render()});
+  document.querySelector('[data-support-resolve]')?.addEventListener('click',()=>resolveSupportConversation());
   document.querySelectorAll('[data-platform-approval]').forEach(b=>b.addEventListener('click',()=>reviewPlatformApproval(b.dataset.platformApproval,b.dataset.decision)));
   document.querySelectorAll('[data-platform-job]').forEach(b=>b.addEventListener('click',()=>platformJobAction(b.dataset.platformJob,b.dataset.jobAction)));
 }
