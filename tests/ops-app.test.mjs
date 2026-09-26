@@ -10,7 +10,7 @@ for(const token of ['platform_context','platform_inbox','platform_ticket','platf
 }
 if(cap.appId!=='com.remaprohub.ops')throw new Error('Wrong Ops package id');
 if(cap.appName!=='ReMaPro OPS')throw new Error('Wrong Ops app name');
-if(pkg.name!=='remapro-ops'||pkg.version!=='0.2.0')throw new Error('Wrong Ops package metadata');
+if(pkg.name!=='remapro-ops'||pkg.version!=='0.2.1')throw new Error('Wrong Ops package metadata');
 if(!index.includes('<title>ReMaPro Ops</title>'))throw new Error('Ops title missing');
 if(!manifest.includes('"short_name":"ReMaPro OPS"'))throw new Error('Ops manifest branding missing');
 if(app.includes('recordRestaurant(')||app.includes('renderPosLayoutEditor('))throw new Error('Ops must not expose restaurant-management UI');
@@ -22,4 +22,6 @@ const trainingTokens=[
   'Tester le suivant','Base de connaissances','Cas d’entraînement','timeoutMs:60000'
 ];
 for(const token of trainingTokens)if(!app.includes(token))throw new Error('Missing Ops training UI token: '+token);
-if(!app.includes("const VERSION='0.2.0'"))throw new Error('Ops training version must be 0.2.0');
+if(!app.includes("const VERSION='0.2.1'"))throw new Error('Ops training version must be 0.2.0');
+
+for(const token of ['trainingAction','Aucune vectorisation effectuée','limit:5'])if(!app.includes(token))throw new Error('Missing Ops indexing recovery token: '+token);
