@@ -155,7 +155,7 @@ assert.ok(edge.includes('Standalone layout item requires name, price and valid t
 assert.ok(edge.includes('standaloneLayoutItems:true'));
 console.log('Hub POS layout editor issue #6 checks passed');
 
-const layoutSource=fs.readFileSync(new URL('../app/src/pos-layout.js',import.meta.url),'utf8');
+const layoutSource=source;
 for(const token of ['data-layout-option-form','data-layout-delete-option','data-layout-delete-modifier','data-layout-choice-form','data-layout-delete-choice','data-layout-delete-menu']){
   assert.ok(layoutSource.includes(token),'structured Hub editor includes '+token);
 }
