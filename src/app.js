@@ -1,5 +1,5 @@
 import {parseCashAmount,mergePendingOrders,closingChecks,syncIndicator} from './service-flow.js';
-import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction} from './cloud.js';
+import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,posFunction,academyFunction,supportFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
@@ -25,7 +25,7 @@ const state={
   productionQueue:[],productionStation:'all',productionSort:'oldest',kdsCourse:'all',kdsMetrics:{stations:[],products:[]},kdsLastBumped:localStorage.getItem('remapro-kds-last-bumped')||'',kdsWarnMinutes:Math.max(1,Number(localStorage.getItem('remapro-kds-warn'))||12),kdsCriticalMinutes:Math.max(2,Number(localStorage.getItem('remapro-kds-critical'))||20),serviceReport:null,reportDate:'',
   terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],pendingAutoReceiptNumber:'',
   operators:[],operator:null,operatorRequired:false,foodCostReport:null,providerConnections:[],tapToPayCapability:{available:false,native:false,nfcSupported:false,nfcEnabled:false,sdkLinked:false,reason:'NOT_CHECKED'},directOrders:[],availabilityRows:[],
-  pendingQueue:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
+  pendingQueue:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:'',academyLocale:(localStorage.getItem('remapro-academy-lang')||navigator.language?.slice(0,2)||'fr'),academy:{query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},support:{tickets:[],loaded:false,loading:false,error:'',lastReply:''},trainingMode:false,training:{opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}
 };
 const app=document.querySelector('#app');
 let terminalPollTimer=null,directOrderPollTimer=null,hubConfigPollTimer=null,queueFlushPromise=null,terminalPollInFlight=false,hubConfigSyncInFlight=false;
@@ -2112,9 +2112,54 @@ async function trackTrainingProgress(stepIndex,status='in_progress'){
     await academyFunction({action:'save',organizationId:org,restaurantId:state.restaurant?.id||'',application:'pos',topicId:'pos-training',contentVersion:ACADEMY_CONTENT_VERSION,status,stepIndex:resolvedStep,metadata:{training:true}});
   }catch{}
 }
+
+function posSupportCopy(){const copy={
+fr:{title:'Support ReMaPro',sub:'Signalez un problème, posez une question ou proposez une amélioration. Les agents IA ReMaPro analysent la demande et créent un suivi.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.'},
+en:{title:'ReMaPro Support',sub:'Report a problem, ask a question or suggest an improvement. ReMaPro AI agents analyse the request and track it.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.'},
+de:{title:'ReMaPro Support',sub:'Problem melden, Frage stellen oder Verbesserung vorschlagen. ReMaPro KI-Agenten analysieren und verfolgen die Anfrage.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.'},
+it:{title:'Supporto ReMaPro',sub:'Segnala un problema, fai una domanda o proponi un miglioramento. Gli agenti IA ReMaPro analizzano e seguono la richiesta.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.'}
+};return copy[academyLocale()]||copy.fr}
+function posSupportPanel(){
+  const u=posSupportCopy(),org=academyOrgId(),rid=state.restaurant?.id||'';
+  if(!currentSession()||!org)return '<section class="academy-training-panel"><h2>'+u.title+'</h2><p class="muted">'+u.signin+'</p></section>';
+  if(!state.support.loaded&&!state.support.loading)setTimeout(()=>refreshPosSupportTickets(),0);
+  const tickets=(state.support.tickets||[]).slice(0,8);
+  return '<section class="academy-training-panel pos-support-panel"><h2>'+u.title+'</h2><p class="muted">'+u.sub+'</p>'
+    +(state.support.error?'<div class="notice error">'+esc(state.support.error)+'</div>':'')
+    +(state.support.lastReply?'<div class="notice"><strong>'+u.reply+'</strong><p>'+esc(state.support.lastReply)+'</p></div>':'')
+    +'<form id="pos-support-form"><label class="field"><span>'+u.subject+'</span><input name="subject" maxlength="180" required></label>'
+    +'<label class="field"><span>'+u.message+'</span><textarea name="message" maxlength="6000" rows="5" required></textarea></label>'
+    +'<button class="primary" '+(state.support.loading?'disabled':'')+'>'+(state.support.loading?u.loading:u.send)+'</button></form>'
+    +'<h3>'+u.recent+'</h3><div class="academy-path-grid">'
+    +(tickets.length?tickets.map(x=>'<article class="academy-path-card"><strong>'+esc(x.subject)+'</strong><small>'+esc((x.application||'pos').toUpperCase())+' · '+u.priority+': '+esc(x.priority||'normal')+' · '+u.status+': '+esc(x.status||'open')+'</small></article>').join(''):'<p class="muted">'+u.empty+'</p>')
+    +'</div></section>';
+}
+async function refreshPosSupportTickets(){
+  const org=academyOrgId(),rid=state.restaurant?.id||'';if(!currentSession()||!org||state.support.loading)return false;
+  state.support.loading=true;state.support.error='';
+  try{
+    const data=await supportFunction({action:'list_tickets',organizationId:org,restaurantId:rid});
+    state.support.tickets=Array.isArray(data?.tickets)?data.tickets:[];state.support.loaded=true;return true;
+  }catch(error){state.support.error=error?.message||String(error);return false}
+  finally{state.support.loading=false;if(state.view==='academy')render()}
+}
+async function submitPosSupportTicket(form){
+  const org=academyOrgId(),rid=state.restaurant?.id||'',d=new FormData(form),subject=String(d.get('subject')||'').trim(),message=String(d.get('message')||'').trim();
+  if(!org||!subject||!message)return;
+  state.support.loading=true;state.support.error='';state.support.lastReply='';render();
+  try{
+    const data=await supportFunction({action:'open_ticket',organizationId:org,restaurantId:rid,application:'pos',appVersion:APP_VERSION,subject,message,context:{screen:state.view,online:state.online,network:state.online?'online':'offline',cashSession:state.cashSession?.id||'',activeOrderId:state.activeOrderId||'',locale:academyLocale(),restaurantName:state.restaurant?.name||''}});
+    state.support.lastReply=String(data?.assistantReply||posSupportCopy().sent);state.support.loaded=false;
+  }catch(error){state.support.error=error?.message||String(error)}
+  finally{state.support.loading=false;await refreshPosSupportTickets()}
+}
+function bindPosSupport(){
+  document.getElementById('pos-support-form')?.addEventListener('submit',e=>{e.preventDefault();submitPosSupportTicket(e.currentTarget)});
+}
+
 function academyView(){
   ensureAcademyStyles();if(!state.academy.loaded&&!state.academy.loading)setTimeout(()=>refreshPosAcademy(),0);
-  return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',scope:state.academy.scope,locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:isManager(),canManageVisibility:posOrgAdmin(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+'</main></div>';
+  return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',scope:state.academy.scope,locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:isManager(),canManageVisibility:posOrgAdmin(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+posSupportPanel()+'</main></div>';
 }
 function resetTraining(){state.training={opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}}
 const trainingProducts=[
@@ -2138,6 +2183,7 @@ function trainingView(){
 }
 function academyTourView(id){return id==='pos-floor'?'floor':id==='pos-production'?'production':id==='pos-sync'?'sync':'sale'}
 function bindPosAcademy(){
+  bindPosSupport();
   document.getElementById('academy-back')?.addEventListener('click',()=>{state.view=state.cashSession?'sale':'sale';render()});
   document.getElementById('academy-locale')?.addEventListener('change',e=>{state.academyLocale=e.target.value;localStorage.setItem('remapro-academy-lang',state.academyLocale);render()});
   const locale=document.getElementById('academy-locale');if(locale)locale.value=academyLocale();
