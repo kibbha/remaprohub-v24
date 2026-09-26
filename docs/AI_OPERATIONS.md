@@ -103,3 +103,24 @@ If a customer adds new details to a bug that already has an active engineering j
 the ticket is re-triaged and its diagnostic context is refreshed, but ReMaPro does not
 create a second `execute_fix` approval. The ticket follows the existing engineering
 job until completion, cancellation or failure.
+
+
+## Product improvement execution
+
+Feature requests are routed to the Product Agent, which creates a structured product
+brief with the user problem, smallest useful change, risks and measurable acceptance
+checks. The QA Agent creates a validation/regression plan for the proposed improvement.
+
+A feature request does not enter engineering automatically. ReMaPro creates one
+pending `execute_feature` approval. The platform console displays this as
+**Autoriser cette évolution**.
+
+When explicitly approved, the request is queued in `ai_engineering_jobs` on the
+application's exact active branch:
+- Hub -> `rebuild/remaprohub-clean`
+- POS -> `pos/remapro-pos`
+
+The engineering worker receives the Product plan as `execution_plan` and the QA plan
+as `qa_plan`. It may prepare a branch and pull request, but the existing independent
+`merge_pr` approval remains mandatory before merge. Rejecting `execute_feature`
+does not create an engineering job.
