@@ -328,3 +328,16 @@ A promoted Simulation Lab finding is evaluated against the responsibilities of t
 Existing promoted simulation training cases are migrated to `evaluation_scope=agent_role` with an explicit `role_focus`. Future promotions write these fields automatically.
 
 Out-of-role omissions are excluded from the score and from the evaluator failure list for role-scoped promoted regressions; universal safety rules still apply.
+
+
+### Simulation learning round 3
+
+Round 3 is based on promoted regression results:
+- Dispatcher v5 makes sensitive account/subscription billing route `human`, explicitly refuses refund promises before authorized verification, keeps permission semantics on `knowledge`, and preserves POS payment-state bugs as technical issues when no financial action is requested.
+- Diagnostic v4 adds a minimal safe reproduction plan after triage: preconditions, numbered steps, observed/expected result and evidence, with explicit POS coverage for double-charge prevention, order/table state, offline/resync and peripherals when relevant.
+- Developer Hub v3 responds as a developer rather than only asking diagnostic questions: reproducible case, technical hypotheses, smallest safe change, branch constraints, targeted tests and validation criteria.
+- Knowledge v3 keeps documentation/permission-semantics questions on `route=knowledge` while using verified documentation or authorized human review as a fallback before real permission changes.
+
+The evaluator now treats `role_focus` as the historical defect to correct (`role_focus_mode=defect_to_correct`), never as an instruction to reproduce the old defect.
+
+Round 3 profile versions: Dispatcher v5, Diagnostic v4, Developer Hub v3, Knowledge v3.
