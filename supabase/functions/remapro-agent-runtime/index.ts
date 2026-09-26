@@ -439,7 +439,15 @@ async function runSimulationBatch(ctx:any,campaign:any,requested:number){
     status:"running",started_at:campaign.started_at||new Date().toISOString(),updated_at:new Date().toISOString(),last_error:""
   }).eq("id",campaign.id);
   for(const scenario of scenarios||[]){
-    try{results.push(await runSimulationScenario(ctx,scenario))}
+    const {data:claimed,error:claimError}=await ctx.supabaseAdmin.from("ai_simulation_scenarios")
+      .update({status:"running",updated_at:new Date().toISOString(),last_error:""})
+      .eq("id",scenario.id).in("status",["queued","error"]).select("*").maybeSingle();
+    if(claimError){
+      results.push({scenarioId:scenario.id,error:"claim_failed"});
+      continue;
+    }
+    if(!claimed)continue;
+    try{results.push(await runSimulationScenario(ctx,claimed))}
     catch(error){results.push({scenarioId:scenario.id,error:error instanceof Error?error.message:String(error)})}
   }
   const {count:pending}=await ctx.supabaseAdmin.from("ai_simulation_scenarios")
