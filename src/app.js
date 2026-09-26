@@ -12,7 +12,7 @@ import{recordDiagnostic}from'./telemetry.js';
 const APP_VERSION='27.11.0';
 const ICONS={dashboard:'layout-dashboard',operations:'clipboard-check',orders:'chart-bar',products:'package',haccp:'clipboard-check',finance:'chart-bar',documents:'file-description',stock:'package',suppliers:'truck-delivery',purchases:'truck-delivery',invoices:'file-description',team:'users',planning:'clipboard-check',leave:'file-description',training:'users',recipes:'clipboard-check',reservations:'users',customers:'users',loyalty:'users',incidents:'help',waste:'package',maintenance:'settings',equipment:'settings',deliveries:'truck-delivery',allergens:'clipboard-check',recalls:'package',cleaning:'clipboard-check',audits:'clipboard-check',checklists:'clipboard-check',alerts:'help',goals:'chart-bar',briefing:'file-description',handover:'file-description',categories:'layout-grid',organization:'users',ai:'sparkles',settings:'settings',help:'help',more:'layout-grid',posAdmin:'cash-register'};
 const icon=key=>`<svg class="icon" aria-hidden="true"><use href="icons.svg#${ICONS[key]||'layout-grid'}"></use></svg>`;
-const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
+const modules=['orders','stock','haccp','purchases','planning','reservations','ai','help'];let page='dashboard',hubCategory='sales',moduleSection='',moduleSectionScopes={},period='day',editing=null,financeDate=null,legalCountryOverride='',aiAnswer='',aiMessages=[],visionDraft=null,invoiceDraft=null,cloudIdentity=null,cloudIdentityError='',cloudSyncTimer=null,cloudSyncBusy=false,cloudSyncDirty=false,cloudSyncState='idle',billingReady=false,billingBusy=false,billingError='',securityBooting=true,appUnlocked=false,backgroundAt=0,cloudMembers=[],cloudAudit=[],cloudMemberEditId='',securityAuthMode='signin',developerAccess=null,academyState={query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]},supportState={tickets:[],loaded:false,loading:false,error:'',lastReply:''},deliveryScanState={photos:[],analysis:null,analysisId:'',paths:[],busy:false,progress:0,stage:'',error:''},posLayoutSelectedButtonId='',posLayoutSelectedPageId='',posLayoutSelectedCategoryId='all',posLayoutDirty=false,posFloorPlanSelectedId='',posFloorPlanSelectedElementId='',posFloorPlanDirty=false,posAdminFocus='',posFinanceRefreshTimer=null,posFinanceState={restaurantId:'',from:'',to:'',loading:false,error:'',rows:[],loadedAt:0},posAdminState={restaurantId:'',loading:false,error:'',catalog:[],tables:[],operators:[],printers:[],terminals:[],inventoryMovements:[],foodCost:null,providerConnections:[],paymentOfficialPaths:{},automaticTransactions:false,layoutDraft:null,layoutPublished:null,layoutHistory:[],floorPlans:[],directChannels:[],directOrderShare:null};
 const state=load(),markCloudWorkspaceDirty=()=>{if(!cloudSession())return;const current=activeRestaurant(state);if(!current?.cloudId)return;const next=exportWorkspace(state),previous=current.workspace&&typeof current.workspace==='object'&&!Array.isArray(current.workspace)?current.workspace:{},writeKeys=cloudIdentity?cloudWorkspaceWriteKeys(cloudIdentity,current.cloudId):Object.keys(next),dirty=new Set(Array.isArray(current.cloudDirtyKeys)?current.cloudDirtyKeys:[]);for(const key of writeKeys)if(JSON.stringify(previous[key])!==JSON.stringify(next[key]))dirty.add(key);current.cloudDirtyKeys=[...dirty];current.cloudDirty=current.cloudDirtyKeys.length>0||current.cloudDirty},persist=()=>{markCloudWorkspaceDirty();save(state);scheduleCloudSync()},replaceState=next=>{for(const key of Object.keys(state))delete state[key];Object.assign(state,next);return state},cloudRestaurantId=()=>{const local=activeRestaurant(state);if(local?.cloudId)return local.cloudId;
 const byName=(cloudIdentity?.restaurants||[]).find(x=>String(x.name||'').trim().toLocaleLowerCase()===String(local?.name||'').trim().toLocaleLowerCase());if(byName?.id)return byName.id;
 const ids=[...new Set((cloudIdentity?.memberships||[]).map(x=>x.restaurant_id).filter(Boolean))];return ids.length===1?ids[0]:''},cloudOrganizationId=()=>{const rid=cloudRestaurantId(),restaurant=(cloudIdentity?.restaurants||[]).find(x=>x.id===rid);if(restaurant?.organization_id)return restaurant.organization_id;
@@ -858,7 +858,102 @@ function bindHubAcademy(){
   document.getElementById('academy-manager-visibility')?.addEventListener('change',async e=>{if(!cloudOrgAdmin()||!cloudOrganizationId())return;e.target.disabled=true;try{const data=await cloudFunction('remapro-academy',{action:'set_manager_visibility',organizationId:cloudOrganizationId(),enabled:e.target.checked},{attempts:1});academyState.managerVisibility=!!data.managerVisibility;academyState.loaded=false;await refreshAcademyProgress()}catch{e.target.checked=!e.target.checked}finally{e.target.disabled=false}});
 }
 
-function help(){ensureAcademyStyles();if(!academyState.loaded&&!academyState.loading)setTimeout(()=>refreshAcademyProgress(),0);return `<section>${head(t('help'))}${renderAcademyCenter({application:'hub',scope:academyState.scope,locale:language(),query:academyState.query,role:academyState.role,module:academyState.module,progressRows:currentAcademyProgress(),selectedTopic:academyState.selectedTopic,selectedPath:academyState.selectedPath,troubleshoot:academyState.troubleshoot,manager:cloudManager(),canManageVisibility:cloudOrgAdmin(),managerVisibility:academyState.managerVisibility,managerRows:academyState.managerRows})}</section>`}
+
+function supportCopy(){const copy={
+fr:{title:'Support ReMaPro',sub:'Une question, un bug ou une suggestion ? Votre demande est analysée par nos agents IA et reste suivie dans un ticket.',subject:'Sujet',message:'Décrivez votre demande',send:'Envoyer au support',recent:'Mes demandes récentes',empty:'Aucune demande pour le moment.',loading:'Analyse en cours…',signin:'Connectez-vous pour contacter le support.',reply:'Réponse ReMaPro',priority:'Priorité',status:'Statut',sent:'Demande envoyée.'},
+en:{title:'ReMaPro Support',sub:'Question, bug or suggestion? Your request is analysed by our AI agents and tracked in a ticket.',subject:'Subject',message:'Describe your request',send:'Send to support',recent:'My recent requests',empty:'No requests yet.',loading:'Analysing…',signin:'Sign in to contact support.',reply:'ReMaPro reply',priority:'Priority',status:'Status',sent:'Request sent.'},
+de:{title:'ReMaPro Support',sub:'Frage, Fehler oder Vorschlag? Ihre Anfrage wird von unseren KI-Agenten analysiert und als Ticket verfolgt.',subject:'Betreff',message:'Anfrage beschreiben',send:'An Support senden',recent:'Meine letzten Anfragen',empty:'Noch keine Anfragen.',loading:'Analyse läuft…',signin:'Bitte anmelden, um den Support zu kontaktieren.',reply:'ReMaPro Antwort',priority:'Priorität',status:'Status',sent:'Anfrage gesendet.'},
+it:{title:'Supporto ReMaPro',sub:'Domanda, bug o suggerimento? La richiesta viene analizzata dai nostri agenti IA e seguita tramite ticket.',subject:'Oggetto',message:'Descrivi la richiesta',send:'Invia al supporto',recent:'Le mie richieste recenti',empty:'Nessuna richiesta per ora.',loading:'Analisi in corso…',signin:'Accedi per contattare il supporto.',reply:'Risposta ReMaPro',priority:'Priorità',status:'Stato',sent:'Richiesta inviata.'}
+};return copy[language()]||copy.fr}
+function supportPanel(){
+  const u=supportCopy(),org=cloudOrganizationId(),rid=cloudRestaurantId();
+  if(!cloudSession()||!org)return card(u.title,`<p class="muted">${u.signin}</p>`);
+  if(!supportState.loaded&&!supportState.loading)setTimeout(()=>refreshSupportTickets(),0);
+  const tickets=(supportState.tickets||[]).slice(0,8);
+  return card(u.title,`<p class="muted">${u.sub}</p>
+    ${supportState.error?`<div class="notice error">${esc(supportState.error)}</div>`:''}
+    ${supportState.lastReply?`<div class="notice"><strong>${u.reply}</strong><p>${esc(supportState.lastReply)}</p></div>`:''}
+    <form id="supportTicketForm" class="form">
+      <input name="subject" maxlength="180" required placeholder="${u.subject}">
+      <textarea name="message" maxlength="6000" rows="5" required placeholder="${u.message}"></textarea>
+      <button class="btn primary" ${supportState.loading?'disabled':''}>${supportState.loading?u.loading:u.send}</button>
+    </form>
+    <h3>${u.recent}</h3>
+    <div>${tickets.length?tickets.map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc(x.application?.toUpperCase()||'')} · ${u.priority}: ${esc(x.priority||'normal')}</small></span><span><small>${u.status}: ${esc(x.status||'open')}</small></span></div>`).join(''):`<p class="muted">${u.empty}</p>`}</div>`);
+}
+async function refreshSupportTickets(){
+  const org=cloudOrganizationId(),rid=cloudRestaurantId();if(!cloudSession()||!org||supportState.loading)return false;
+  supportState.loading=true;supportState.error='';try{
+    const data=await cloudFunction('remapro-support',{action:'list_tickets',organizationId:org,restaurantId:rid},{attempts:1});
+    supportState.tickets=Array.isArray(data?.tickets)?data.tickets:[];supportState.loaded=true;return true;
+  }catch(error){supportState.error=error?.message||String(error);return false}
+  finally{supportState.loading=false;if(page==='help')render()}
+}
+async function submitSupportTicket(form){
+  const org=cloudOrganizationId(),rid=cloudRestaurantId(),d=new FormData(form),subject=String(d.get('subject')||'').trim(),message=String(d.get('message')||'').trim();
+  if(!org||!subject||!message)return;
+  supportState.loading=true;supportState.error='';supportState.lastReply='';render();
+  try{
+    const data=await cloudFunction('remapro-support',{action:'open_ticket',organizationId:org,restaurantId:rid,application:'hub',appVersion:APP_VERSION,subject,message,context:{screen:page,online:navigator.onLine,syncState:cloudSyncState,locale:language(),restaurantName:activeRestaurant(state)?.name||''}},{attempts:1});
+    supportState.lastReply=String(data?.assistantReply||supportCopy().sent);supportState.loaded=false;
+  }catch(error){supportState.error=error?.message||String(error)}
+  finally{supportState.loading=false;await refreshSupportTickets()}
+}
+
+const platformRole=()=>String(cloudIdentity?.user?.app_metadata?.remapro_platform_role||'');
+const isPlatformOperator=()=>['owner','support','developer','qa','release','product'].includes(platformRole());
+function platformOpsPanel(){
+  if(!isPlatformOperator())return '';
+  const u=language()==='fr'
+    ?{title:'ReMaPro AI Operations',sub:'Supervision plateforme · tickets, agents et validations humaines',tickets:'Tickets',approvals:'Validations',runs:'Exécutions agents',approve:'Approuver',reject:'Rejeter',none:'Aucune validation en attente.',loading:'Chargement…'}
+    :{title:'ReMaPro AI Operations',sub:'Platform supervision · tickets, agents and human approvals',tickets:'Tickets',approvals:'Approvals',runs:'Agent runs',approve:'Approve',reject:'Reject',none:'No pending approval.',loading:'Loading…'};
+  if(!supportState.platformLoaded&&!supportState.platformLoading)setTimeout(()=>refreshPlatformOps(),0);
+  const tickets=supportState.platformTickets||[],approvals=supportState.platformApprovals||[],runs=supportState.platformRuns||[];
+  const active=tickets.filter(x=>!['resolved','closed'].includes(x.status)).length;
+  const critical=tickets.filter(x=>x.priority==='critical'&&!['resolved','closed'].includes(x.status)).length;
+  return card(u.title,`<p class="muted">${u.sub}</p>
+    ${supportState.platformError?`<div class="notice error">${esc(supportState.platformError)}</div>`:''}
+    <div class="kpi-grid">
+      <div class="kpi"><span>${u.tickets}</span><strong>${active}</strong><small>${critical} critical</small></div>
+      <div class="kpi"><span>${u.approvals}</span><strong>${approvals.length}</strong><small>human gate</small></div>
+      <div class="kpi"><span>${u.runs}</span><strong>${runs.length}</strong><small>latest 100</small></div>
+    </div>
+    <h3>${u.approvals}</h3>
+    ${approvals.length?approvals.map(a=>`<div class="row"><span><strong>${esc(a.action)}</strong><br><small class="muted">${esc(a.requested_by_agent||'agent')} · ${esc(a.ticket_id||'')}</small></span><span class="actions"><button class="btn compact primary" data-platform-approval="${esc(a.id)}" data-decision="approved">${u.approve}</button><button class="btn compact" data-platform-approval="${esc(a.id)}" data-decision="rejected">${u.reject}</button></span></div>`).join(''):`<p class="muted">${u.none}</p>`}
+    <h3>${u.tickets}</h3>
+    ${tickets.slice(0,12).map(x=>`<div class="row"><span><strong>${esc(x.subject)}</strong><br><small class="muted">${esc((x.application||'').toUpperCase())} · ${esc(x.priority||'normal')} · ${esc(x.assigned_agent||'support')}</small></span><span><small>${esc(x.status||'open')}</small></span></div>`).join('')||`<p class="muted">${u.loading}</p>`}
+    <h3>${u.runs}</h3>
+    ${runs.slice(0,10).map(x=>`<div class="row"><span><strong>${esc(x.agent_role)}</strong><br><small class="muted">${esc(x.output_summary||x.input_summary||'')}</small></span><span><small>${esc(x.status)}</small></span></div>`).join('')}
+  `);
+}
+async function refreshPlatformOps(){
+  if(!isPlatformOperator()||supportState.platformLoading)return false;
+  supportState.platformLoading=true;supportState.platformError='';
+  try{
+    const data=await cloudFunction('remapro-support',{action:'platform_inbox',limit:100},{attempts:1});
+    supportState.platformTickets=Array.isArray(data?.tickets)?data.tickets:[];
+    supportState.platformApprovals=Array.isArray(data?.approvals)?data.approvals:[];
+    supportState.platformRuns=Array.isArray(data?.runs)?data.runs:[];
+    supportState.platformLoaded=true;return true;
+  }catch(error){supportState.platformError=error?.message||String(error);return false}
+  finally{supportState.platformLoading=false;if(page==='help')render()}
+}
+async function reviewPlatformApproval(approvalId,decision){
+  if(!isPlatformOperator())return;
+  supportState.platformLoading=true;
+  try{
+    await cloudFunction('remapro-support',{action:'platform_review_approval',approvalId,decision},{attempts:1});
+    supportState.platformLoaded=false;
+  }catch(error){supportState.platformError=error?.message||String(error)}
+  finally{supportState.platformLoading=false;await refreshPlatformOps()}
+}
+
+function bindSupportPanel(){
+  document.getElementById('supportTicketForm')?.addEventListener('submit',e=>{e.preventDefault();submitSupportTicket(e.currentTarget)});
+  document.querySelectorAll('[data-platform-approval]').forEach(b=>b.addEventListener('click',()=>reviewPlatformApproval(b.dataset.platformApproval,b.dataset.decision)));
+}
+
+function help(){ensureAcademyStyles();if(!academyState.loaded&&!academyState.loading)setTimeout(()=>refreshAcademyProgress(),0);return `<section>${head(t('help'))}${renderAcademyCenter({application:'hub',scope:academyState.scope,locale:language(),query:academyState.query,role:academyState.role,module:academyState.module,progressRows:currentAcademyProgress(),selectedTopic:academyState.selectedTopic,selectedPath:academyState.selectedPath,troubleshoot:academyState.troubleshoot,manager:cloudManager(),canManageVisibility:cloudOrgAdmin(),managerVisibility:academyState.managerVisibility,managerRows:academyState.managerRows})}${supportPanel()}${platformOpsPanel()}</section>`}
 function securityGate(){
   const cfg=securitySettings(),session=cloudSession(),email=rememberedSecurityEmail()||cloudIdentity?.user?.email||session?.user?.email||'';
   if(securityBooting)return `<main class="security-shell"><section class="security-card"><img src="icon.svg" alt="ReMaPro Hub"><h1>ReMaPro Hub</h1><p class="muted">${t('securityInitializing')}</p></section></main>`;
@@ -1051,7 +1146,7 @@ function bind(){
 document.getElementById('service-refresh-sales')?.addEventListener('click',()=>loadPosFinanceData(today(),{force:true}));const invoiceDate=document.querySelector('#invoiceForm [name="date"]'),invoiceDue=document.querySelector('#invoiceForm [name="dueDate"]'),invoiceSupplier=document.querySelector('#invoiceForm [name="supplier"]');if(invoiceDate&&invoiceDue){const suggestDue=()=>{if(invoiceDue.dataset.manual)return;const supplier=state.suppliers.find(x=>x.name===invoiceSupplier?.value),days=Number.isInteger(+supplier?.paymentDays)?+supplier.paymentDays:30,d=new Date(String(invoiceDate.value||today())+'T12:00:00');if(Number.isNaN(d.getTime()))return;d.setDate(d.getDate()+days);invoiceDue.value=localDate(d)};invoiceDue.addEventListener('input',()=>{invoiceDue.dataset.manual='1'});invoiceDate.addEventListener('change',suggestDue);invoiceSupplier?.addEventListener('change',()=>{invoiceDue.dataset.manual='';suggestDue()});suggestDue()}
 const deliveryStock=document.getElementById('deliveryStock'),deliverySupplier=document.getElementById('deliverySupplier');if(deliveryStock&&deliverySupplier){const autofill=()=>{const supplier=suggestedSupplierForStock(state,deliveryStock.value);deliverySupplier.value=supplier||'';deliverySupplier.dataset.smart=supplier?'1':''};deliveryStock.addEventListener('change',autofill);deliverySupplier.addEventListener('input',()=>{deliverySupplier.dataset.smart=''})}
 document.getElementById('hubGlobalSearch')?.addEventListener('click',openHubGlobalSearch);
-bindHubAcademy();
+bindHubAcademy();bindSupportPanel();
 document.getElementById('academyContextHelp')?.addEventListener('click',()=>{const topic=academyContextTopics('hub',page)[0];academyState.selectedTopic=topic?.id||'';academyState.selectedPath='';academyState.troubleshoot='';page='help';render()});
 document.querySelectorAll('[data-pos-focus]').forEach(b=>b.addEventListener('click',()=>{posAdminFocus=String(b.dataset.posFocus||'');page='posAdmin';render()}));document.querySelectorAll('[data-reset-module-section]').forEach(b=>b.addEventListener('click',()=>{moduleSection=''}));document.querySelectorAll('[data-hub-category]').forEach(b=>b.addEventListener('click',()=>{hubCategory=String(b.dataset.hubCategory||'sales');moduleSection='';page='category';render()}));document.querySelectorAll('[data-module-section]').forEach(b=>b.addEventListener('click',()=>{const nav=b.closest('.module-section-nav'),scope=nav?.dataset.moduleSectionScope||'',selected=String(b.dataset.moduleSection||'');if(scope)moduleSectionScopes[scope]=selected;else moduleSection=selected;applyModuleSections(document);const scoped=scope?nav.querySelectorAll('[data-module-section]'):document.querySelectorAll('.module-section-nav:not([data-module-section-scope]) [data-module-section]');scoped.forEach(x=>x.classList.toggle('active',x.dataset.moduleSection===selected))}));applyModuleSections(document);
 document.getElementById('moduleSearch')?.addEventListener('input',e=>{const q=String(e.target.value||'').trim().toLocaleLowerCase(),rows=[...document.querySelectorAll('[data-module-search]')];let visible=0;for(const row of rows){const show=!q||String(row.dataset.moduleSearch||'').includes(q);row.hidden=!show;if(show)visible++}for(const group of document.querySelectorAll('[data-module-group]')){const any=[...group.querySelectorAll('[data-module-search]')].some(row=>!row.hidden);group.hidden=!any;if(q&&any)group.open=true}const empty=document.getElementById('moduleSearchEmpty');if(empty)empty.hidden=!q||visible>0});

@@ -27,3 +27,6 @@ verify_jwt = true
 
 [functions.remapro-academy]
 verify_jwt = true
+
+[functions.remapro-support]
+verify_jwt = true
