@@ -19,3 +19,7 @@ assert.ok(css.includes('.cart-tools'));
 assert.match(sw,/remapro-pos-shell-v\d{4}[-a-z0-9]*-\d{8}/);
 for(const token of ['pos-more-groups','one-task-per-screen operational views','payments{position:sticky']) assert.ok(app.includes(token)||css.includes(token),token+' missing');
 console.log('ReMaPro POS clarity redesign checks passed');
+
+assert.ok(css.includes('Current approved ReMaPro POS palette: warm cream'),'approved warm cream POS palette is retained');
+assert.ok(css.includes('Approved horizontal category navigation on service screens.'),'approved horizontal category navigation is retained');
+assert.ok(css.includes('grid-template-columns:minmax(0,1fr) minmax(320px,380px)'),'tablet service layout keeps products and ticket side by side');
