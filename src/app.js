@@ -824,6 +824,9 @@ async function bootstrapRestaurant(restaurant){
     const verified=await readCachedConfigurationSnapshot(managed);
     if(!verified){recordDiagnostic('configuration.cache_invalid',{restaurantId:restaurant.id});managed=null}
     else managed={...managed,bundle:verified,bootstrap:{...(managed.bootstrap||{}),catalog:verified.document.catalog,layout:verified.document.layout,configurationBundleVersion:verified.version},tables:verified.document.tables||managed.tables,settings:normalizePosSettings(verified.settings)};
+  }else if(managed?.bundle){
+    // Pre-integrity-cache snapshots cannot be authenticated. Keep dedicated legacy caches instead.
+    recordDiagnostic('configuration.cache_legacy_ignored',{restaurantId:restaurant.id});managed=null;
   }
   if(managed?.bootstrap&&Number.isSafeInteger(Number(managed.bootstrap.configurationRevision))){
     state.bootstrap=managed.bootstrap;
