@@ -4,6 +4,7 @@ const VERSION='0.3.0';
 const AGENTS=['dispatcher','support','diagnostic','developer_hub','developer_pos','qa','product','knowledge','release'];
 const root=document.getElementById('app');
 const state={session:null,operator:null,loading:false,error:'',tickets:[],approvals:[],runs:[],jobs:[],view:'dashboard',ticketFilter:'active',selected:null,ticketDetail:null,lastRefresh:null,trainingLoaded:false,trainingLoading:false,trainingAction:'',trainingHealth:null,trainingProfiles:[],trainingCases:[],trainingKnowledge:[],trainingEvaluations:[],trainingOutput:'',simulationLoaded:false,simulationLoading:false,simulationAction:'',simulationCampaigns:[],simulationScenarios:[],simulationRuns:[],simulationFindings:[],simulationOutput:''};
+let simulationAutoTimer=null;const simulationAutoBlocked=new Set();
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtDate=v=>{if(!v)return'—';try{return new Intl.DateTimeFormat('fr-CH',{dateStyle:'short',timeStyle:'short'}).format(new Date(v))}catch{return String(v)}};
 const statusLabel=v=>({open:'Ouvert',triaged:'Trié',in_progress:'En cours',waiting_customer:'Attente client',waiting_approval:'Validation',resolved:'Résolu',closed:'Fermé',awaiting_execution:'À exécuter',executing:'Développement',testing:'Tests',pr_open:'PR ouverte',awaiting_merge_approval:'Fusion à valider',merge_approved:'Fusion autorisée',failed:'Échec',completed:'Terminé',cancelled:'Annulé'}[v]||String(v||'—'));
@@ -162,6 +163,7 @@ function simulationCampaignRow(c){
  '<div class="actions simulation-actions"><button class="small primary" data-sim-generate="'+esc(c.id)+'" '+(stopped||state.simulationAction?'disabled':'')+'>Générer '+Math.min(20,Number(c.batch_size||10))+'</button>'+
  '<button class="small" data-sim-run="'+esc(c.id)+'" '+(stopped||paused||state.simulationAction?'disabled':'')+'>Tester 1</button>'+
  (paused?'<button class="small" data-sim-campaign="'+esc(c.id)+'" data-sim-campaign-action="resume">Reprendre</button>':!stopped?'<button class="small" data-sim-campaign="'+esc(c.id)+'" data-sim-campaign-action="pause">Pause</button>':'')+
+ (!stopped?'<button class="small '+(c.auto_run?'primary':'')+'" data-sim-campaign="'+esc(c.id)+'" data-sim-campaign-action="'+(c.auto_run?'auto_off':'auto_on')+'">Auto '+(c.auto_run?'ON':'OFF')+'</button>':'')+
  '</div></div>';
 }
 function simulationScenarioRow(s){
@@ -183,7 +185,39 @@ async function loadSimulation(force){
   state.simulationFindings=Array.isArray(data&&data.findings)?data.findings:[];
   state.simulationLoaded=true;
  }catch(e){state.error=e&&e.message||String(e)}
- finally{state.simulationLoading=false;render()}
+ finally{state.simulationLoading=false;render();scheduleSimulationAuto()}
+}
+function scheduleSimulationAuto(){
+ if(simulationAutoTimer){clearTimeout(simulationAutoTimer);simulationAutoTimer=null}
+ if(state.view!=="simulation"||state.simulationAction||state.simulationLoading)return;
+ var campaign=(state.simulationCampaigns||[]).find(function(c){
+  return c.auto_run&&!simulationAutoBlocked.has(c.id)&&!["paused","completed","cancelled","failed"].includes(c.status)
+ });
+ if(!campaign)return;
+ simulationAutoTimer=setTimeout(function(){runSimulationAutoStep(campaign.id)},2500);
+}
+async function runSimulationAutoStep(campaignId){
+ if(state.view!=="simulation"||state.simulationAction)return;
+ var campaign=(state.simulationCampaigns||[]).find(function(c){return c.id===campaignId});
+ if(!campaign||!campaign.auto_run)return;
+ var queued=(state.simulationScenarios||[]).filter(function(s){return s.campaign_id===campaignId&&["queued","error"].includes(s.status)});
+ state.simulationAction="auto";state.error="";render();
+ try{
+  if(!queued.length&&Number(campaign.generated_count||0)<Number(campaign.target_cases||0)){
+   var generated=await cloudFunction("remapro-agent-runtime",{action:"simulation_generate_batch",campaignId:campaignId,count:Math.min(20,Number(campaign.batch_size||10))},{attempts:1,timeoutMs:120000});
+   state.simulationOutput="Auto : "+Number(generated&&generated.generated||0)+" nouvelle(s) situation(s) générée(s).";
+  }else{
+   var data=await cloudFunction("remapro-agent-runtime",{action:"simulation_run_batch",campaignId:campaignId,count:1},{attempts:1,timeoutMs:180000});
+   if(data&&data.dailyLimitReached){
+    simulationAutoBlocked.add(campaignId);
+    state.simulationOutput="Auto suspendu : plafond quotidien atteint. Il reprendra après réouverture lors d’une nouvelle journée.";
+   }else{
+    var result=(data&&data.results||[])[0];
+    state.simulationOutput=result&&result.error?"Auto : erreur — "+result.error:result?"Auto : "+Math.round(Number(result.score||0)*100)+"% — "+(result.passed?"réussi":"à améliorer")+".":"Auto : aucun cas restant.";
+   }
+  }
+ }catch(e){state.error=e&&e.message||String(e);simulationAutoBlocked.add(campaignId)}
+ finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
 }
 async function createSimulationCampaign(form){
  if(state.simulationAction)return;
@@ -220,7 +254,10 @@ async function runSimulation(campaignId){
 }
 async function simulationCampaignAction(campaignId,campaignAction){
  if(state.simulationAction)return;state.simulationAction="campaign";state.error="";render();
- try{await cloudFunction("remapro-agent-runtime",{action:"simulation_campaign_action",campaignId:campaignId,campaignAction:campaignAction},{attempts:1,timeoutMs:60000})}
+ try{
+  await cloudFunction("remapro-agent-runtime",{action:"simulation_campaign_action",campaignId:campaignId,campaignAction:campaignAction},{attempts:1,timeoutMs:60000});
+  if(campaignAction==="auto_on")simulationAutoBlocked.delete(campaignId);
+ }
  catch(e){state.error=e&&e.message||String(e)}
  finally{state.simulationAction="";state.simulationLoaded=false;await loadSimulation(true)}
 }
