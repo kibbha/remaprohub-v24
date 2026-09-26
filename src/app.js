@@ -1879,7 +1879,7 @@ async function refreshHubManagedConfiguration(head=null){
       restaurant:state.bootstrap?.restaurant||state.restaurant,
       catalog:document.catalog,
       layout:document.layout,
-      configurationRevision:Number(head?.revision)||Number(state.bootstrap?.configurationRevision)||0,
+      configurationRevision:Number(head?.revision)||Number(snapshot.sourceRevision)+1||Number(state.bootstrap?.configurationRevision)||0,
       configurationUpdatedAt:head?.updatedAt||snapshot.publishedAt||null,
       configurationBundleVersion:snapshot.version
     };
@@ -1903,6 +1903,7 @@ async function refreshHubManagedConfiguration(head=null){
       kvSet(terminalsKey(restaurantId),state.terminals),
       kvSet(printersKey(restaurantId),state.printers)
     ]);
+    await Promise.all([refreshOperators(),refreshTerminals(),refreshPrinters()]);
     ensureLayoutSelection(publishedLayout(state.bootstrap));
     return;
   }
