@@ -146,10 +146,13 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
       }
     }
-    if(triage.category==="bug"){
+    if(["bug","feature"].includes(triage.category)){
       try{
+        const qaInstruction=triage.category==="bug"
+          ?"You are ReMaPro QA Agent. Build a focused regression plan for the reported bug. Include reproduction verification, happy path, adjacent regression risks and acceptance checks. Never claim tests were executed."
+          :"You are ReMaPro QA Agent. Build a focused validation and regression plan for the proposed product improvement. Cover the requested behavior, permissions, happy path, adjacent regressions and measurable acceptance checks. Never claim tests were executed.";
         qa=await structured(apiKey,model,
-          "You are ReMaPro QA Agent. Build a focused regression plan for the reported bug. Include reproduction verification, happy path, adjacent regression risks and acceptance checks. Never claim tests were executed.",
+          qaInstruction,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,specialist,context}),
           "remapro_qa_plan",specialistSchema);
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",inputSummary:triage.summary,outputSummary:qa.work_summary,metadata:qa});
@@ -159,28 +162,30 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
     }
   }
   let existingJob:any=null,jobLookupFailed=false;
-  if(triage.category==="bug"){
+  const engineeringCategory=["bug","feature"].includes(triage.category);
+  if(engineeringCategory){
     const {data:job,error:jobError}=await ctx.supabaseAdmin.from("ai_engineering_jobs")
       .select("id,status,github_pr_number,github_pr_url").eq("ticket_id",ticket.id).maybeSingle();
     existingJob=job||null;jobLookupFailed=!!jobError;
   }
   const activeJob=!!existingJob&&!["cancelled","failed","completed"].includes(String(existingJob.status||""));
   const needsFixApproval=triage.category==="bug"&&!activeJob&&!jobLookupFailed;
-  const needsHumanReview=triage.category!=="bug"&&(triage.requires_human||triage.requires_approval);
-  if(needsFixApproval||needsHumanReview){
-    const approvalAction=needsFixApproval?"execute_fix":"human_review";
+  const needsFeatureApproval=triage.category==="feature"&&!activeJob&&!jobLookupFailed;
+  const needsHumanReview=!engineeringCategory&&(triage.requires_human||triage.requires_approval);
+  if(needsFixApproval||needsFeatureApproval||needsHumanReview){
+    const approvalAction=needsFixApproval?"execute_fix":needsFeatureApproval?"execute_feature":"human_review";
     const {data:pending}=await ctx.supabaseAdmin.from("support_approvals")
       .select("id").eq("ticket_id",ticket.id).eq("status","pending").eq("action",approvalAction).limit(1);
     if(!pending?.length)await ctx.supabaseAdmin.from("support_approvals").insert({
       ticket_id:ticket.id,organization_id:ticket.organization_id,
-      requested_by_agent:needsFixApproval?(ticket.application==="pos"?"developer_pos":"developer_hub"):"dispatcher",
+      requested_by_agent:needsFixApproval?(ticket.application==="pos"?"developer_pos":"developer_hub"):needsFeatureApproval?"product":"dispatcher",
       action:approvalAction,
       payload:{category:triage.category,priority:triage.priority,summary:triage.summary,application:ticket.application}
     });
   }
   const assigned=AGENT.has(String(triage.route))?triage.route:"support";
   const engineeringContext={...context,...(diagnostic||{}),specialist:specialist||null,qa:qa||null};
-  const nextStatus=(needsFixApproval||needsHumanReview)?"waiting_approval":activeJob?(existingJob.status==="awaiting_merge_approval"?"waiting_approval":"in_progress"):"triaged";
+  const nextStatus=(needsFixApproval||needsFeatureApproval||needsHumanReview)?"waiting_approval":activeJob?(existingJob.status==="awaiting_merge_approval"?"waiting_approval":"in_progress"):"triaged";
   await ctx.supabaseAdmin.from("support_tickets").update({
     category:CATEGORY.has(triage.category)?triage.category:"other",
     priority:PRIORITY.has(triage.priority)?triage.priority:"normal",
@@ -253,9 +258,11 @@ export default {
           await ctx.supabaseAdmin.from("support_tickets").update({
             status:decision==="approved"?"in_progress":"triaged",updated_at:reviewedAt
           }).eq("id",approval.ticket_id);
-          if(decision==="approved"&&["execute_fix","human_review"].includes(String(approval.action))&&ticket.category==="bug"){
+          const approvesBug=decision==="approved"&&["execute_fix","human_review"].includes(String(approval.action))&&ticket.category==="bug";
+          const approvesFeature=decision==="approved"&&approval.action==="execute_feature"&&ticket.category==="feature";
+          if(approvesBug||approvesFeature){
             const baseBranch=ticket.application==="pos"?"pos/remapro-pos":"rebuild/remaprohub-clean";
-            const role=ticket.application==="pos"?"developer_pos":"developer_hub";
+            const role=approvesFeature?"product":(ticket.application==="pos"?"developer_pos":"developer_hub");
             const context=ticket.engineering_context&&typeof ticket.engineering_context==="object"?ticket.engineering_context:{};
             const {data:job,error:jobError}=await ctx.supabaseAdmin.from("ai_engineering_jobs").upsert({
               ticket_id:ticket.id,organization_id:ticket.organization_id,application:ticket.application,
