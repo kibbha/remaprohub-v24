@@ -25,4 +25,8 @@ assert.match(closeMigration,/status in \('created','pending','authorized'\)[\s\S
 assert.match(closeMigration,/status='pending_external'[\s\S]*PENDING_REFUNDS_EXIST/,'cash close must reject unresolved external refunds');
 assert.match(closeMigration,/'cashRefunds',v_cash_refunds/,'cash close audit event must expose refund cash outflow');
 
+const terminalCancelMigration=readFileSync('supabase/migrations/20260927084500_pos_terminal_authorized_cancel_guard.sql','utf8');
+assert.match(terminalCancelMigration,/v_intent\.status='authorized'[\s\S]*AUTHORIZED_INTENT_REQUIRES_PROVIDER_VOID/,'authorized terminal intents must require a provider-confirmed void');
+assert.match(terminalCancelMigration,/status not in \('created','pending'\)/,'only pre-authorization terminal intents may be locally cancelled');
+
 console.log('Service dashboard: POS totals, dates, refunds, isolation and non-mutation passed');
