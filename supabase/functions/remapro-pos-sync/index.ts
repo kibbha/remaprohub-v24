@@ -323,6 +323,16 @@ export default {
         if(error)return{allowed:false,error:error.message};
         return{allowed:data?.required!==true||data?.authorized===true,error:data?.error||"OPERATOR_PERMISSION_DENIED"};
       };
+      const operatorSettingsActions=new Set([
+        "sync_catalog","sync_tables","upsert_operator","upsert_terminal","upsert_printer","upsert_provider_connection",
+        "bundle_save_draft","bundle_update_settings","bundle_publish","bundle_restore",
+        "save_layout_draft","publish_layout","restore_layout_version",
+        "save_floor_plan","publish_floor_plan","activate_floor_plan","restore_floor_plan_version"
+      ]);
+      if(operatorSettingsActions.has(action)){
+        const settingsPermission=await operatorBoundPermission("settings");
+        if(!settingsPermission.allowed)return json({error:settingsPermission.error},403);
+      }
       const operatorPermissionByAction:Record<string,string>={
         open_cash_session:"cash",close_cash_session:"cash",
         commit_order:"sale",save_open_order:"sale",append_order_items:"sale",
@@ -332,13 +342,7 @@ export default {
         settle_open_order:"sale",settle_open_order_split:"sale",settle_open_order_allocated:"sale",pay_allocated_group:"sale",
         create_terminal_intent:"sale",cancel_terminal_intent:"sale",
         refund_order:"refund",confirm_external_refund:"refund",create_terminal_refund_intent:"refund",
-        claim_direct_order:"sale",link_direct_order:"sale",
-        sync_catalog:"settings",sync_tables:"settings",
-        upsert_operator:"settings",upsert_terminal:"settings",upsert_printer:"settings",
-        upsert_provider_connection:"settings",
-        bundle_save_draft:"settings",bundle_update_settings:"settings",bundle_publish:"settings",bundle_restore:"settings",
-        save_layout_draft:"settings",publish_layout:"settings",restore_layout_version:"settings",
-        save_floor_plan:"settings",publish_floor_plan:"settings",activate_floor_plan:"settings",restore_floor_plan_version:"settings"
+        claim_direct_order:"sale",link_direct_order:"sale"
       };
       const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
       if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
