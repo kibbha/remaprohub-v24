@@ -37,7 +37,7 @@ Deno.serve(async(req)=>{
     const productId=String(event?.product_id||event?.product_identifier||"");
     const entitlementIds=Array.isArray(event?.entitlement_ids)?event.entitlement_ids.map(String):[];
     const planCode=entitlementIds.includes("multi")||/multi/i.test(productId)?"multi":"standard";
-    const restaurantMatch=productId.match(/remapro[_-]([1-5])(?:\\D|$)/i);
+    const restaurantMatch=productId.match(/remapro[_-]([1-5])(?:\D|$)/i);
     const restaurantLimit=restaurantMatch?Number(restaurantMatch[1]):planCode==="multi"?5:1;
     const {data:plan,error:planError}=await admin.from("subscription_plans").select("id,code").eq("code",planCode).eq("active",true).single();
     if(planError||!plan)return json({error:"Subscription plan not found"},500);
@@ -47,7 +47,7 @@ Deno.serve(async(req)=>{
     let status="active",cancelAtPeriodEnd=false;
     if(type==="EXPIRATION")status="expired";
     else if(type==="BILLING_ISSUE")status="past_due";
-    else if(type==="SUBSCRIPTION_PAUSED")status="paused";
+    else if(type==="SUBSCRIPTION_PAUSED"){status="active";cancelAtPeriodEnd=false}
     else if(type==="CANCELLATION"){status=expirationMs>Date.now()?"active":"canceled";cancelAtPeriodEnd=true}
     else if(type==="UNCANCELLATION"){status="active";cancelAtPeriodEnd=false}
 
