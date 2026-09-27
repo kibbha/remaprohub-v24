@@ -37,5 +37,10 @@ for(const token of ['organizationSubscriptionAccess','ENTITLEMENT_MUTATIONS','SU
   assert.ok(pos.includes(token),'POS entitlement must include '+token);
 for(const action of ['commit_order','settle_open_order','open_cash_session','bundle_publish','sync_catalog','upsert_operator'])
   assert.ok(pos.includes('"'+action+'"'),'POS mutation entitlement set must protect '+action);
+for(const action of ['close_cash_session','settle_open_order','settle_open_order_split','settle_open_order_allocated','pay_allocated_group','cancel_open_order'])
+  assert.ok(pos.includes('"'+action+'"'),'expired-service recovery must cover '+action);
+assert.ok(pos.includes('expiredServiceRecoveryAllowed'),'POS expiry gate must verify a pre-existing open service before recovery');
+assert.ok(pos.includes('.eq("status","open").maybeSingle()'),'expiry recovery must require an actually open cash session');
+assert.ok(pos.includes('if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402)'),'new mutations must remain blocked after expiry');
 
 console.log('Pre-launch subscription entitlement and recovery-access checks passed');
