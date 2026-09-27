@@ -486,10 +486,12 @@ function openOperatorEditor(existing=null){
   modal.querySelector('#operator-editor-cancel')?.addEventListener('click',closeOperatorEditor);
   modal.querySelector('#operator-editor-form')?.addEventListener('submit',async e=>{
     e.preventDefault();const fd=new FormData(e.currentTarget);
+    const nextRole=String(fd.get('role')||'server');
+    const preservedPermissions=existing&&nextRole===String(o.role||'')&&o.permissions&&typeof o.permissions==='object'?o.permissions:{};
     try{
       await posFunction({action:'upsert_operator',restaurantId:state.restaurant.id,operator:{
-        id:o.id||'',displayName:String(fd.get('displayName')||'').trim(),role:String(fd.get('role')||'server'),
-        pin:String(fd.get('pin')||''),active:fd.get('active')==='on',permissions:{}
+        id:o.id||'',displayName:String(fd.get('displayName')||'').trim(),role:nextRole,
+        pin:String(fd.get('pin')||''),active:fd.get('active')==='on',permissions:preservedPermissions
       }});
       await refreshOperators();closeOperatorEditor();state.error='Profil opérateur enregistré.';render();
     }catch(error){state.error=error.message||String(error);render();closeOperatorEditor()}
