@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+// Current prelaunch audit validation
 import fs from 'node:fs';
 
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
