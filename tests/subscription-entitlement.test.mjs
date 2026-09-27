@@ -3,7 +3,7 @@ import fs from 'node:fs';
 
 globalThis.localStorage={getItem:()=>null,setItem:()=>{},removeItem:()=>{}};
 Object.defineProperty(globalThis,'navigator',{value:{onLine:true},configurable:true});
-const {subscriptionAccessForIdentity}=await import('../src/cloud.js');
+const {subscriptionAccessForIdentity,accessibleRestaurants}=await import('../src/cloud.js');
 
 const now=new Date('2026-09-27T12:00:00Z');
 const org={id:'org',created_at:'2026-09-25T00:00:00Z'};
@@ -18,6 +18,15 @@ assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organiza
 assert.equal(subscriptionAccessForIdentity(identity,'org',new Date('2026-10-08T00:00:00Z')).allowed,true,'legacy fallback remains valid inside fourteen days');
 assert.equal(subscriptionAccessForIdentity(identity,'org',new Date('2026-10-09T00:00:01Z')).allowed,false,'legacy fallback expires after fourteen days');
 assert.equal(subscriptionAccessForIdentity({restaurants:[]},'org',now).status,'legacy_cache','old offline identity cache must not abruptly break a service before first refresh');
+
+const restaurants=[
+  {id:'a',organization_id:'org',name:'A'},
+  {id:'b',organization_id:'org',name:'B'},
+  {id:'c',organization_id:'other',name:'C'}
+];
+assert.deepEqual(accessibleRestaurants({restaurants,memberships:[{organization_id:'org',restaurant_id:'a',role:'employee'}]}).map(x=>x.id),['a'],'restaurant-scoped staff must only see assigned POS establishments');
+assert.deepEqual(accessibleRestaurants({restaurants,memberships:[{organization_id:'org',restaurant_id:null,role:'network_admin'}]}).map(x=>x.id),['a','b'],'organization admin must see every establishment in its organization');
+assert.deepEqual(accessibleRestaurants({restaurants,memberships:[{organization_id:'org',restaurant_id:null,role:'employee'}]}).map(x=>x.id),[],'non-admin organization-wide membership must not grant POS establishment access');
 
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const cloud=fs.readFileSync(new URL('../src/cloud.js',import.meta.url),'utf8');
@@ -39,3 +48,4 @@ console.log('POS pre-launch subscription gate and offline continuity checks pass
 for(const token of ['noRestaurantAssigned','noRestaurantAssignedHint'])
   assert.ok(app.includes(token),'POS zero-restaurant recovery screen must include '+token);
 assert.ok(app.includes("const restaurants=state.identity?.restaurants||[]")&&app.includes("if(!restaurants.length)"),'picker must explicitly handle an empty restaurant list');
+assert.ok(app.includes('const restaurants=accessibleRestaurants(cached)'),'offline identity cache must be re-filtered before POS restaurant selection');
