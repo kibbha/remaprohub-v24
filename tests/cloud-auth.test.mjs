@@ -21,7 +21,7 @@ globalThis.fetch=async (url,options={})=>{
   if(url.includes('/auth/v1/token?grant_type=password')){
     const body=JSON.parse(options.body);
     assert.equal(body.email,'manager@example.com');
-    assert.equal(body.password,'top-secret-password');
+    assert.equal(body.password,'pw');
     assert.equal(options.headers.apikey,'sb_publishable_test');
     assert.equal(options.headers.Authorization,undefined);
     return {ok:true,json:async()=>({access_token:'jwt-1',refresh_token:'refresh-1',expires_in:3600,user:{id:'u1',email:'manager@example.com'}})};
@@ -51,19 +51,19 @@ globalThis.fetch=async (url,options={})=>{
   }
   if(url.includes('/rest/v1/subscriptions')){
     return {ok:true,json:async()=>[
-      {organization_id:'org1',status:'active',trial_ends_at:null,created_at:'2026-09-15T00:00:00Z',plan:{code:'multi'}}
+      {organization_id:'org1',status:'active',trial_ends_at:null,restaurant_limit:5,created_at:'2026-09-15T00:00:00Z',plan:{code:'multi'}}
     ]};
   }
   if(url.endsWith('/auth/v1/logout'))return {ok:true,json:async()=>({})};
   throw new Error('Unexpected request '+url);
 };
 
-const session=await signInCloud(' Manager@Example.com ','top-secret-password');
+const session=await signInCloud(' Manager@Example.com ','pw');
 assert.equal(session.access_token,'jwt-1');
 assert.equal(cloudSession().refresh_token,'refresh-1');
 const persisted=values.get('remaprohub-sb-session');
 assert.ok(persisted.includes('jwt-1'));
-assert.doesNotMatch(persisted,/top-secret-password/,'password must never be persisted');
+assert.doesNotMatch(persisted,/pw/,'password must never be persisted');
 
 const identity=await loadCloudIdentity();
 assert.equal(identity.user.email,'manager@example.com');
@@ -96,9 +96,9 @@ const trialIdentity={
   organizations:[{id:'orgTrial',created_at:'2026-09-15T00:00:00Z'}],
   subscriptions:[]
 };
-assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-18T12:00:00Z')),true);
-assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-21T12:00:00Z')),true);
-assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-23T12:00:00Z')),false);
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-18T12:00:00Z')),false,'base trial includes one establishment');
+assert.equal(cloudMultiAccess(trialIdentity,'orgTrial',new Date('2026-09-28T12:00:00Z')),false,'fourteen-day fallback does not grant additional establishment slots');
+assert.equal(cloudMultiAccess({...trialIdentity,subscriptions:[{organization_id:'orgTrial',status:'trialing',trial_ends_at:'2026-09-29T00:00:00Z',restaurant_limit:2,plan:{code:'standard'}}]},'orgTrial',new Date('2026-09-28T12:00:00Z')),true,'purchased slot count enables multi-establishment access');
 
 values.set('remaprohub-sb-session',JSON.stringify({access_token:'expired',refresh_token:'refresh-1',expires_at:1}));
 const refreshed=await refreshCloudSession();
@@ -108,7 +108,7 @@ values.set('remaprohub-sb-session',JSON.stringify({access_token:'jwt-1',refresh_
 await signOutCloud();
 assert.equal(cloudSession(),null);
 
-await signInCloud('manager@example.com','top-secret-password');
+await signInCloud('manager@example.com','pw');
 assert.ok(cloudSession());
 assert.equal(saveCloudConfig('https://other.supabase.co','sb_publishable_other'),true);
 assert.equal(cloudSession(),null,'changing project config must invalidate prior session');
