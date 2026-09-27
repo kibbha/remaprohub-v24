@@ -70,3 +70,10 @@ const round3=fs.readFileSync(new URL('../supabase/migrations/20260926221957_rema
 for(const token of ['diagnostic-minimal-reproduction-v1','developer-hub-response-contract-v1','knowledge-route-contract-v1','dispatcher-sensitive-billing-route-v1',"version=5","version=4","version=3","role_focus_mode"])if(!round3.includes(token))throw new Error('Missing simulation learning round 3 token: '+token);
 
 for(const token of ['regression_daily_limit','pending:true,dailyLimitReached:true','if(!pendingCase)return {testCase:null,pending:false,dailyLimitReached:false}','if(Number(todayCount||0)>=10)return {testCase:null,pending:true,dailyLimitReached:true}'])if(!runtime.includes(token))throw new Error('Missing regression-first campaign gate token: '+token);
+
+for(const token of [
+  'generatedCount>=targetCount',
+  'generatedCount<targetCount',
+  'remainingToGenerate:Math.max(0,targetCount-generatedCount)',
+  'status:"generating",completed_at:null'
+])if(!runtime.includes(token))throw new Error('Simulation campaign target guard missing: '+token);
