@@ -22,6 +22,7 @@ const pos=fs.readFileSync(new URL('../supabase/functions/remapro-pos-sync/index.
 
 for(const token of [
   "cloudSubscriptionAccess(cloudIdentity,cloudOrganizationId()).allowed",
+  "applySubscriptionEntitlement(state,entitlement)",
   "['dashboard','category','more','help','settings']"
 ])assert.ok(app.includes(token),'Hub entitlement/recovery gate must include '+token);
 
