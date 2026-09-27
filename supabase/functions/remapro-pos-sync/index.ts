@@ -305,7 +305,7 @@ export default {
         refund_order:"refund",confirm_external_refund:"refund",create_terminal_refund_intent:"refund",
         claim_direct_order:"sale",link_direct_order:"sale",
         sync_catalog:"settings",sync_tables:"settings",
-        upsert_operator:"settings",upsert_terminal:"settings",upsert_printer:"settings",set_printer_status:"settings",
+        upsert_operator:"settings",upsert_terminal:"settings",upsert_printer:"settings",
         upsert_provider_connection:"settings",
         bundle_save_draft:"settings",bundle_update_settings:"settings",bundle_publish:"settings",bundle_restore:"settings",
         save_layout_draft:"settings",publish_layout:"settings",restore_layout_version:"settings",
