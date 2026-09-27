@@ -80,18 +80,18 @@ async function request(path){
   const data=await r.json().catch(()=>null);if(!r.ok)throw new Error(data?.message||data?.error||'REQUEST_FAILED');return data;
 }
 export function subscriptionAccessForIdentity(identity,organizationId,now=new Date()){
-  if(!identity||!organizationId)return{allowed:false,status:'missing',plan:'standard',trialEndsAt:null,currentPeriodEnd:null};
-  if(!Array.isArray(identity.subscriptions))return{allowed:true,status:'legacy_cache',plan:'standard',trialEndsAt:null,currentPeriodEnd:null};
+  if(!identity||!organizationId)return{allowed:false,status:'missing',plan:'standard',restaurantLimit:1,trialEndsAt:null,currentPeriodEnd:null};
+  if(!Array.isArray(identity.subscriptions))return{allowed:true,status:'legacy_cache',plan:'standard',restaurantLimit:1,trialEndsAt:null,currentPeriodEnd:null};
   const subscription=identity.subscriptions.find(x=>x.organization_id===organizationId);
   if(subscription){
     const status=String(subscription.status||''),trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
     const allowed=status==='active'||(status==='trialing'&&trialEnd>now.getTime())||(status==='past_due'&&periodEnd>now.getTime());
-    return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
+    return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',restaurantLimit:Math.min(5,Math.max(1,Number(subscription.restaurant_limit)||1)),trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
   }
   const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
-  const end=organization?.created_at?new Date(organization.created_at).getTime()+7*86400000:0;
-  return{allowed:end>now.getTime(),status:end?'legacy_trial':'missing',plan:'standard',trialEndsAt:end?new Date(end).toISOString():null,currentPeriodEnd:null};
+  const end=organization?.created_at?new Date(organization.created_at).getTime()+14*86400000:0;
+  return{allowed:end>now.getTime(),status:end?'legacy_trial':'missing',plan:'standard',restaurantLimit:1,trialEndsAt:end?new Date(end).toISOString():null,currentPeriodEnd:null};
 }
 export async function loadIdentity(){
   const user=await request('/auth/v1/user'),uid=encodeURIComponent(user.id);
@@ -100,7 +100,7 @@ export async function loadIdentity(){
   const filter=orgs.map(encodeURIComponent).join(',');
   const restaurants=orgs.length?await request('/rest/v1/restaurants?select=id,organization_id,name,currency,timezone,active&active=eq.true&organization_id=in.('+filter+')'):[];
   const organizations=orgs.length?await request('/rest/v1/organizations?select=id,created_at&id=in.('+filter+')'):[];
-  const subscriptions=orgs.length?await request('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,created_at,plan:subscription_plans(code)&organization_id=in.('+filter+')&order=created_at.desc'):[];
+  const subscriptions=orgs.length?await request('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,restaurant_limit,created_at,plan:subscription_plans(code)&organization_id=in.('+filter+')&order=created_at.desc'):[];
   return{user,memberships:memberships||[],restaurants:restaurants||[],organizations:organizations||[],subscriptions:subscriptions||[],fetchedAt:new Date().toISOString()};
 }
 export async function posFunction(payload){
