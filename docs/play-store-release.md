@@ -20,14 +20,13 @@
 
 ## RevenueCat
 Create Android app `com.remaprohub.app`.
-Create entitlements named `standard` and `multi` (customer-facing labels: Standard and Pro).
-Create offerings named `standard` and `multi` (customer-facing labels: Standard and Pro).
-Each offering must contain monthly and annual packages linked to the corresponding Google Play subscriptions.
+Create the unified entitlement `remapro`.
+Create establishment-count offerings/products `remapro_1` through `remapro_5` for 1–5 establishments. Each uses a monthly package: CHF 49.90 for the first establishment plus CHF 19.90 for each additional establishment. Legacy `standard` / `multi` identifiers remain compatibility fallbacks only.
 Configure a RevenueCat webhook pointing to the deployed `remapro-revenuecat-webhook` Edge Function.
 Send `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`.
 
 ## Supabase
-Apply migrations through `008_v27_11_pricing_and_plan_limits.sql`.
+Apply all committed production migrations through `pos_terminal_authorized_cancel_guard`.
 Deploy the production Edge Functions used by the app:
 - remapro-admin
 - remapro-sync
@@ -52,7 +51,7 @@ Use the required testing track for the account before production.
 ## Final checks before upload
 - Run the full `npm test` suite on the exact candidate commit.
 - Confirm runtime configuration contains no secret server key.
-- Confirm RevenueCat returns the expected Standard / Pro entitlements (`standard` / `multi` internally).
+- Confirm RevenueCat returns the unified `remapro` entitlement and the product/offering matching the purchased establishment count (`remapro_1` … `remapro_5`).
 - Test sign-in, sign-out, password reset, account deletion and biometric unlock on a physical Android device.
 - Test one offline edit followed by reconnection/synchronization.
 - Test one invoice scan / AI request with the production Supabase function.
