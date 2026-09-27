@@ -24,6 +24,7 @@ const cloud=readFileSync('src/cloud.js','utf8');
 const harden=readFileSync('scripts/harden-android.mjs','utf8');
 const admin=readFileSync('supabase/functions/remapro-admin/index.ts','utf8');
 const bootstrap=readFileSync('supabase/functions/remapro-bootstrap/index.ts','utf8');
+const posSync=readFileSync('supabase/functions/remapro-pos-sync/index.ts','utf8');
 const alignment=readFileSync('supabase/migrations/005_v27_10_permission_alignment.sql','utf8');
 const privateHelpers=readFileSync('supabase/migrations/006_v27_10_private_auth_helpers.sql','utf8');
 const runtime=readFileSync('app/runtime-config.js','utf8');
@@ -62,6 +63,15 @@ assert.match(admin,/set-member-active/);
 assert.match(admin,/list-members/);
 assert.match(admin,/list-audit/);
 assert.match(admin,/Owner\/admin account is protected/);
+for(const action of [
+  'sync_catalog','sync_tables','upsert_operator','upsert_terminal','upsert_printer','set_printer_status',
+  'upsert_provider_connection','bundle_save_draft','bundle_update_settings','bundle_publish','bundle_restore',
+  'save_layout_draft','publish_layout','restore_layout_version',
+  'save_floor_plan','publish_floor_plan','activate_floor_plan','restore_floor_plan_version'
+]){
+  assert.match(posSync,new RegExp(action+':["\\']settings["\\']'),'POS server mutation must require active operator settings permission: '+action);
+}
+
 assert.match(migration,/create table if not exists public\.audit_logs/);
 assert.match(migration,/revoke insert, update, delete on public\.memberships from authenticated/);
 
