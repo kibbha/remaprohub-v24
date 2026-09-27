@@ -340,6 +340,7 @@ function showTerminalIntentModal(order,intent,terminal){
   pollTerminalIntent(intent.id,order.id);
 }
 async function startTerminalPayment(method,terminal){
+  if(!requireOperatorPermission('sale'))return;
   const order=await prepareOrderForTerminalIntent();if(!order)return;
   const tip=await askTip();if(tip===null)return;
   const device=await ensureDevice();
@@ -460,8 +461,15 @@ async function switchOperator(){
   try{if(state.online&&currentOperatorSession()?.token)await posFunction({action:'operator_logout',restaurantId:state.restaurant.id})}catch{}
   clearOperatorSession();state.operator=null;state.view='sale';render();
 }
+function canOperatorPermission(permission='sale'){
+  return !state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.[permission]===true;
+}
+function requireOperatorPermission(permission='sale'){
+  if(canOperatorPermission(permission))return true;
+  uiAlert(t('operatorPermissionRequired'));return false;
+}
 function canManagerPermission(permission='settings'){
-  return isManager()&&(!state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.[permission]===true);
+  return isManager()&&canOperatorPermission(permission);
 }
 function canManageSettings(){return canManagerPermission('settings')}
 function operatorLoginView(){
@@ -980,6 +988,7 @@ async function logoutPos(){
   state.identity=null;state.restaurant=null;state.entitlement=null;state.operator=null;state.cashSession=null;state.view='sale';render();
 }
 async function openSession(openingCash){
+  if(!requireOperatorPermission('cash'))return;
   const amount=parseCashAmount(openingCash);
   if(amount===null){uiAlert(t('invalidAmount'));return}
   if(state.cashSession||state.busy)return;
@@ -993,6 +1002,7 @@ async function openSession(openingCash){
   }finally{state.busy=false}
 }
 async function closeSession(countedCash){
+  if(!requireOperatorPermission('cash'))return;
   const amount=parseCashAmount(countedCash);
   if(amount===null){uiAlert(t('invalidAmount'));return}
   await updateQueueCount();
@@ -1108,6 +1118,7 @@ function buildOpenOrder(orderId,eventId){
   };
 }
 async function saveOpenOrder(){
+  if(!requireOperatorPermission('sale'))return;
   if(blockExpiredNewSale())return;
   if(orderLocked()){uiAlert('Cette note a déjà été envoyée en production.');return}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
@@ -1122,6 +1133,7 @@ async function saveOpenOrder(){
 
 
 async function acceptDirectOrder(id){
+  if(!requireOperatorPermission('sale'))return;
   if(blockExpiredNewSale())return;
   if(!state.online){uiAlert(t('connectionRequired'));return}
   const direct=state.directOrders.find(x=>String(x.id)===String(id));if(!direct||!['pending','accepted','imported'].includes(direct.status))return;
@@ -1152,6 +1164,7 @@ async function acceptDirectOrder(id){
   }catch(error){state.error=error.message||String(error);recordDiagnostic('direct_orders.accept_error',{status:direct.status,message:state.error});await refreshDirectOrders();render()}
 }
 async function rejectDirectOrder(id){
+  if(!requireOperatorPermission('cancel'))return;
   if(!state.online){uiAlert(t('connectionRequired'));return}
   const reason=await uiPrompt({title:t('directReject'),label:t('cancelReason'),required:true});if(!reason?.trim())return;
   try{await posFunction({action:'reject_direct_order',restaurantId:state.restaurant.id,directOrderId:id,reason:reason.trim()});await refreshDirectOrders();render()}
@@ -1293,6 +1306,7 @@ function paymentBlockedByDelta(){return orderLocked()&&hasPendingDelta()}
 function progressivePaymentActive(){return currentServerOrder()?.status==='payment_pending'}
 function standardPaymentBlocked(){return paymentBlockedByDelta()||progressivePaymentActive()}
 async function transferCurrentOrder(){
+  if(!requireOperatorPermission('transfer'))return;
   const order=currentServerOrder();
   if(!order){uiAlert('Enregistrez d’abord la note avant de la transférer.');return}
   if(!state.online){uiAlert(t('tableTransferNeedsNetwork'));return}
@@ -1308,6 +1322,7 @@ async function transferCurrentOrder(){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function mergeCurrentOrderTable(){
+  if(!requireOperatorPermission('transfer'))return;
   const order=currentServerOrder();
   if(!order){uiAlert('Enregistrez d’abord la note avant de fusionner des tables.');return}
   if(!state.online){uiAlert('La fusion de tables nécessite une connexion.');return}
@@ -1332,6 +1347,7 @@ async function mergeCurrentOrderTable(){
   }
 }
 async function unmergeCurrentOrderTable(){
+  if(!requireOperatorPermission('transfer'))return;
   const order=currentServerOrder(),ids=Array.isArray(order?.linked_table_ids)?order.linked_table_ids:[];
   if(!order||!ids.length){uiAlert('Aucune table secondaire à séparer.');return}
   if(!state.online){uiAlert('La séparation de tables nécessite une connexion.');return}
@@ -1345,6 +1361,7 @@ async function unmergeCurrentOrderTable(){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function cancelCurrentOrder(){
+  if(!requireOperatorPermission('cancel'))return;
   const order=currentServerOrder();
   if(!order){uiAlert(t('orderNotSaved'));return}
   if(!state.online){uiAlert(t('cancelNeedsNetwork'));return}
@@ -1553,6 +1570,7 @@ function updateProgressiveTotal(){
   const submit=modal.querySelector('#progressive-submit');if(submit)submit.disabled=selected<=0.005;
 }
 async function openProgressivePayment(){
+  if(!requireOperatorPermission('sale'))return;
   const order=await prepareOrderForProgressivePayment();if(!order)return;
   let progress;
   try{
@@ -1620,6 +1638,7 @@ async function openProgressivePayment(){
   updateProgressiveTotal();
 }
 async function splitCheckout(){
+  if(!requireOperatorPermission('sale'))return;
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
   if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return}
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
@@ -1653,6 +1672,7 @@ async function splitCheckout(){
   await saveFloorCache();await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 async function refundReceipt(receipt){
+  if(!requireOperatorPermission('refund'))return;
   if(!state.online){uiAlert(t('refundNeedsNetwork'));return}
   if(!state.cashSession||state.cashSession.status!=='open'){uiAlert(t('openCashBeforeRefund'));return}
   const refunds=Array.isArray(receipt.refunds)?receipt.refunds:[];
@@ -1717,6 +1737,7 @@ async function persistLocalProduction(){
   if(state.restaurant)await kvSet(productionKey(state.restaurant.id),state.productionQueue);
 }
 async function sendCurrentOrderProduction(){
+  if(!requireOperatorPermission('production'))return;
   const order=currentServerOrder();
   if(!order){uiAlert('Enregistrez d’abord la note avant de l’envoyer en production.');return}
   if(!state.online){
@@ -1759,6 +1780,7 @@ async function sendCurrentOrderProduction(){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function updateProductionItem(itemId,status,{renderAfter=true,refreshAfter=true}={}){
+  if(!requireOperatorPermission('production'))return false;
   if(!state.online){
     const changedAt=new Date().toISOString(),timestampKey=({sent:'production_sent_at',preparing:'production_started_at',ready:'production_ready_at',served:'production_served_at'})[status],patchItems=order=>({...order,items:(order.items||[]).map(i=>String(i.id)===String(itemId)?{...i,kitchen_status:status,...(timestampKey?{[timestampKey]:i[timestampKey]||changedAt}:{})}:i),updated_at:changedAt});
     state.productionQueue=state.productionQueue.map(patchItems);
@@ -2070,6 +2092,7 @@ function changeQty(id,delta){if(expiredServiceContinuity()){uiAlert('Abonnement 
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
+  if(!requireOperatorPermission('sale'))return;
   if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
   if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return}
@@ -2444,6 +2467,7 @@ async function updateKdsThresholds(warn,critical){
   localStorage.setItem('remapro-kds-warn',String(w));localStorage.setItem('remapro-kds-critical',String(c));render();
 }
 async function setProductionPriority(order,priority){
+  if(!requireOperatorPermission('production'))return;
   if(!order||!advancedKdsEnabled())return;
   const value=Math.max(0,Math.min(2,Math.trunc(Number(priority)||0)));
   state.productionQueue=state.productionQueue.map(x=>String(x.id)===String(order.id)?{...x,production_priority:value}:x);
@@ -2457,6 +2481,7 @@ async function setProductionPriority(order,priority){
   }catch(error){state.error=error.message||String(error);recordDiagnostic('production.priority_error',{message:state.error});render()}
 }
 async function recallProductionOrder(orderId){
+  if(!requireOperatorPermission('production'))return;
   if(!orderId||!advancedKdsEnabled())return;
   if(!state.online){
     const patch=order=>String(order.id)===String(orderId)?{...order,status:'preparing',items:(order.items||[]).map(i=>i.kitchen_status==='served'?{...i,kitchen_status:'ready',production_served_at:null}:i),updated_at:new Date().toISOString()}:order;
