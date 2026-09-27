@@ -6,6 +6,44 @@ const RESTAURANT_ADMIN_ROLES=new Set(["restaurant_admin","director","manager"]);
 const json=(data:unknown,status=200)=>Response.json(data,{status});
 const clean=(value:unknown,max=180)=>String(value??"").trim().slice(0,max);
 const validUuid=(value:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));
+function aiModelRates(model:string){
+  const id=String(model||"").toLowerCase();
+  if(id.includes("gpt-5.6-luna"))return{input:0.20,cached:0.02,output:1.20,tier:"luna"};
+  if(id.includes("gpt-5.6-terra"))return{input:2.00,cached:0.20,output:12.00,tier:"terra"};
+  if(id.includes("gpt-5.6-sol")||id==="gpt-5.6")return{input:4.00,cached:0.40,output:20.00,tier:"sol"};
+  return{input:10.00,cached:1.00,output:50.00,tier:"unknown"};
+}
+function aiUsageCost(model:string,data:any){
+  const r=aiModelRates(model),u=data?.usage||{},input=Math.max(0,Number(u.input_tokens)||0),output=Math.max(0,Number(u.output_tokens)||0);
+  const cached=Math.min(input,Math.max(0,Number(u?.input_tokens_details?.cached_tokens)||0));
+  const usd=((input-cached)*r.input+cached*r.cached+output*r.output)/1_000_000;
+  return{input,cached,output,costMicros:Math.max(1,Math.ceil(usd*1_000_000*1.25))};
+}
+function deliveryReserveMicros(model:string){
+  const tier=aiModelRates(model).tier;
+  return tier==="luna"?500000:tier==="terra"?1500000:tier==="sol"?2500000:4000000;
+}
+async function reserveAiBudget(ctx:any,organizationId:string,restaurantId:string,model:string,photoCount:number){
+  const {data,error}=await ctx.supabaseAdmin.rpc("ai_budget_reserve",{
+    p_organization_id:organizationId,p_restaurant_id:restaurantId,p_source:"delivery_scan",
+    p_reserve_micros:deliveryReserveMicros(model),p_model:model,p_metadata:{channel:"delivery",photoCount}
+  });
+  if(error)throw new Error("AI_BUDGET_RESERVE_FAILED");
+  return data;
+}
+async function commitAiBudget(ctx:any,reservationId:string,model:string,data:any){
+  const u=aiUsageCost(model,data);
+  const {data:budget,error}=await ctx.supabaseAdmin.rpc("ai_budget_commit",{
+    p_reservation_id:reservationId,p_actual_micros:u.costMicros,p_input_tokens:u.input,
+    p_cached_input_tokens:u.cached,p_output_tokens:u.output,p_metadata:{pricing:"openai-2026-09",safetyFactor:1.25}
+  });
+  if(error)throw new Error("AI_BUDGET_COMMIT_FAILED");
+  return budget;
+}
+async function releaseAiBudget(ctx:any,reservationId:string,reason:string){
+  if(!reservationId)return;
+  await ctx.supabaseAdmin.rpc("ai_budget_release",{p_reservation_id:reservationId,p_metadata:{reason}}).catch(()=>null);
+}
 const clamp=(value:unknown,min=0,max=1)=>Math.min(max,Math.max(min,Number(value)||0));
 const unitValue=(value:unknown)=>{
   const raw=clean(value,40).toLowerCase();
@@ -105,6 +143,7 @@ export default {
     const started=Date.now();
     let cleanupPaths:string[]=[];
     let analysisContext:any=null;
+    let budgetReservationId="",budgetCommitted=false;
     try{
       const body=await req.json().catch(()=>({}));
       const action=clean(body.action,40)||"analyze";
@@ -232,6 +271,12 @@ export default {
       if(!apiKey)throw new Error("OPENAI_API_KEY_NOT_CONFIGURED");
       const model=Deno.env.get("OPENAI_DELIVERY_MODEL")||Deno.env.get("OPENAI_MODEL")||"gpt-5.6-luna";
       const lang=clean(body.language,8)||"fr";
+      const reservation=await reserveAiBudget(ctx,restaurant.organization_id,restaurantId,model,cleanupPaths.length);
+      if(!reservation?.allowed){
+        await ctx.supabaseAdmin.from("delivery_ai_analyses").update({status:"failed",error:"AI_MONTHLY_BUDGET_EXHAUSTED",updated_at:new Date().toISOString()}).eq("id",analysisId);
+        return json({error:"AI_MONTHLY_BUDGET_EXHAUSTED",code:"AI_MONTHLY_BUDGET_EXHAUSTED",aiBudget:reservation},429);
+      }
+      budgetReservationId=String(reservation.reservationId||"");
       const instructions=`You are the server-side receiving assistant for a restaurant inventory system.
 Analyze ALL delivery photos together. Combine visual recognition, OCR of labels/packaging, and visible barcode/GTIN/EAN digits.
 Return one aggregate row per distinct SKU/product across all photos. Photos may overlap: NEVER count the same physical units twice just because they appear in multiple photos. Use photoIndexes to show where evidence appears.
@@ -250,11 +295,15 @@ Do not include prices. Interface language: ${lang}.`;
             {type:"input_text",text:"Identify and count the unique products in this delivery across all supplied photos. Avoid cross-photo duplicates."},
             ...imageContent
           ]}],
-          store:false
+          store:false,max_output_tokens:2500
         })
       });
       const aiData=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(clean(aiData?.error?.message||"OpenAI delivery analysis failed",300));
+      if(!response.ok){
+        await releaseAiBudget(ctx,budgetReservationId,"provider_error_"+String(response.status));budgetReservationId="";
+        throw new Error(clean(aiData?.error?.message||"OpenAI delivery analysis failed",300));
+      }
+      const aiBudget=await commitAiBudget(ctx,budgetReservationId,model,aiData);budgetCommitted=true;
       let parsed:any;
       try{parsed=parseJsonText(outputText(aiData))}catch{throw new Error("AI_RESPONSE_NOT_VALID_JSON")}
       const detected=dedupeItems(Array.isArray(parsed?.items)?parsed.items:[]);
@@ -293,8 +342,9 @@ Do not include prices. Interface language: ${lang}.`;
         uncertain:result.summary.uncertain,newProducts:result.summary.newProducts,
         model,durationMs:Date.now()-started
       });
-      return json({ok:true,...result});
+      return json({ok:true,...result,aiBudget});
     }catch(error){
+      if(budgetReservationId&&!budgetCommitted)await releaseAiBudget(ctx,budgetReservationId,"server_error");
       const message=error instanceof Error?error.message:"Unexpected delivery analysis error";
       if(analysisContext?.id){
         const {data:failed}=await ctx.supabaseAdmin.from("delivery_ai_analyses")
