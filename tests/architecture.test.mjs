@@ -90,7 +90,7 @@ assert.match(app,/allowedLocalRestaurants/);
 assert.match(app,/cloudRestaurantAllowed/);
 assert.match(app,/function cloudGate\(\)/);
 assert.match(app,/mergeCloudRestaurants\(state,cloudIdentity\?\.restaurants\|\|\[\]\)/);
-assert.match(app,/cloudMultiAccess\(cloudIdentity,cloudOrganizationId\(\)\)/);
+assert.match(app,/cloudSubscriptionAccess\(cloudIdentity,cloudOrganizationId\(\)\)/,'organization UI must use authoritative subscription access and establishment slots');
 assert.match(app,/billingPurchaseForm/);assert.match(app,/purchasePlan\(/);assert.doesNotMatch(app,/id="subscriptionForm"/);
 assert.match(app,/cloudSub=\(cloudIdentity\?\.subscriptions\|\|\[\]\)\.find/);
 assert.match(app,/session&&cloudIdentity\?/,'cloud session must show authoritative subscription instead of local selector');
