@@ -62,6 +62,9 @@ assert.ok(app.includes("preservedPermissions=existing&&nextRole===String(o.role|
 assert.ok(app.includes("permissions:preservedPermissions"),'operator edit payload must not silently reset custom permissions');
 assert.ok(cloud.includes("String(op.restaurantId||'')===restaurantId"),'operator PIN token must never cross restaurant boundaries');
 assert.ok(cloud.includes("const body=operatorToken?{...payload,operatorSessionToken:operatorToken}:payload"),'POS calls must attach only a restaurant-matched operator token');
+assert.ok(app.includes("state.support={tickets:[],loaded:false,loading:false,error:'',lastReply:'',selectedTicket:null,messages:[],conversationLoading:false}"),'restaurant switch must clear support tickets and conversations');
+assert.ok(app.includes("state.academy={...state.academy")&&app.includes("managerRows:[]}"),'restaurant switch must invalidate academy organization state');
+assert.match(app,/async function logoutPos\(\)\{[\s\S]{0,240}resetRestaurantRuntime\(\)/,'logout must clear restaurant-scoped runtime before the next account');
 
 assert.ok(sw.includes("url.origin!==self.location.origin"),'service worker must ignore cross-origin requests');
 assert.ok(sw.includes("runtime-config.js"),'runtime config must remain network-first');
