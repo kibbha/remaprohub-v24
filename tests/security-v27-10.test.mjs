@@ -72,6 +72,13 @@ for(const action of [
   assert.match(posSync,new RegExp(action+':["\\']settings["\\']'),'POS server mutation must require active operator settings permission: '+action);
 }
 
+for(const table of ['pos_orders','pos_cash_sessions','pos_refunds','pos_payment_intents','pos_payment_terminals','pos_printers','pos_tables']){
+  assert.ok(posSync.includes('["'+table+'",'),'POS request scope guard missing for '+table);
+}
+assert.match(posSync,/action==="close_cash_session"\)scopedRefs\.push\(\["pos_cash_sessions",body\.sessionId/);
+assert.match(posSync,/from\("pos_order_items"\)\.select\("order_id"\)/);
+assert.match(posSync,/scopedRecordExists\("pos_orders",String\(item\.order_id\)\)/);
+
 assert.match(migration,/create table if not exists public\.audit_logs/);
 assert.match(migration,/revoke insert, update, delete on public\.memberships from authenticated/);
 
