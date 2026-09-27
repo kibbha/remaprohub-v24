@@ -11,7 +11,7 @@ import {recordDiagnostic} from './telemetry.js';
 import {queuedPayload,queueRetryDelayMs,queueRetryDue,definitiveQueueRejection} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
-import {readPublishedBundle,readConfigurationSnapshot,readCachedConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,readCachedConfigurationSnapshot,configurationSnapshotMatchesHead,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
 import {normalizePosSettings,paymentAllowed} from './payment-policy.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
@@ -1990,6 +1990,7 @@ async function refreshHubManagedConfiguration(head=null){
   if(atomic?.snapshot){
     const snapshot=await readConfigurationSnapshot(atomic);
     if(state.restaurant?.id!==restaurantId)throw new Error('RESTAURANT_CHANGED_DURING_SYNC');
+    if(configurationSnapshotMatchesHead(snapshot,head)){
     const document=snapshot.document,nextBootstrap={
       ...(state.bootstrap||{}),
       restaurant:state.bootstrap?.restaurant||state.restaurant,
@@ -2022,9 +2023,11 @@ async function refreshHubManagedConfiguration(head=null){
     await Promise.all([refreshOperators(),refreshTerminals(),refreshPrinters()]);
     ensureLayoutSelection(publishedLayout(state.bootstrap));
     return;
+    }
+    recordDiagnostic('hub_config.snapshot_stale',{headRevision:Number(head?.revision)||0,sourceRevision:Number(snapshot.sourceRevision)||0,bundleVersion:Number(snapshot.version)||0});
   }
 
-  // Compatibility path for a backend that has not deployed atomic snapshots yet.
+  // Compatibility path also handles a published snapshot superseded by direct Hub edits.
   const device=await ensureDevice();
   const [bootstrap,tables,terminals,printers,providers,bundleResult]=await Promise.all([
     posFunction({action:'bootstrap',restaurantId,deviceId:device.id}),
