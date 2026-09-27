@@ -8,7 +8,7 @@ const checks=[
   ['poll asks for lightweight configuration head',app.includes("action:'configuration_head'")&&app.includes('syncHubManagedConfiguration')],
   ['full reload happens only through managed refresh',app.includes('refreshHubManagedConfiguration(head)')],
   ['published configuration uses atomic snapshot first',app.includes("action:'configuration_snapshot'")&&app.includes('readConfigurationSnapshot(atomic)')],
-  ['legacy multi-endpoint reload remains as compatibility fallback',app.includes('Compatibility path for a backend that has not deployed atomic snapshots yet.')],
+  ['stale atomic snapshots fall back to the live multi-endpoint reload',app.includes('configurationSnapshotMatchesHead(snapshot,head)')&&app.includes('Compatibility path also handles a published snapshot superseded by direct Hub edits.')],
   ['managed reload includes bootstrap/catalog',app.includes("action:'bootstrap'")],
   ['managed reload includes tables',app.includes("action:'list_tables'")],
   ['managed reload includes terminals',app.includes("action:'list_terminals'")],
@@ -26,6 +26,9 @@ for(const [name,ok] of checks)if(!ok)throw new Error('Hub config sync guard fail
 console.log('hub-config-sync.test.mjs: OK');
 
 assert.match(app,/configurationRevision:Number\(head\?\.revision\)\|\|Number\(snapshot\.sourceRevision\)\+1/,'atomic snapshot derives the current configuration revision when no head is supplied');
+assert.match(app,/if\(configurationSnapshotMatchesHead\(snapshot,head\)\)/,'atomic snapshot must be accepted only when its source revision matches the verified head');
+assert.ok(app.includes("recordDiagnostic('hub_config.snapshot_stale'"),'stale published snapshots must be diagnosed before live fallback');
+
 assert.match(app,/await Promise\.all\(\[refreshOperators\(\),refreshTerminals\(\),refreshPrinters\(\)\]\)/,'atomic configuration refresh also reloads dynamic operator and device state');
 
 assert.match(app,/network\.online'[\s\S]{0,1200}refreshCashSessionState\(\)[\s\S]{0,1200}refreshOperators\(\)[\s\S]{0,250}refreshOperationalData\(\)[\s\S]{0,250}refreshAvailability\(\)/,'network resume reconciles cash session and dynamic POS state');
