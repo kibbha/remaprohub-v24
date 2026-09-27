@@ -1,1 +1,1 @@
-prelaunch-audit-operator-permission-binding-2026-09-27
+prelaunch-audit-runtime-operator-permissions-2026-09-27
