@@ -10,8 +10,9 @@ assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'o
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'trialing',trial_ends_at:'2026-09-26T00:00:00Z',plan:{code:'standard'}}]},'org',now).allowed,false);
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-28T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,true,'past_due remains in grace until current period end');
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-26T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,false);
-assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-09-30T00:00:00Z')).allowed,true,'legacy organization remains entitled inside seven-day fallback');
-assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-10-03T00:00:01Z')).allowed,false,'legacy fallback expires after seven days');
+assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-10-08T00:00:00Z')).allowed,true,'legacy organization remains entitled inside fourteen-day fallback');
+assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-10-09T00:00:01Z')).allowed,false,'legacy fallback expires after fourteen days');
+assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'active',restaurant_limit:3,plan:{code:'standard'}}]},'org',now).restaurantLimit,3,'entitlement exposes purchased establishment slots');
 
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const sync=fs.readFileSync(new URL('../supabase/functions/remapro-sync/index.ts',import.meta.url),'utf8');
