@@ -43,7 +43,7 @@ Test manuel après ajout de la clé :
 1. Ajouter le secret GitHub `REVENUECAT_ANDROID_API_KEY`.
 2. Vérifier l'entitlement RevenueCat `remapro` et les offres/produits `remapro_1` à `remapro_5` avec package mensuel.
 3. Tester un achat Google Play fermé/test pour 1 établissement, puis un changement vers 2 établissements et un retour vers 1.
-4. Vérifier que le nombre d'établissements autorisé suit le produit acheté et que la limite de 10 utilisateurs reste appliquée.
+4. Vérifier que le nombre d'établissements autorisé suit le produit acheté et que la limite de 10 utilisateurs reste appliquée.\n5. Vérifier que chaque établissement dispose d'un budget IA mensuel indépendant de 15 CHF et qu'un établissement épuisé ne bloque pas les autres.
 5. Fermer/réouvrir le Hub : l'abonnement doit rester actif.
 6. Tester “Restaurer les achats”.
 7. Vérifier la mise à jour de `subscriptions` et l'événement RevenueCat côté Supabase.
