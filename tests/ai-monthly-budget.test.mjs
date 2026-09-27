@@ -7,6 +7,7 @@ const delivery=readFileSync('supabase/functions/remapro-delivery-ai/index.ts','u
 const support=readFileSync('supabase/functions/remapro-support/index.ts','utf8');
 const runtime=readFileSync('supabase/functions/remapro-agent-runtime/index.ts','utf8');
 const app=readFileSync('src/app.js','utf8');
+const store=readFileSync('src/store.js','utf8');
 const i18n=readFileSync('src/i18n.js','utf8');
 
 for(const token of [
@@ -42,5 +43,8 @@ for(const token of [
 
 for(const token of ['aiMonthlyBudget','aiBudgetUsed','aiBudgetRemaining','aiBudgetLimitHint','aiBudgetExhausted'])
   assert.ok(i18n.includes(token),'AI budget translation key missing: '+token);
+
+assert.match(store,/aiMonthlyBudget:15/,'Commercial plan must expose CHF 15 AI budget per establishment');
+assert.match(app,/aiBudgetLimitHint/,'Subscription UI must disclose included AI usage budget');
 
 console.log('AI monthly CHF 15 per-establishment budget guards OK');
