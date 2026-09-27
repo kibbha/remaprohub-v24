@@ -216,7 +216,8 @@ const ENTITLEMENT_MUTATIONS=new Set([
   "upsert_provider_connection","upsert_terminal"
 ]);
 const EXPIRED_SERVICE_RECOVERY_ACTIONS=new Set([
-  "close_cash_session","settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group","cancel_open_order"
+  "close_cash_session","settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group","cancel_open_order",
+  "refund_order","confirm_external_refund"
 ]);
 async function expiredServiceRecoveryAllowed(db:any,action:string,restaurantId:string,body:any){
   if(!EXPIRED_SERVICE_RECOVERY_ACTIONS.has(action))return false;
@@ -225,11 +226,22 @@ async function expiredServiceRecoveryAllowed(db:any,action:string,restaurantId:s
     const {data}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
     return !!data?.id;
   }
+  if(action==="confirm_external_refund"){
+    const refundId=clean(body.refundId,64);if(!validUuid(refundId))return false;
+    const {data:refund}=await db.from("pos_refunds").select("id,cash_session_id,status").eq("id",refundId).eq("restaurant_id",restaurantId)
+      .in("status",["recorded","pending_external"]).maybeSingle();
+    if(!refund?.id||!refund.cash_session_id)return false;
+    const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",refund.cash_session_id).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
+    return !!session?.id;
+  }
   const orderId=clean(body.orderId,64);if(!validUuid(orderId))return false;
+  const allowedStatuses=action==="refund_order"?["paid","refunded"]:["open","sent","preparing","served","payment_pending"];
   const {data:order}=await db.from("pos_orders").select("id,cash_session_id,status").eq("id",orderId).eq("restaurant_id",restaurantId)
-    .in("status",["open","sent","preparing","served","payment_pending"]).maybeSingle();
-  if(!order?.id||!order.cash_session_id)return false;
-  const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",order.cash_session_id).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
+    .in("status",allowedStatuses).maybeSingle();
+  if(!order?.id)return false;
+  const sessionId=action==="refund_order"?clean(body.cashSessionId,64):String(order.cash_session_id||"");
+  if(!validUuid(sessionId))return false;
+  const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
   return !!session?.id;
 }
 
