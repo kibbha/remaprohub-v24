@@ -35,6 +35,14 @@ async function hasMultiAccess(ctx:any,organizationId:string){
   const access=await subscriptionAccess(ctx,organizationId);
   return access.allowed;
 }
+async function organizationUserCapacity(ctx:any,organizationId:string,targetUserId=""){
+  const {data,error}=await ctx.supabaseAdmin.from("memberships")
+    .select("user_id").eq("organization_id",organizationId).eq("active",true);
+  if(error)throw new Error("Unable to verify user account limit");
+  const users=new Set((data||[]).map((m:any)=>String(m.user_id)).filter(Boolean));
+  const target=String(targetUserId||"");
+  return{allowed:users.size<10||!!target&&users.has(target),count:users.size};
+}
 
 async function writeAudit(ctx:any,{organizationId,restaurantIds=[],actorUserId,targetUserId=null,action,details={}}:any){
   const ids=uniqueStrings(restaurantIds);
@@ -171,6 +179,7 @@ export default {
 
         if(action==="set-member-active"){
           const active=body.active===true;
+          if(active&&!(await organizationUserCapacity(ctx,organizationId,targetUserId)).allowed)return fail("User account limit reached",409);
           const {error}=await ctx.supabaseAdmin.from("memberships").update({active,updated_at:new Date().toISOString()})
             .eq("organization_id",organizationId).eq("user_id",targetUserId).in("restaurant_id",restaurantIds);
           if(error)return fail("Unable to update member status",500);
@@ -179,6 +188,7 @@ export default {
         }
 
         const role=body.role==="manager"?"manager":"employee";
+        if(!(await organizationUserCapacity(ctx,organizationId,targetUserId)).allowed)return fail("User account limit reached",409);
         const permissions=uniqueStrings(body.permissions).filter(p=>MEMBER_PERMISSIONS.has(p));
         if(role==="employee"&&!permissions.length)return fail("Employee permissions are required",400);
         if(!(await hasMultiAccess(ctx,organizationId)))return fail("Subscription required",402);
@@ -204,11 +214,7 @@ export default {
 
       const {data:userPage}=await ctx.supabaseAdmin.auth.admin.listUsers({page:1,perPage:1000});
       let user=(userPage?.users||[]).find((u:any)=>String(u.email||"").toLowerCase()===email);
-      const {data:organizationMembershipRows,error:organizationMembershipError}=await ctx.supabaseAdmin.from("memberships")
-        .select("user_id").eq("organization_id",organizationId).eq("active",true);
-      if(organizationMembershipError)return fail("Unable to verify user account limit",500);
-      const organizationUsers=new Set((organizationMembershipRows||[]).map((m:any)=>String(m.user_id)).filter(Boolean));
-      if(organizationUsers.size>=10&&(!user||!organizationUsers.has(String(user.id))))return fail("User account limit reached",409);
+      if(!(await organizationUserCapacity(ctx,organizationId,user?.id||"")).allowed)return fail("User account limit reached",409);
       let invited=false;
       if(!user){
         const {data:invite,error:inviteError}=await ctx.supabaseAdmin.auth.admin.inviteUserByEmail(email,{data:{name,remapro_invite:true}});
