@@ -32,8 +32,7 @@ jobs:
       - run: npm test
       - name: Verify V27.11.0 source
         run: |
-          grep -Eq '"version"[[:space:]]*:[[:space:]]*"27\\.11\\.0"' package.json
-          grep -q "APP_VERSION='27.11.0'" src/app.js
+          node -e "const fs=require('fs');const p=require('./package.json');if(p.version!=='27.11.0'||!fs.readFileSync('src/app.js','utf8').includes(\"APP_VERSION='27.11.0'\"))process.exit(1)"
           test -s app/sw.js
           test -s app/src/app.js
           test -s app/src/restored.js
