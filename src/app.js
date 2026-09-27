@@ -97,6 +97,14 @@ function currentSubscriptionAccess(){
   if(state.entitlement?.allowed===false)return state.entitlement;
   return subscriptionAccessForIdentity(state.identity,state.restaurant.organization_id);
 }
+function expiredServiceContinuity(){
+  return !currentSubscriptionAccess().allowed&&!!state.cashSession&&state.cashSession.synced===true&&['open','closing'].includes(state.cashSession.status);
+}
+function blockExpiredNewSale(){
+  if(!expiredServiceContinuity())return false;
+  uiAlert('Abonnement expiré : terminez les notes déjà ouvertes puis clôturez la caisse. Aucune nouvelle vente ne peut être créée.');
+  return true;
+}
 function subscriptionRequiredView(){
   const access=currentSubscriptionAccess();
   return `<div class="picker-wrap"><div class="card">${posBrandLockup({auth:true})}<h1>${t('subscriptionRequired')}</h1><p>${t('subscriptionRequiredHint')}</p><p class="muted">${esc(state.restaurant?.name||'')} · ${esc(access.status||'expired')}</p><button class="primary wide" type="button" id="open-academy">? ${t('academy')}</button><button class="secondary wide" type="button" id="switch-restaurant">${t('switchRestaurant')}</button><button class="secondary" type="button" id="logout">${t('logout')}</button></div></div>`;
@@ -246,7 +254,7 @@ async function prepareOrderForTerminalIntent(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours.':'Envoyez d’abord les nouveaux articles en production.');return null}
   let order=currentServerOrder();
-  if(!order||order.status==='open'){
+  if((!order||order.status==='open')&&!expiredServiceContinuity()){
     const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
     const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
     try{
@@ -812,7 +820,7 @@ async function flushQueue(options={}){
 }
 async function queueCommand(action,payload,options={}){
   if(state.trainingMode)throw new Error('TRAINING_REAL_ACTION_BLOCKED');
-  if(!currentSubscriptionAccess().allowed)throw new Error('SUBSCRIPTION_REQUIRED');
+  if(!currentSubscriptionAccess().allowed&&!(expiredServiceContinuity()&&action==='close_cash_session'))throw new Error('SUBSCRIPTION_REQUIRED');
   const item=queuedItem(action,state.restaurant.id,payload,options);
   await queuePut(item);await updateQueueCount();return item;
 }
@@ -1031,6 +1039,7 @@ function orderUsesTable(order,tableId,label=''){
 }
 function openTable(table){
   const existing=state.openOrders.find(o=>orderUsesTable(o,table.id,table.label));
+  if(!existing&&blockExpiredNewSale())return;
   if(state.pendingNewOrder&&existing){state.error=t('tableOccupied');return render()}
   state.pendingNewOrder=false;state.mobilePanel=existing?'cart':'products';
   state.serviceType='dine_in';
@@ -1061,6 +1070,7 @@ async function openTables(){
   await refreshFloorData();render();
 }
 async function startNewOrder(){
+  if(blockExpiredNewSale())return;
   if(!(await confirmDraftExit()))return;
   state.mobilePanel='products';state.error='';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;
   if(!state.tables.length){state.pendingNewOrder=false;state.serviceType='dine_in';state.view='sale';render();return}
@@ -1095,6 +1105,7 @@ function buildOpenOrder(orderId,eventId){
   };
 }
 async function saveOpenOrder(){
+  if(blockExpiredNewSale())return;
   if(orderLocked()){uiAlert('Cette note a déjà été envoyée en production.');return}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
   const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid(),order=buildOpenOrder(orderId,eventId);
@@ -1344,12 +1355,13 @@ async function cancelCurrentOrder(){
 }
 
 async function prepareOrderForAllocatedSplit(){
+  if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return null}
   if(!state.online){uiAlert('Le partage par articles nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
   if(paymentBlockedByDelta()){uiAlert(t('sendNewItemsFirst'));return null}
 
   let order=currentServerOrder();
-  if(!order||order.status==='open'){
+  if((!order||order.status==='open')&&!expiredServiceContinuity()){
     const device=await ensureDevice();
     const orderId=state.activeOrderId||uuid(),eventId=uuid();
     const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
@@ -1502,6 +1514,7 @@ function printProgressivePayment(order,payment){
   printHtml(label,body);
 }
 async function prepareOrderForProgressivePayment(){
+  if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return null}
   if(!state.online){uiAlert('Le paiement progressif nécessite une connexion.');return null}
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
   if(paymentBlockedByDelta()){uiAlert(t('sendNewItemsFirst'));return null}
@@ -1604,6 +1617,7 @@ async function openProgressivePayment(){
 }
 async function splitCheckout(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return;
+  if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return}
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
   const raw=await uiPrompt({title:t('splitCount'),label:t('splitCount'),value:'2',type:'number',inputMode:'numeric',min:'2',max:'6',step:'1'});if(raw===null)return;
   const count=Math.max(2,Math.min(6,Math.trunc(Number(raw)||0)));if(count<2){uiAlert(t('splitInvalid'));return}
@@ -1625,7 +1639,7 @@ async function splitCheckout(){
   if(Math.abs(remaining)>0.01){uiAlert(t('splitTotalMismatch'));return}
   const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
   const existing=currentServerOrder();
-  if(!existing||existing.status==='open'){
+  if((!existing||existing.status==='open')&&!expiredServiceContinuity()){
     const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
     await queuePut(queuedItem('save_open_order',state.restaurant.id,{order},{clientEventId:saveEventId,queuedAt:now.toISOString()}));
     state.openOrders=[localOpenOrder(order,'payment_pending'),...state.openOrders.filter(x=>x.id!==orderId)];
@@ -1879,6 +1893,7 @@ function openItemConfigurator(buttonId){
   });
 }
 function addItem(item){
+  if(blockExpiredNewSale())return;
   if(progressivePaymentActive()){uiAlert('Paiement progressif en cours : aucun nouvel article ne peut être ajouté à cette note.');return}
   if(orderLocked()){
     const catalogId=item.quick?null:item.id;
@@ -2047,12 +2062,13 @@ function startHubConfigurationPolling(){
     if(configChanged||availabilityChanged)render();
   },HUB_CONFIG_POLL_MS);
 }
-function changeQty(id,delta){const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}if(delta>0&&line.availability_key){const row=availabilityRow(line.availability_key);if(row?.remaining!=null){const used=state.cart.reduce((sum,x)=>sum+(x!==line&&String(x.availability_key||'')===String(line.availability_key)?Number(x.qty)||0:0),0);if((Number(line.qty)||0)+used>=Number(row.remaining)){uiAlert('Quantité disponible atteinte.');return}}}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
+function changeQty(id,delta){if(expiredServiceContinuity()){uiAlert('Abonnement expiré : la note existante peut être encaissée sans être modifiée.');return}const line=state.cart.find(x=>x.id===id);if(!line)return;if(line.locked){uiAlert(t('itemLocked'));return}if(delta>0&&line.availability_key){const row=availabilityRow(line.availability_key);if(row?.remaining!=null){const used=state.cart.reduce((sum,x)=>sum+(x!==line&&String(x.availability_key||'')===String(line.availability_key)?Number(x.qty)||0:0),0);if((Number(line.qty)||0)+used>=Number(row.remaining)){uiAlert('Quantité disponible atteinte.');return}}}line.qty+=delta;if(line.qty<=0)state.cart=state.cart.filter(x=>x.id!==id);render()}
 const cartTotal=()=>state.cart.reduce((s,x)=>s+x.qty*x.price,0);
 
 async function checkout(method){
   if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
   if(!state.cart.length||!state.restaurant||!state.cashSession||state.cashSession.status!=='open')return;
+  if(expiredServiceContinuity()&&!currentServerOrder()){blockExpiredNewSale();return}
   if(standardPaymentBlocked()){uiAlert(progressivePaymentActive()?'Un paiement progressif est déjà en cours. Utilisez « Encaisser une personne ».':'Envoyez d’abord les nouveaux articles en production.');return}
   const tip=await askTip();if(tip===null)return;
   const device=await ensureDevice(),now=new Date();
@@ -2060,7 +2076,7 @@ async function checkout(method){
   if(state.activeTableId||state.activeOrderId||state.serviceType==='dine_in'){
     const orderId=state.activeOrderId||uuid(),saveEventId=uuid(),settleEventId=uuid();
     const existing=currentServerOrder();
-    if(!existing||existing.status==='open'){
+    if((!existing||existing.status==='open')&&!expiredServiceContinuity()){
       const order=buildOpenOrder(orderId,saveEventId);order.deviceId=device.id;
       await queuePut(queuedItem('save_open_order',state.restaurant.id,{order},{clientEventId:saveEventId,queuedAt:now.toISOString()}));
       const local=localOpenOrder(order,'payment_pending');
@@ -2624,7 +2640,7 @@ function render(){
   if(!currentSession()){app.innerHTML=loginView();wire();translateDom(app);return}
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<button class="secondary wide" id="open-academy">? Académie / Aide</button></div></div>`;wire();translateDom(app);return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();translateDom(app);return}
-  if(!currentSubscriptionAccess().allowed){app.innerHTML=subscriptionRequiredView();wire();translateDom(app);return}
+  if(!currentSubscriptionAccess().allowed&&!expiredServiceContinuity()){app.innerHTML=subscriptionRequiredView();wire();translateDom(app);return}
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();translateDom(app);return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();translateDom(app);return}
   app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():state.view==='closing'?closingView():mainView();wire();translateDom(app);
