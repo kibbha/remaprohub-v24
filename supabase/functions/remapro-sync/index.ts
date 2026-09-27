@@ -102,7 +102,7 @@ async function organizationEntitled(db:any,organizationId:string,now=new Date())
   }
   const {data:organization,error:orgError}=await db.from("organizations").select("created_at").eq("id",organizationId).maybeSingle();
   if(orgError||!organization?.created_at)return false;
-  return new Date(organization.created_at).getTime()+7*86400000>now.getTime();
+  return new Date(organization.created_at).getTime()+14*86400000>now.getTime();
 }
 
 const authenticated=withSupabase({auth:"user"},async(req,ctx)=>{
