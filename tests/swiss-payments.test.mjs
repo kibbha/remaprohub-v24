@@ -9,4 +9,6 @@ assert.ok(app.includes("Worldline TIM"));
 assert.ok(app.includes("Tap to Pay / Tap on Mobile"));
 assert.ok(app.includes("integration_mode||'')==='tap_to_pay'"));
 assert.ok(app.includes("capture automatique reste désactivée"));
+assert.ok(app.includes("['created','pending'].includes(i.status)"),'authorized terminal intent must not expose local cancel in the list');
+assert.ok(app.includes("intent.status==='authorized'")&&app.includes("annulation via prestataire"),'authorized terminal modal must disable local cancellation');
 console.log('Swiss card/TWINT POS intent readiness checks passed');
