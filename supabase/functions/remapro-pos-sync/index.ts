@@ -285,6 +285,35 @@ export default {
           (m.restaurant_id===restaurantId && ["restaurant_admin","director","manager"].includes(m.role))
         )
       );
+      // Never let an entity identifier from another restaurant ride on a
+      // request authorized for the current restaurant (important for users
+      // who legitimately manage several establishments).
+      const scopedRecordExists=async(table:string,id:string)=>{
+        const {data,error}=await ctx.supabaseAdmin.from(table).select("id").eq("id",id).eq("restaurant_id",restaurantId).maybeSingle();
+        if(error)throw new Error(error.message);
+        return !!data;
+      };
+      const scopedRefs:[string,unknown,string][]=[
+        ["pos_orders",body.orderId,"Order"],
+        ["pos_cash_sessions",body.cashSessionId,"Cash session"],
+        ["pos_refunds",body.refundId,"Refund"],
+        ["pos_payment_intents",body.intentId,"Payment intent"],
+        ["pos_payment_terminals",body.terminalId,"Terminal"],
+        ["pos_printers",body.printerId,"Printer"],
+        ["pos_tables",body.targetTableId,"Table"],
+        ["pos_tables",body.tableId,"Table"]
+      ];
+      if(action==="close_cash_session")scopedRefs.push(["pos_cash_sessions",body.sessionId,"Cash session"]);
+      for(const [table,value,label] of scopedRefs){
+        const id=clean(value,64);
+        if(validUuid(id)&&!(await scopedRecordExists(table,id)))return json({error:label+" not found"},404);
+      }
+      const scopedItemId=clean(body.itemId,64);
+      if(validUuid(scopedItemId)){
+        const {data:item,error:itemError}=await ctx.supabaseAdmin.from("pos_order_items").select("order_id").eq("id",scopedItemId).maybeSingle();
+        if(itemError)throw new Error(itemError.message);
+        if(!item||!(await scopedRecordExists("pos_orders",String(item.order_id))))return json({error:"Order item not found"},404);
+      }
       const operatorBoundPermission=async(permission:string,{requireSession=false}:{requireSession?:boolean}={})=>{
         const token=clean(body.operatorSessionToken,128);
         if(!token&&!requireSession)return{allowed:true,error:""};
