@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {PLAN_CONFIG,load,resetState,exportData,importData,ensureSubscriptionState,trialRemaining,subscriptionPrice,selectSubscriptionPlan} from '../src/store.js';
+import {PLAN_CONFIG,load,resetState,exportData,importData,ensureSubscriptionState,applySubscriptionEntitlement,trialRemaining,subscriptionPrice,selectSubscriptionPlan} from '../src/store.js';
 
 const storage=new Map();
 globalThis.localStorage={
@@ -39,6 +39,13 @@ assert.equal(state.subscription.billing,'monthly');
 assert.equal(subscriptionPrice(state),49.90);
 assert.equal(selectSubscriptionPlan(state,{plan:'multi',billing:'yearly'}),false);
 assert.equal(selectSubscriptionPlan(state,{plan:'invalid',billing:'monthly'}),false);
+state.subscription={status:'expired',trialStart:'2026-09-01T00:00:00.000Z',trialDays:14,plan:'standard',billing:'monthly',restaurantLimit:1};
+assert.equal(applySubscriptionEntitlement(state,{status:'active',restaurantLimit:2},new Date('2026-09-27T12:00:00Z')),true);
+assert.equal(state.subscription.status,'active','paid cloud access must revive an expired local trial');
+assert.equal(state.subscription.restaurantLimit,2,'cloud establishment slots must hydrate locally');
+assert.equal(applySubscriptionEntitlement(state,{status:'trialing',restaurantLimit:1,trialEndsAt:'2026-09-30T12:00:00Z'},new Date('2026-09-27T12:00:00Z')),true);
+assert.equal(state.subscription.status,'trialing');
+assert.equal(trialRemaining(state,new Date('2026-09-27T12:00:00Z')),3,'cloud trial end must drive local remaining days');
 const preservedStart=state.subscription.trialStart,preservedPlan=state.subscription.plan,preservedBilling=state.subscription.billing;
 state.stock=[{id:'x',name:'X',qty:1}];
 resetState(state);
