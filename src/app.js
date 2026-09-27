@@ -155,7 +155,7 @@ function closeTerminalEditor(){
   document.body.classList.remove('modal-open');
 }
 function openTerminalEditor(existing=null){
-  if(!isManager()){uiAlert(t('managerRequired'));return}
+  if(!canManageSettings()){uiAlert(t('managerRequired'));return}
   closeTerminalEditor();
   const modal=document.createElement('div');
   modal.id='terminal-editor-modal';modal.className='modal-overlay';
@@ -229,7 +229,7 @@ function terminalsView(){
   const intents=state.terminalIntents||[];
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
     <main class="terminals-page">
-      <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
+      <div class="floor-head"><div><h2>Terminaux de paiement</h2><p>Profils et état de connexion. Les clés API restent exclusivement côté serveur.</p></div><div class="terminal-head-actions"><button class="secondary" id="refresh-terminals" ${!state.online?'disabled':''}>Actualiser</button>${canManageSettings()?'<button class="primary compact" id="add-terminal">+ Terminal</button>':''}</div></div>
       <div class="terminal-warning"><strong>Intégration suisse préparée.</strong> Worldline TIM et Tap to Pay / Tap on Mobile sont les connecteurs cibles pour carte + TWINT. Les intents ReMaPro, profils terminaux et reprises sont prêts ; la capture automatique reste désactivée jusqu’à installation et validation du connecteur prestataire. Le mode manuel exige toujours une confirmation sur le terminal externe.</div>
       <section class="provider-readiness"><h3>Tap to Pay sur cet appareil</h3><article class="provider-readiness-card"><div><strong>Worldline Tap on Mobile</strong><small>${state.tapToPayCapability?.native?'Android natif':'Navigateur/PWA'} · NFC ${state.tapToPayCapability?.nfcSupported?(state.tapToPayCapability?.nfcEnabled?'actif':'désactivé'):'indisponible'}</small></div><span class="provider-readiness-status provider-${state.tapToPayCapability?.available?'ready':'waiting_contract'}">${state.tapToPayCapability?.available?'Prêt':'Préparé — activation Worldline requise'}</span></article></section>
       <section class="provider-readiness"><h3>${t('hardwareExtensions')}</h3>${hardwareExtensionProfiles().map(x=>`<article class="provider-readiness-card"><div><strong>${esc(t('hardware_'+x.id))}</strong><small>${esc(x.transport)}</small></div><span class="provider-readiness-status provider-${x.status==='ready'?'ready':'waiting_contract'}">${esc(t('hardwareStatus_'+x.status))}</span></article>`).join('')}</section><section class="provider-readiness"><h3>Préparation prestataires</h3>
@@ -239,7 +239,7 @@ function terminalsView(){
         <div class="terminal-card-head"><div><strong>${esc(t.label)}</strong><small>${esc(terminalProviderLabel(t.provider))} · ${esc(t.integration_mode)}</small></div><span class="terminal-state state-${esc(t.connection_status)}">${esc(terminalStatusLabel(t.connection_status))}</span></div>
         <div class="terminal-capabilities"><span>${t.supports_card?'Carte':''}</span><span>${t.supports_twint?'TWINT':''}</span><span>${t.supports_tips?'Tips':''}</span><span>${t.supports_refunds?'Remb.':''}</span></div>
         <div class="terminal-meta"><div>ID prestataire <strong>${esc(t.external_terminal_id||'—')}</strong></div><div>Devise <strong>${esc(t.currency||'CHF')}</strong></div><div>Profil <strong>${t.active?'Actif':'Inactif'}</strong></div></div>
-        ${isManager()?'<button class="secondary wide" data-edit-terminal="'+t.id+'">Modifier</button>':''}
+        ${canManageSettings()?'<button class="secondary wide" data-edit-terminal="'+t.id+'">Modifier</button>':''}
       </article>`).join(''):'<div class="empty"><h3>Aucun profil terminal</h3><p>Ajoutez Worldline, TWINT ou un profil générique. La connexion réelle sera activée séparément côté serveur.</p></div>'}</section>
       <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><div class="intent-control"><strong class="intent-status intent-${esc(i.status)}">${esc(terminalIntentText(i.status))}</strong>${['created','pending','authorized'].includes(i.status)?'<button class="secondary tiny" data-cancel-intent="'+i.id+'">Annuler</button>':''}</div></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
     </main></div>`;
@@ -460,9 +460,10 @@ async function switchOperator(){
   try{if(state.online&&currentOperatorSession()?.token)await posFunction({action:'operator_logout',restaurantId:state.restaurant.id})}catch{}
   clearOperatorSession();state.operator=null;state.view='sale';render();
 }
-function canManageSettings(){
-  return isManager()&&(!state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.settings===true);
+function canManagerPermission(permission='settings'){
+  return isManager()&&(!state.operatorRequired||state.operator?.role==='manager'||state.operator?.permissions?.[permission]===true);
 }
+function canManageSettings(){return canManagerPermission('settings')}
 function operatorLoginView(){
   return `<div class="login-wrap operator-login-wrap"><div class="card operator-login-card">${posBrandLockup({auth:true})}<h1>Qui utilise la caisse ?</h1><p>Sélectionnez votre profil et saisissez votre PIN.</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}
     ${!state.online?'<div class="terminal-warning"><strong>Hors ligne.</strong> Un PIN ne peut être revalidé sans serveur. Une session opérateur encore valide reste utilisable automatiquement.</div>':''}
@@ -552,7 +553,7 @@ function closePrinterEditor(){
   document.body.classList.remove('modal-open');
 }
 function openPrinterEditor(existing=null,discovered=null){
-  if(!isManager()){uiAlert(t('managerRequired'));return}
+  if(!canManageSettings()){uiAlert(t('managerRequired'));return}
   closePrinterEditor();
   const p=existing||{};
   const deviceAddress=discovered?.address||p.address||'';
@@ -594,10 +595,10 @@ function openPrinterEditor(existing=null,discovered=null){
 function printersView(){
   const discovered=state.discoveredPrinters||[];
   return `<div class="shell">${topbar()}${state.error?'<div class="notice banner">'+esc(state.error)+'</div>':''}
-    <main class="printers-page"><div class="floor-head"><div><h2>Imprimantes</h2><p>Tickets clients, cuisine et bar.</p></div><div class="terminal-head-actions"><button class="secondary" id="scan-printers">Détecter Bluetooth/USB</button><button class="secondary" id="refresh-printers" ${!state.online?'disabled':''}>Actualiser</button>${isManager()?'<button class="primary compact" id="add-printer">+ Imprimante</button>':''}</div></div>
+    <main class="printers-page"><div class="floor-head"><div><h2>Imprimantes</h2><p>Tickets clients, cuisine et bar.</p></div><div class="terminal-head-actions"><button class="secondary" id="scan-printers">Détecter Bluetooth/USB</button><button class="secondary" id="refresh-printers" ${!state.online?'disabled':''}>Actualiser</button>${canManageSettings()?'<button class="primary compact" id="add-printer">+ Imprimante</button>':''}</div></div>
       <div class="printer-note">Android natif : Bluetooth/USB ESC/POS. L’impression système reste disponible en secours. Le TCP réseau est préparé mais volontairement non activé sur Capacitor 7.</div>
       ${discovered.length?'<section class="discovered-printers"><h3>Périphériques détectés</h3>'+discovered.map((d,i)=>'<button class="secondary discovered-printer" data-discovered-printer="'+i+'"><strong>'+esc(d.name)+'</strong><span>'+esc(printerTypeLabel(d.connectionType))+' · '+esc(d.detail||d.address)+'</span></button>').join('')+'</section>':''}
-      <section class="printer-grid">${state.printers.length?state.printers.map(p=>`<article class="printer-card"><div class="terminal-card-head"><div><strong>${esc(p.label)}</strong><small>${esc(printerRoleLabel(p.role))} · ${esc(printerTypeLabel(p.connection_type))}</small></div><span class="printer-status printer-${esc(p.status)}">${esc(p.status)}</span></div><div class="terminal-meta"><div>Adresse <strong>${esc(p.address||'—')}</strong></div><div>Largeur <strong>${Number(p.chars_per_line)||42} car.</strong></div><div>Auto <strong>${p.auto_print?'Oui':'Non'}</strong></div></div><div class="printer-actions"><button class="secondary" data-test-printer="${p.id}">Test</button>${isManager()?'<button class="secondary" data-edit-printer="'+p.id+'">Modifier</button>':''}</div></article>`).join(''):'<div class="empty"><h3>Aucune imprimante configurée</h3><p>Ajoutez une imprimante système ou détectez un périphérique Bluetooth/USB.</p></div>'}</section>
+      <section class="printer-grid">${state.printers.length?state.printers.map(p=>`<article class="printer-card"><div class="terminal-card-head"><div><strong>${esc(p.label)}</strong><small>${esc(printerRoleLabel(p.role))} · ${esc(printerTypeLabel(p.connection_type))}</small></div><span class="printer-status printer-${esc(p.status)}">${esc(p.status)}</span></div><div class="terminal-meta"><div>Adresse <strong>${esc(p.address||'—')}</strong></div><div>Largeur <strong>${Number(p.chars_per_line)||42} car.</strong></div><div>Auto <strong>${p.auto_print?'Oui':'Non'}</strong></div></div><div class="printer-actions"><button class="secondary" data-test-printer="${p.id}">Test</button>${canManageSettings()?'<button class="secondary" data-edit-printer="'+p.id+'">Modifier</button>':''}</div></article>`).join(''):'<div class="empty"><h3>Aucune imprimante configurée</h3><p>Ajoutez une imprimante système ou détectez un périphérique Bluetooth/USB.</p></div>'}</section>
     </main></div>`;
 }
 async function smartPrintReceipt(receipt){
@@ -1077,7 +1078,7 @@ async function startNewOrder(){
   state.pendingNewOrder=true;state.view='floor';await refreshFloorData();render();
 }
 async function addDiningTable(){
-  if(!isManager())return;
+  if(!canManageSettings())return;
   const form=await uiFields({title:t('addTable'),fields:[
     {name:'label',label:t('tableName'),value:t('tableNameExample'),required:true},
     {name:'seats',label:t('seats'),value:'2',type:'number',inputMode:'numeric',min:'0',max:'99',step:'1',required:true}
@@ -1681,7 +1682,7 @@ async function refundReceipt(receipt){
   }catch(error){state.error=error.message||String(error);render()}
 }
 async function confirmRefund(refundId,success){
-  if(!state.online||!isManager())return;
+  if(!state.online||!canManagerPermission('refund'))return;
   const ref=success?await uiPrompt({title:t('providerReference'),label:t('providerReference'),message:t('optional'),value:''}):'';if(success&&ref===null)return;
   try{
     await posFunction({action:'confirm_external_refund',restaurantId:state.restaurant.id,refundId,success,providerReference:ref||''});
@@ -2143,7 +2144,7 @@ function academyChromeText(){
     it:{contextHelp:'Aiuto contestuale',contextCopied:'Contesto tecnico copiato.'}
   }[academyLocale()];
 }
-const posAcademyRole=()=>isManager()?'manager':(['kitchen','bar'].includes(state.operator?.role)?'kitchen':'server');
+const posAcademyRole=()=>canManageSettings()?'manager':(['kitchen','bar'].includes(state.operator?.role)?'kitchen':'server');
 function posAcademyAutoRows(){
   const rows=[],now=new Date().toISOString(),add=(id,yes)=>{if(yes)rows.push({application:'pos',topic_id:id,content_version:ACADEMY_CONTENT_VERSION,status:'completed',step_index:99,updated_at:now,metadata:{auto:true}})};
   add('pos-first-use',!!state.restaurant&&!!state.bootstrap);
@@ -2279,7 +2280,7 @@ function bindPosSupport(){
 
 function academyView(){
   ensureAcademyStyles();if(!state.academy.loaded&&!state.academy.loading)setTimeout(()=>refreshPosAcademy(),0);
-  return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',scope:state.academy.scope,locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:isManager(),canManageVisibility:posOrgAdmin(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+posSupportPanel()+'</main></div>';
+  return '<div class="shell academy-pos-shell"><div class="academy-training-banner" style="background:#3d342e"><button class="secondary" id="academy-back">← POS</button><strong>ReMaPro Academy</strong><select id="academy-locale"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option><option value="it">IT</option></select></div><main class="academy-pos-main">'+renderAcademyCenter({application:'pos',scope:state.academy.scope,locale:academyLocale(),query:state.academy.query,role:state.academy.role,module:state.academy.module,progressRows:currentPosAcademyProgress(),selectedTopic:state.academy.selectedTopic,selectedPath:state.academy.selectedPath,troubleshoot:state.academy.troubleshoot,manager:canManageSettings(),canManageVisibility:posOrgAdmin(),managerVisibility:state.academy.managerVisibility,managerRows:state.academy.managerRows})+posSupportPanel()+'</main></div>';
 }
 function resetTraining(){state.training={opened:false,table:false,cart:[],modified:false,sent:false,paid:false,closed:false,payment:''}}
 const trainingProducts=[
@@ -2409,7 +2410,7 @@ function floorView(){
   const fallback=state.tables.length?'<div class="table-grid">'+state.tables.map(t=>{const o=state.openOrders.find(x=>orderUsesTable(x,t.id,t.label));return '<button class="table-card '+(o?'occupied':'free')+'" data-table="'+esc(t.id)+'"><span class="table-label">'+esc(t.label)+'</span><span>'+ (t.seats||0)+' pl.</span><strong>'+(o?money(o.total):'Libre')+'</strong>'+(o?'<small>'+esc(o.status)+'</small>':'')+'</button>'}).join('')+'</div>':'';
   return `<div class="shell ${state.pendingNewOrder?'pos-pick-table':''}">${topbar()}${state.error?'<div class="notice error banner">'+esc(state.error)+'</div>':''}
     <main class="floor-page visual-floor-page"><div class="floor-head"><div><h2>Plan de salle</h2><p>${plan?esc(plan.name)+' · v'+Number(plan.version||0):'Configuration classique'} · ${state.openOrders.length} note${state.openOrders.length>1?'s':''} ouverte${state.openOrders.length>1?'s':''}</p></div>
-      <div class="floor-actions">${isManager()&&!plan?'<button class="primary compact" id="add-table">+ Table</button>':''}${state.pendingNewOrder?'<button class="secondary compact" id="cancel-table-pick">'+t('cancel')+'</button>':''}</div></div>
+      <div class="floor-actions">${canManageSettings()&&!plan?'<button class="primary compact" id="add-table">+ Table</button>':''}${state.pendingNewOrder?'<button class="secondary compact" id="cancel-table-pick">'+t('cancel')+'</button>':''}</div></div>
       ${state.pendingNewOrder?'<div class="pos-pick-prompt"><strong>'+t('chooseFreeTable')+'</strong><div><button class="secondary" id="order-without-table">'+t('orderWithoutTable')+'</button></div></div>':''}
       ${zones.length?'<div class="pos-floor-zone-tabs">'+zones.map(z=>'<button data-floor-zone="'+esc(z.id)+'" class="'+(String(z.id)===String(state.floorZoneId)?'active':'')+'">'+esc(z.name)+'</button>').join('')+'</div>':''}
       <div class="pos-floor-legend"><span><i class="free"></i>Libre</span><span><i class="reserved"></i>Réservée</span><span><i class="occupied"></i>En cours</span><span><i class="served"></i>Servie</span><span><i class="payment"></i>Encaissement</span></div>
@@ -2542,7 +2543,7 @@ function ticketsView(){
         <div class="receipt-money"><strong>${money(r.total)}</strong>${completed?'<span>Remboursé '+money(completed)+'</span>':''}</div>
         <div class="receipt-payments">${payments.map(p=>`<span>${p.metadata?.splitLabel?'<strong>'+esc(p.metadata.splitLabel)+'</strong> · ':''}${esc(p.method)} ${money(p.amount)}${Number(p.tip_amount)?' + '+money(p.tip_amount)+' tip'+(p.tip_operator_name_snapshot?' · '+esc(p.tip_operator_name_snapshot):''):''}</span>`).join('')}</div>
         <div class="receipt-actions"><button class="secondary" data-print-receipt="${r.id||''}">Ticket maître</button>${payments.filter(p=>['items','progressive_items'].includes(p.metadata?.splitType)).map(p=>`<button class="secondary split-ticket-btn" data-print-split-payment="${r.id}:${p.id}">${esc(p.metadata?.splitLabel||'Part')}</button>`).join('')}${r.id&&r.status!=='refunded'?'<button class="secondary" data-refund-order="'+r.id+'">Rembourser</button>':''}
-          ${pending.map(x=>isManager()?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
+          ${pending.map(x=>canManagerPermission('refund')?`<span class="pending-refund">Attente ${money(x.amount)} <button data-confirm-refund="${x.id}">✓</button><button data-fail-refund="${x.id}">×</button></span>`:`<span class="pending-refund">Remboursement externe en attente</span>`).join('')}
         </div></article>`;
     }).join(''):'<div class="empty">Aucun ticket disponible.</div>'}</div></main></div>`;
 }
