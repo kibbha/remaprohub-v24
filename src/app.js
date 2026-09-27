@@ -8,7 +8,7 @@ import {ACADEMY_CONTENT_VERSION} from './academy-content.js';
 import {LANGS,language,setLanguage,t,languageOptions,translateDom} from './i18n.js';
 import {uiAlert,uiConfirm,uiPrompt,uiFields} from './ui.js';
 import {recordDiagnostic} from './telemetry.js';
-import {queuedPayload,queueRetryDelayMs,queueRetryDue} from './resilience.js';
+import {queuedPayload,queueRetryDelayMs,queueRetryDue,definitiveQueueRejection} from './resilience.js';
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
 import {readPublishedBundle,readConfigurationSnapshot,readCachedConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
@@ -770,6 +770,14 @@ async function flushQueueInternal({force=false}={}){
       if(['append_order_items','send_to_production','update_production_item','set_production_priority','recall_production_order'].includes(item.action))productionChanged=true;
       await queueDelete(item.client_event_id);
     }catch(error){
+      if(item.action==='open_cash_session'&&definitiveQueueRejection(error)&&state.cashSession?.id===item.payload.sessionId){
+        state.cashSession=null;
+        await kvDelete(sessionKey(item.restaurantId));
+        await queueDelete(item.client_event_id);
+        state.error='Ouverture de caisse refusée : '+(error.message||String(error));
+        recordDiagnostic('cash_session.open_rejected',{status:Number(error?.status)||0,message:error.message||String(error)});
+        break;
+      }
       // Explicit transactional rejection: the server has NOT closed the session.
       // Let the cashier settle the newly discovered notes, then count again.
       if(item.action==='close_cash_session'&&error?.message==='OPEN_ORDERS_EXIST'&&state.cashSession?.id===item.payload.sessionId){
