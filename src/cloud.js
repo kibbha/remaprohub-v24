@@ -207,7 +207,7 @@ export function cloudSubscriptionAccess(identity,organizationId,now=new Date()){
     return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
   }
   const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
-  const legacyEnd=organization?.created_at?new Date(organization.created_at).getTime()+7*86400000:0;
+  const legacyEnd=organization?.created_at?new Date(organization.created_at).getTime()+14*86400000:0;
   return{allowed:legacyEnd>now.getTime(),status:'legacy_trial',plan:'standard',trialEndsAt:legacyEnd?new Date(legacyEnd).toISOString():null,currentPeriodEnd:null};
 }
 export function cloudMultiAccess(identity,organizationId,now=new Date()){
