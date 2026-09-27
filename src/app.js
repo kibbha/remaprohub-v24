@@ -808,8 +808,20 @@ async function queueCommand(action,payload,options={}){
   const item=queuedItem(action,state.restaurant.id,payload,options);
   await queuePut(item);await updateQueueCount();return item;
 }
+function resetRestaurantRuntime(){
+  Object.assign(state,{
+    bootstrap:null,configurationBundle:null,category:'',productSearch:'',cart:[],error:'',queueCount:0,cashSession:null,
+    receipts:[],serviceType:'dine_in',tableLabel:'',covers:1,tables:[],openOrders:[],floorPlan:null,floorReservations:[],floorZoneId:'',
+    pendingNewOrder:false,view:'sale',activeOrderId:null,activeTableId:null,productionQueue:[],productionStation:'all',serviceReport:null,
+    terminals:[],terminalIntents:[],printers:[],discoveredPrinters:[],operators:[],operator:null,operatorRequired:false,foodCostReport:null,
+    providerConnections:[],directOrders:[],availabilityRows:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,
+    closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:''
+  });
+  applyPosSettings(null);
+}
 async function bootstrapRestaurant(restaurant){
-  state.restaurant=restaurant;state.entitlement=subscriptionAccessForIdentity(state.identity,restaurant.organization_id);state.error='';state.closingReport=null;state.serviceReport=null;state.closingError='';
+  resetRestaurantRuntime();
+  state.restaurant=restaurant;state.entitlement=subscriptionAccessForIdentity(state.identity,restaurant.organization_id);
   state.syncConfirmedAt=await kvGet('syncConfirmedAt:'+restaurant.id)||'';
   state.lastClosedSession=await kvGet('lastClosedSession:'+restaurant.id)||null;
   applyPosSettings(null);
