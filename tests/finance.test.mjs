@@ -56,7 +56,9 @@ assert.equal(state.financeHistory[0].revenue,0);
 assert.equal(state.financeHistory[0].expenses,0);
 
 const financeUi=readFileSync('src/app.js','utf8');
-for(const token of ['loadPosDailySummary','financeStateWithPos','posFinanceRefreshTimer','mergePosFinance','loadPosFinanceData(today(),{force:true})']) assert.ok(financeUi.includes(token),token+' missing');
+for(const token of ['loadPosDailySummary','financeStateWithPos','financePosAnchor','posFinanceRefreshTimer','mergePosFinance','loadPosFinanceData(financePosAnchor(),{force:true})']) assert.ok(financeUi.includes(token),token+' missing');
+assert.match(financeUi,/totals=financeDayTotals\(financeState,selectedDate\)/,'legacy finance fallback must include live POS revenue');
+assert.match(financeUi,/series=revenueSeries\(financeState,'day',new Date\(selectedDate\+'T12:00:00'\)\)/,'finance trend must follow selected date on merged POS state');
 assert.match(restoredUi,/posRevenue=n\(day\.posRevenue\)/);
 assert.match(restoredUi,/money\(orderTotal\+posRevenue\)/);
 const posEdge=readFileSync('supabase/functions/remapro-pos-sync/index.ts','utf8');
