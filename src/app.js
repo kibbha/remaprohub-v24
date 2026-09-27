@@ -1147,7 +1147,7 @@ const cloud=cloudConfig(),session=cloudSession(),orgAdmin=cloudOrgAdmin(),manage
   }catch{
     if(!networkOnline()){
       const cached=await loadCachedCloudIdentity();
-      if(cached){cloudIdentity=cached;cloudIdentityError='';appUnlocked=true;mergeCloudRestaurants(state,cached.restaurants||[]);const orgId=String((cached.memberships||[])[0]?.organization_id||(cached.restaurants||[])[0]?.organization_id||'');if(orgId){const entitlement=cloudSubscriptionAccess(cached,orgId);ensureSubscriptionState(state);state.subscription.restaurantLimit=Math.min(PLAN_CONFIG.standard.maxRestaurants,Math.max(1,Number(entitlement.restaurantLimit)||1));state.subscription.trialDays=14;save(state)}render();return true}
+      if(cached){cloudIdentity=cached;cloudIdentityError='';appUnlocked=true;mergeCloudRestaurants(state,cached.restaurants||[]);const orgId=String((cached.memberships||[])[0]?.organization_id||(cached.restaurants||[])[0]?.organization_id||'');if(orgId){const entitlement=cloudSubscriptionAccess(cached,orgId);applySubscriptionEntitlement(state,entitlement);save(state)}render();return true}
     }
     cloudIdentity=null;cloudIdentityError=t('identityLoadFailed');page='settings';if(showError)alert(cloudIdentityError);render();return false
   }
