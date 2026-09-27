@@ -39,7 +39,7 @@ Automated validation result: GitHub Actions `Test ReMaPro Hub V27.11.0` succeede
 - [x] Verify production Edge Functions are deployed.
 - [ ] Verify RevenueCat products, offerings and entitlements match Google Play.
 - [ ] Verify the RevenueCat webhook secret and OpenAI server secret are configured.
-- [ ] Confirm Standard / Pro access from a real authenticated account.
+- [ ] Confirm the unified ReMaPro subscription from a real authenticated account, including purchased establishment slots.
 
 Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY. The commercial model is CHF 49.90/month for one establishment with a 14-day trial and up to 10 users; each additional establishment costs CHF 19.90/month, up to five establishments. Production migrations are aligned through `pos_terminal_authorized_cancel_guard`; `remapro-pos-sync` is deployed with the audited restaurant-scope guards. Server-only tables intentionally use RLS without client grants/policies.
 
