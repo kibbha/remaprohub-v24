@@ -18,6 +18,8 @@ assert.ok(moduleText.includes('floorPlanActivate'));
 assert.ok(pos.includes('loadPosFloorPlanAdmin'));
 assert.ok(edge.includes('action==="floor_plan_current"'));
 assert.ok(edge.includes('action==="publish_floor_plan"'));
+assert.match(edge,/action==="save_floor_plan"[\s\S]{0,1800}\.eq\("id",planId\)\.eq\("restaurant_id",restaurantId\)/,'editing a floor plan must prove ownership by the current restaurant');
+assert.doesNotMatch(edge,/action==="save_floor_plan"[\s\S]{0,1200}upsert\(payload,\{onConflict:"id"\}\)/,'floor plan save must not cross-tenant upsert by caller-supplied id');
 assert.ok(edge.includes('synchronizeTablesFromFloorPlan'));
 assert.ok(edge.includes('FLOOR_PLAN_TABLE_IN_USE'));
 assert.ok(edge.includes('restaurant_workspaces'));
