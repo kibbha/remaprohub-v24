@@ -69,8 +69,11 @@ for(const action of [
   'save_layout_draft','publish_layout','restore_layout_version',
   'save_floor_plan','publish_floor_plan','activate_floor_plan','restore_floor_plan_version'
 ]){
-  assert.ok(posSync.includes(action+':"settings"')||posSync.includes(action+":'settings'"),'POS server mutation must require active operator settings permission: '+action);
+  assert.ok(posSync.includes('"'+action+'"'),'settings mutation must be registered for POS operator protection: '+action);
 }
+assert.match(posSync,/operatorSettingsActions\.has\(action\)/);
+assert.match(posSync,/operatorBoundPermission\("settings"\)/);
+assert.doesNotMatch(posSync,/operatorBoundPermission\("settings",\{requireSession:true\}\)/,'Hub configuration calls must not require a POS PIN session');
 
 for(const table of ['pos_orders','pos_cash_sessions','pos_refunds','pos_payment_intents','pos_payment_terminals','pos_printers','pos_tables']){
   assert.ok(posSync.includes('["'+table+'",'),'POS request scope guard missing for '+table);
