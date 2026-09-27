@@ -13,6 +13,7 @@ assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organiza
 assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organization_id:'org',status:'trialing',trial_ends_at:'2026-09-28T00:00:00Z'}]},'org',now).allowed,true);
 assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organization_id:'org',status:'trialing',trial_ends_at:'2026-09-26T00:00:00Z'}]},'org',now).allowed,false);
 assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-28T00:00:00Z'}]},'org',now).allowed,true);
+assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-26T00:00:00Z'}]},'org',now).allowed,true,'billing issue remains entitled until EXPIRATION');
 assert.equal(subscriptionAccessForIdentity({...identity,subscriptions:[{organization_id:'org',status:'expired'}]},'org',now).allowed,false);
 assert.equal(subscriptionAccessForIdentity(identity,'org',new Date('2026-10-08T00:00:00Z')).allowed,true,'legacy fallback remains valid inside fourteen days');
 assert.equal(subscriptionAccessForIdentity(identity,'org',new Date('2026-10-09T00:00:01Z')).allowed,false,'legacy fallback expires after fourteen days');
