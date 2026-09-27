@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import {queuedPayload,queueRetryDelayMs,queueRetryDue} from '../src/resilience.js';
+import {queuedPayload,queueRetryDelayMs,queueRetryDue,definitiveQueueRejection} from '../src/resilience.js';
 
 const app=fs.readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const db=fs.readFileSync(new URL('../src/db.js',import.meta.url),'utf8');
@@ -21,6 +21,12 @@ assert.equal(queueRetryDelayMs(2),2000,'second retry delay');
 assert.equal(queueRetryDelayMs(20),60000,'retry delay cap');
 assert.equal(queueRetryDue({next_retry_at:'2099-01-01T00:00:00.000Z'},Date.parse('2026-01-01T00:00:00.000Z')),false,'future retry must wait');
 assert.equal(queueRetryDue({next_retry_at:'2020-01-01T00:00:00.000Z'},Date.parse('2026-01-01T00:00:00.000Z')),true,'expired retry is due');
+assert.equal(definitiveQueueRejection({status:409}),true,'cash-session conflict is definitive');
+assert.equal(definitiveQueueRejection({status:403}),true,'access rejection is definitive');
+assert.equal(definitiveQueueRejection({status:500}),false,'server outage remains retryable');
+assert.equal(definitiveQueueRejection(new Error('NETWORK_TIMEOUT')),false,'network failure remains retryable');
+assert.ok(app.includes("item.action==='open_cash_session'&&definitiveQueueRejection(error)"),'rejected opening must use definitive classification');
+assert.ok(app.includes("state.cashSession=null")&&app.includes("kvDelete(sessionKey(item.restaurantId))"),'definitive opening rejection must clear phantom local session');
 assert.equal(queuedPayload({client_event_id:'evt-1',payload:{orderId:'o-1'}}).clientEventId,'evt-1','queue event id must be forwarded');
 assert.equal(queuedPayload({client_event_id:'evt-1',payload:{clientEventId:'evt-explicit'}}).clientEventId,'evt-explicit','explicit payload id must win');
 assert.ok(app.includes('queuedPayload(item)'),'queued actions must preserve a stable client event id');
