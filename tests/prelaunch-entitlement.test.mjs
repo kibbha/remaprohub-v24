@@ -25,6 +25,7 @@ for(const token of [
   "applySubscriptionEntitlement(state,entitlement)",
   "['dashboard','category','more','help','settings']"
 ])assert.ok(app.includes(token),'Hub entitlement/recovery gate must include '+token);
+assert.ok((app.match(/applySubscriptionEntitlement\(state,entitlement\)/g)||[]).length>=2,'online and cached-offline Hub identity paths must both hydrate the authoritative entitlement');
 
 for(const token of ['organizationEntitled','action==="push"','SUBSCRIPTION_REQUIRED'])
   assert.ok(sync.includes(token),'Hub sync entitlement must include '+token);
