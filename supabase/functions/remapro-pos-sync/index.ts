@@ -300,8 +300,8 @@ export default {
         send_to_production:"production",update_production_item:"production",set_production_priority:"production",recall_production_order:"production",
         transfer_open_order:"transfer",merge_order_table:"transfer",unmerge_order_table:"transfer",
         cancel_open_order:"cancel",reject_direct_order:"cancel",
-        settle_open_order:"cash",settle_open_order_split:"cash",settle_open_order_allocated:"cash",pay_allocated_group:"cash",
-        create_terminal_intent:"cash",cancel_terminal_intent:"cash",
+        settle_open_order:"sale",settle_open_order_split:"sale",settle_open_order_allocated:"sale",pay_allocated_group:"sale",
+        create_terminal_intent:"sale",cancel_terminal_intent:"sale",
         refund_order:"refund",confirm_external_refund:"refund",create_terminal_refund_intent:"refund",
         claim_direct_order:"sale",link_direct_order:"sale"
       };
