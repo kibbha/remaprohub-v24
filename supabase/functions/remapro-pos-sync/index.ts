@@ -201,7 +201,7 @@ async function organizationSubscriptionAccess(db:any,organizationId:string,now=n
   }
   const {data:organization,error:orgError}=await db.from("organizations").select("created_at").eq("id",organizationId).maybeSingle();
   if(orgError||!organization?.created_at)return{allowed:false,status:"missing",plan:"standard",trialEndsAt:null,currentPeriodEnd:null};
-  const end=new Date(organization.created_at).getTime()+7*86400000;
+  const end=new Date(organization.created_at).getTime()+14*86400000;
   return{allowed:end>now.getTime(),status:"legacy_trial",plan:"standard",trialEndsAt:new Date(end).toISOString(),currentPeriodEnd:null};
 }
 
