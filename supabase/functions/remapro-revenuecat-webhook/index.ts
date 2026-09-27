@@ -37,6 +37,8 @@ Deno.serve(async(req)=>{
     const productId=String(event?.product_id||event?.product_identifier||"");
     const entitlementIds=Array.isArray(event?.entitlement_ids)?event.entitlement_ids.map(String):[];
     const planCode=entitlementIds.includes("multi")||/multi/i.test(productId)?"multi":"standard";
+    const restaurantMatch=productId.match(/remapro[_-]([1-5])(?:\\D|$)/i);
+    const restaurantLimit=restaurantMatch?Number(restaurantMatch[1]):planCode==="multi"?5:1;
     const {data:plan,error:planError}=await admin.from("subscription_plans").select("id,code").eq("code",planCode).eq("active",true).single();
     if(planError||!plan)return json({error:"Subscription plan not found"},500);
 
@@ -59,6 +61,7 @@ Deno.serve(async(req)=>{
       revenuecat_app_user_id:appUserId,
       revenuecat_product_id:productId,
       revenuecat_entitlement:planCode,
+      restaurant_limit:restaurantLimit,
       store:String(event?.store||"PLAY_STORE").toLowerCase(),
       updated_at:now
     },{onConflict:"organization_id"});
@@ -73,7 +76,7 @@ Deno.serve(async(req)=>{
     });
     if(eventError)return json({error:eventError.message},500);
 
-    return json({ok:true,organizationId,plan:planCode,status});
+    return json({ok:true,organizationId,plan:planCode,status,restaurantLimit});
   }catch(error){
     return json({error:error instanceof Error?error.message:"Unexpected webhook error"},500);
   }

@@ -137,7 +137,7 @@ export async function loadCloudIdentity(){
   const orgFilter=orgIds.map(encodeURIComponent).join(',');
   const restaurants=orgIds.length?await dataRequest('/rest/v1/restaurants?select=id,organization_id,name,city,canton,country_code,currency,active&active=eq.true&organization_id=in.('+orgFilter+')'):[];
   const organizations=orgIds.length?await dataRequest('/rest/v1/organizations?select=id,created_at&id=in.('+orgFilter+')'):[];
-  const subscriptions=orgIds.length?await dataRequest('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,created_at,plan:subscription_plans(code)&organization_id=in.('+orgFilter+')&order=created_at.desc'):[];
+  const subscriptions=orgIds.length?await dataRequest('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,restaurant_limit,created_at,plan:subscription_plans(code)&organization_id=in.('+orgFilter+')&order=created_at.desc'):[];
   const identity={user,memberships:Array.isArray(memberships)?memberships:[],restaurants:Array.isArray(restaurants)?restaurants:[],organizations:Array.isArray(organizations)?organizations:[],subscriptions:Array.isArray(subscriptions)?subscriptions:[]};await persistCloudIdentity(identity);return identity;
 }
 const ADMIN_ROLES=new Set(['network_admin','network_manager','restaurant_admin','director','manager']);
@@ -198,21 +198,21 @@ function cloudWorkspaceKeys(identity,restaurantId,map){const ctx=cloudRestaurant
 export function cloudWorkspaceReadKeys(identity,restaurantId){return cloudWorkspaceKeys(identity,restaurantId,WORKSPACE_READ_BY_PERMISSION)}
 export function cloudWorkspaceWriteKeys(identity,restaurantId){return cloudWorkspaceKeys(identity,restaurantId,WORKSPACE_WRITE_BY_PERMISSION)}
 export function cloudSubscriptionAccess(identity,organizationId,now=new Date()){
-  if(!identity||!organizationId)return{allowed:false,status:'missing',plan:'standard',trialEndsAt:null,currentPeriodEnd:null};
+  if(!identity||!organizationId)return{allowed:false,status:'missing',plan:'standard',restaurantLimit:1,trialEndsAt:null,currentPeriodEnd:null};
   const subscription=(identity.subscriptions||[]).find(x=>x.organization_id===organizationId);
   if(subscription){
     const status=String(subscription.status||''),trialEnds=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
     const allowed=status==='active'||(status==='trialing'&&trialEnds>now.getTime())||(status==='past_due'&&periodEnd>now.getTime());
-    return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
+    return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',restaurantLimit:Math.min(5,Math.max(1,Number(subscription.restaurant_limit)||1)),trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
   }
   const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
-  const legacyEnd=organization?.created_at?new Date(organization.created_at).getTime()+7*86400000:0;
-  return{allowed:legacyEnd>now.getTime(),status:'legacy_trial',plan:'standard',trialEndsAt:legacyEnd?new Date(legacyEnd).toISOString():null,currentPeriodEnd:null};
+  const legacyEnd=organization?.created_at?new Date(organization.created_at).getTime()+14*86400000:0;
+  return{allowed:legacyEnd>now.getTime(),status:'legacy_trial',plan:'standard',restaurantLimit:1,trialEndsAt:legacyEnd?new Date(legacyEnd).toISOString():null,currentPeriodEnd:null};
 }
 export function cloudMultiAccess(identity,organizationId,now=new Date()){
   const access=cloudSubscriptionAccess(identity,organizationId,now);
-  return access.allowed&&(access.status==='trialing'||access.status==='legacy_trial'||access.plan==='multi');
+  return access.allowed&&access.restaurantLimit>1;
 }
 export function cloudPageAllowed(identity,page,restaurantId){
   if(!identity)return true;

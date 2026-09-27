@@ -15,7 +15,7 @@ const uniqueStrings=(value:any)=>[...new Set(Array.isArray(value)?value.map(Stri
 
 async function subscriptionAccess(ctx:any,organizationId:string,now=new Date()){
   const {data:subscription,error}=await ctx.supabaseAdmin.from("subscriptions")
-    .select("status,trial_ends_at,current_period_end,created_at,plan:subscription_plans(code)")
+    .select("status,trial_ends_at,current_period_end,created_at,restaurant_limit,plan:subscription_plans(code)")
     .eq("organization_id",organizationId).order("created_at",{ascending:false}).limit(1).maybeSingle();
   if(error)throw new Error("Unable to verify subscription");
   if(subscription){
@@ -23,17 +23,17 @@ async function subscriptionAccess(ctx:any,organizationId:string,now=new Date()){
     const trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
     const allowed=status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
-    return{allowed,status,planCode};
+    return{allowed,status,planCode,restaurantLimit:Math.min(5,Math.max(1,Number(subscription.restaurant_limit)||1))};
   }
   const {data:organization,error:orgError}=await ctx.supabaseAdmin.from("organizations")
     .select("created_at").eq("id",organizationId).single();
   if(orgError||!organization?.created_at)throw new Error("Unable to verify trial period");
-  const allowed=new Date(organization.created_at).getTime()+7*86400000>now.getTime();
-  return{allowed,status:"legacy_trial",planCode:"standard"};
+  const allowed=new Date(organization.created_at).getTime()+14*86400000>now.getTime();
+  return{allowed,status:"legacy_trial",planCode:"standard",restaurantLimit:1};
 }
 async function hasMultiAccess(ctx:any,organizationId:string){
   const access=await subscriptionAccess(ctx,organizationId);
-  return access.allowed&&(access.status==="trialing"||access.status==="legacy_trial"||access.planCode==="multi");
+  return access.allowed;
 }
 
 async function writeAudit(ctx:any,{organizationId,restaurantIds=[],actorUserId,targetUserId=null,action,details={}}:any){
@@ -113,11 +113,12 @@ export default {
 
       if(action==="create-restaurant"){
         if(!orgAdmin)return fail("Organization admin required",403);
-        if(!(await hasMultiAccess(ctx,organizationId)))return fail("Pro plan required",402);
+        const commercial=await subscriptionAccess(ctx,organizationId);
+        if(!commercial.allowed)return fail("SUBSCRIPTION_REQUIRED",402);
         const {count:restaurantCount,error:restaurantCountError}=await ctx.supabaseAdmin.from("restaurants")
           .select("id",{count:"exact",head:true}).eq("organization_id",organizationId).eq("active",true);
         if(restaurantCountError)return fail("Unable to verify restaurant limit",500);
-        if((restaurantCount||0)>=5)return fail("Pro restaurant limit reached",409);
+        if((restaurantCount||0)>=commercial.restaurantLimit)return fail("Restaurant subscription limit reached",409);
         const name=String(body.name||"").trim(),country=String(body.country||"CH").trim().toUpperCase()||"CH";
         const region=String(body.region||"").trim(),currency=String(body.currency||"CHF").trim().toUpperCase();
         if(!name||!CURRENCIES.has(currency))return fail("Invalid restaurant payload",400);
@@ -180,7 +181,7 @@ export default {
         const role=body.role==="manager"?"manager":"employee";
         const permissions=uniqueStrings(body.permissions).filter(p=>MEMBER_PERMISSIONS.has(p));
         if(role==="employee"&&!permissions.length)return fail("Employee permissions are required",400);
-        if(!(await hasMultiAccess(ctx,organizationId)))return fail("Multi plan required",402);
+        if(!(await hasMultiAccess(ctx,organizationId)))return fail("Subscription required",402);
         const deleteScope=orgAdmin?targetMemberships.filter((m:any)=>m.restaurant_id).map((m:any)=>String(m.restaurant_id)):[...adminRestaurants];
         if(deleteScope.length){
           const {error}=await ctx.supabaseAdmin.from("memberships").delete().eq("organization_id",organizationId)
@@ -199,10 +200,15 @@ export default {
       const permissions=uniqueStrings(body.permissions).filter(p=>MEMBER_PERMISSIONS.has(p));
       if(!kind||!name||!validEmail(email))return fail("Invalid invitation payload",400);
       if(kind==="staff"&&!permissions.length)return fail("Staff permissions are required",400);
-      if(!(await hasMultiAccess(ctx,organizationId)))return fail("Multi plan required",402);
+      if(!(await hasMultiAccess(ctx,organizationId)))return fail("Subscription required",402);
 
       const {data:userPage}=await ctx.supabaseAdmin.auth.admin.listUsers({page:1,perPage:1000});
       let user=(userPage?.users||[]).find((u:any)=>String(u.email||"").toLowerCase()===email);
+      const {data:organizationMembershipRows,error:organizationMembershipError}=await ctx.supabaseAdmin.from("memberships")
+        .select("user_id").eq("organization_id",organizationId).eq("active",true);
+      if(organizationMembershipError)return fail("Unable to verify user account limit",500);
+      const organizationUsers=new Set((organizationMembershipRows||[]).map((m:any)=>String(m.user_id)).filter(Boolean));
+      if(organizationUsers.size>=10&&(!user||!organizationUsers.has(String(user.id))))return fail("User account limit reached",409);
       let invited=false;
       if(!user){
         const {data:invite,error:inviteError}=await ctx.supabaseAdmin.auth.admin.inviteUserByEmail(email,{data:{name,remapro_invite:true}});
