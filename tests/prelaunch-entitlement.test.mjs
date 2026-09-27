@@ -55,7 +55,7 @@ for(const [action,permission] of Object.entries({
   commit_order:'sale',save_open_order:'sale',
   send_to_production:'production',update_production_item:'production',
   transfer_open_order:'transfer',cancel_open_order:'cancel',
-  settle_open_order:'cash',settle_open_order_split:'cash',
+  settle_open_order:'sale',settle_open_order_split:'sale',
   refund_order:'refund',confirm_external_refund:'refund'
 })){
   assert.match(pos,new RegExp(action+'[:"\\s]+"?'+permission),'server-side operator permission missing for '+action+' -> '+permission);
