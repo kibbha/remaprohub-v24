@@ -37,7 +37,13 @@ for(const token of ['currentSubscriptionAccess','subscriptionRequiredView','SUBS
 const renderStart=app.indexOf('function render(){'),renderEnd=app.indexOf('function wire(){',renderStart),renderBlock=app.slice(renderStart,renderEnd);
 assert.ok(renderStart>=0&&renderEnd>renderStart,'POS render block must exist');
 assert.ok(renderBlock.indexOf("if(!currentSubscriptionAccess().allowed)")<renderBlock.indexOf("if(state.operatorRequired&&!state.operator)"),'subscription gate must run before operator/service opening');
-assert.ok(app.includes("if(!currentSubscriptionAccess().allowed)throw new Error('SUBSCRIPTION_REQUIRED')"),'offline queue must reject new mutations after local entitlement expiry');
+assert.ok(app.includes("expiredServiceContinuity()&&action==='close_cash_session'"),'expired service may queue only its final cash-session close');
+assert.ok(app.includes('function expiredServiceContinuity()'),'POS must distinguish expired entitlement from an already-open service');
+assert.ok(app.includes("if(!currentSubscriptionAccess().allowed&&!expiredServiceContinuity())"),'expired subscription screen must not strand an already-open service');
+assert.ok(app.includes("if(expiredServiceContinuity()&&!currentServerOrder())"),'expiry continuity must reject checkout unless the note already exists on the server');
+assert.ok(app.includes("if((!existing||existing.status==='open')&&!expiredServiceContinuity())"),'expiry continuity must never create/resave a new note while settling an existing one');
+assert.ok(app.includes('if(!existing&&blockExpiredNewSale())return'),'an empty table must not become a new sale after expiry');
+assert.ok(app.includes('if(blockExpiredNewSale())return;\n  if(!state.online){uiAlert(t(\'connectionRequired\'))'),'direct orders must remain blocked as new business after expiry');
 for(const token of ['organizations?select=id,created_at','subscriptions?select=organization_id,status,trial_ends_at,current_period_end','restaurant_limit','remapro:subscription-required'])
   assert.ok(cloud.includes(token),'POS identity/server response handling must include '+token);
 for(const token of ['subscriptionRequired','subscriptionRequiredHint'])
