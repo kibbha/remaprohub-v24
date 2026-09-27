@@ -466,12 +466,27 @@ export default {
         if(!manager)return json({error:"Manager access required"},403);
         const plan=body.plan||{},planId=clean(plan.id,64),name=clean(plan.name,120)||"Plan de salle";
         let document:any;try{document=normalizeFloorPlanDocument(plan.document)}catch(error){return json({error:(error as Error).message},400)}
-        const payload:any={organization_id:restaurant.organization_id,restaurant_id:restaurantId,name,draft_document:document,updated_by:userId,updated_at:new Date().toISOString()};
-        if(validUuid(planId))payload.id=planId;
-        let query=ctx.supabaseAdmin.from("pos_floor_plans").upsert(payload,{onConflict:"id"}).select("id,name,draft_document,published_document,draft_revision,published_version,active,updated_at,published_at").single();
-        const {data,error}=await query;if(error)return json({error:error.message},409);
-        await ctx.supabaseAdmin.from("pos_floor_plans").update({draft_revision:Number(data.draft_revision||0)+1}).eq("id",data.id);
-        return json({ok:true,plan:{...data,draft_revision:Number(data.draft_revision||0)+1}});
+        const now=new Date().toISOString();
+        const fields="id,name,draft_document,published_document,draft_revision,published_version,active,updated_at,published_at";
+        let data:any=null,error:any=null;
+        if(validUuid(planId)){
+          const {data:owned,error:ownedError}=await ctx.supabaseAdmin.from("pos_floor_plans")
+            .select("id,draft_revision").eq("id",planId).eq("restaurant_id",restaurantId).maybeSingle();
+          if(ownedError)return json({error:ownedError.message},500);
+          if(!owned)return json({error:"Floor plan not found"},404);
+          const nextRevision=Math.max(1,Number(owned.draft_revision||0)+1);
+          const result=await ctx.supabaseAdmin.from("pos_floor_plans")
+            .update({name,draft_document:document,draft_revision:nextRevision,updated_by:userId,updated_at:now})
+            .eq("id",planId).eq("restaurant_id",restaurantId).select(fields).single();
+          data=result.data;error=result.error;
+        }else{
+          const result=await ctx.supabaseAdmin.from("pos_floor_plans")
+            .insert({organization_id:restaurant.organization_id,restaurant_id:restaurantId,name,draft_document:document,draft_revision:1,updated_by:userId,updated_at:now})
+            .select(fields).single();
+          data=result.data;error=result.error;
+        }
+        if(error||!data)return json({error:error?.message||"Unable to save floor plan"},409);
+        return json({ok:true,plan:data});
       }
 
       if(action==="publish_floor_plan"){
