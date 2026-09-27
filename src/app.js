@@ -906,6 +906,30 @@ async function bootstrapRestaurant(restaurant){
   }
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
+async function refreshCashSessionState(){
+  if(!state.online||!state.restaurant)return false;
+  const restaurantId=state.restaurant.id,device=await ensureDevice();
+  const runtime=await posFunction({action:'bootstrap',restaurantId,deviceId:device.id});
+  if(state.restaurant?.id!==restaurantId)return false;
+  state.entitlement=runtime?.entitlement||state.entitlement;
+  const queued=await queueAll();
+  const pendingOpen=queued.some(x=>x.restaurantId===restaurantId&&x.action==='open_cash_session'&&x.payload?.sessionId===state.cashSession?.id);
+  const pendingClose=queued.some(x=>x.restaurantId===restaurantId&&x.action==='close_cash_session'&&x.payload?.sessionId===runtime?.openSession?.id);
+  if(runtime?.openSession){
+    state.cashSession={
+      id:runtime.openSession.id,
+      businessDate:runtime.openSession.business_date||runtime.openSession.businessDate,
+      status:pendingClose?'closing':'open',
+      openingCash:Number(runtime.openSession.opening_cash??runtime.openSession.openingCash)||0,
+      synced:true
+    };
+    await kvSet(sessionKey(restaurantId),state.cashSession);
+  }else if(!pendingOpen){
+    state.cashSession=null;
+    await kvDelete(sessionKey(restaurantId));
+  }
+  return true;
+}
 async function openCachedIdentity(cached,message=''){
   if(!cached||typeof cached!=='object')return false;
   const restaurants=accessibleRestaurants(cached);
@@ -2713,9 +2737,9 @@ async function init(){
   window.addEventListener('error',event=>recordDiagnostic('runtime.error',{message:event.message||'runtime error',source:String(event.filename||'').split('/').pop()||'',line:Number(event.lineno)||0}));
   window.addEventListener('unhandledrejection',event=>recordDiagnostic('runtime.unhandled_rejection',{message:event.reason?.message||String(event.reason||'promise rejection')}));
   window.addEventListener('remapro:subscription-required',event=>{state.entitlement=event?.detail||{allowed:false,status:'expired'};state.error='';render()});
-  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();flushQueue().catch(()=>{});syncHubManagedConfiguration().then(async changed=>{if(state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render();else if(state.restaurant)render()}).catch(error=>recordDiagnostic('network.resume_error',{message:error?.message||String(error)}))});
+  window.addEventListener('online',()=>{state.online=true;recordDiagnostic('network.online');render();(async()=>{await flushQueue({force:true});if(state.restaurant)await refreshCashSessionState();const changed=await syncHubManagedConfiguration();if(state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed||state.restaurant)render()})().catch(error=>recordDiagnostic('network.resume_error',{message:error?.message||String(error)}))});
   window.addEventListener('offline',()=>{state.online=false;recordDiagnostic('network.offline');render()});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncHubManagedConfiguration().then(async changed=>{if(state.online&&state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed)render()}).catch(error=>recordDiagnostic('visibility.resume_error',{message:error?.message||String(error)}))});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')(async()=>{if(state.online&&state.restaurant)await refreshCashSessionState();const changed=await syncHubManagedConfiguration();if(state.online&&state.restaurant){await Promise.all([refreshOperators(),refreshOperationalData(),refreshAvailability()])}if(changed||state.restaurant)render()})().catch(error=>recordDiagnostic('visibility.resume_error',{message:error?.message||String(error)}))});
   startHubConfigurationPolling();
   setInterval(()=>{if(state.view==='production'&&state.online&&state.restaurant)refreshProductionQueue().then(render).catch(()=>{})},10000);
   await updateQueueCount();if(!currentSession()){render();return}await loadAccount();
