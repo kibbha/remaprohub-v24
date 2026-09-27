@@ -37,13 +37,10 @@ assert.equal(staffCanAccess(state,staff.id,'stock'),true);
 assert.equal(staffCanAccess(state,staff.id,'finance'),true);
 
 state.subscription={status:'active',trialStart:new Date().toISOString(),trialDays:14,plan:'standard',billing:'monthly'};
-assert.equal(recordRestaurant(state,{name:'Gamma',currency:'CHF'},new Date()),false,'active Standard plan must block extra restaurants');
-assert.equal(recordManager(state,{name:'Third',email:'third@example.com',restaurantIds:[beta.id]},new Date()),false,'active Standard plan must block extra managers');
-assert.equal(recordStaffAccess(state,{name:'Staff 2',email:'staff2@example.com',restaurantIds:[beta.id],permissions:['stock']},new Date()),false,'active Standard plan must block staff access accounts');
-assert.equal(switchRestaurant(state,firstId,new Date()),false,'active Standard plan must block restaurant switching');
-
-state.subscription.plan='multi';
-assert.equal(switchRestaurant(state,firstId,new Date()),true,'active Multi plan must allow restaurant switching');
+assert.ok(recordRestaurant(state,{name:'Gamma',currency:'CHF'},new Date()),'active ReMaPro subscription keeps organization features available locally; cloud enforces purchased site slots');
+assert.ok(recordManager(state,{name:'Third',email:'third@example.com',restaurantIds:[beta.id]},new Date()),'base subscription includes multiple user accounts');
+assert.ok(recordStaffAccess(state,{name:'Staff 2',email:'staff2@example.com',restaurantIds:[beta.id],permissions:['stock']},new Date()),'base subscription includes staff access accounts');
+assert.equal(switchRestaurant(state,firstId,new Date()),true,'active ReMaPro subscription allows switching among authorized local restaurants');
 
 const merged=mergeCloudRestaurants(state,[
   {id:'cloud-beta',name:'Beta',country_code:'CH',canton:'GE',currency:'CHF',active:true},
@@ -55,13 +52,9 @@ const gamma=state.restaurants.find(x=>x.cloudId==='cloud-gamma');
 assert.ok(gamma);
 assert.equal(gamma.workspace.stock.length,0,'new cloud restaurant must get an isolated empty workspace');
 
-state.subscription.plan='standard';
-assert.equal(switchRestaurant(state,gamma.id,new Date()),false,'local Standard rules still block ordinary switching');
-assert.equal(switchRestaurant(state,gamma.id,new Date(),true),true,'validated cloud authorization may force the workspace switch');
+assert.equal(switchRestaurant(state,gamma.id,new Date()),true,'authorized ReMaPro restaurants remain switchable');
 assert.equal(state.stock.length,0);
 assert.equal(removeRestaurant(state,gamma.id),true);
-state.subscription.plan='multi';
-
 const persisted=JSON.parse(storage.get('remaprohub.v27.state'));
 assert.equal(persisted.restaurants.length,2);
 assert.ok(persisted.restaurants.every(r=>r.workspace&&typeof r.workspace==='object'));
