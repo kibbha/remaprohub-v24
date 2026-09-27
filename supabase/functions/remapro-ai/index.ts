@@ -1,3 +1,5 @@
+import { withSupabase } from "npm:@supabase/server@1.4.1";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -10,10 +12,80 @@ function json(data: unknown, status=200){
   return new Response(JSON.stringify(data), {status, headers:{...cors,"Content-Type":"application/json"}});
 }
 
-Deno.serve(async (req) => {
+const validUuid=(value:unknown)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value||""));
+const AI_ORG_ROLES=new Set(["network_admin","network_manager"]);
+function modelRates(model:string){
+  const id=String(model||"").toLowerCase();
+  if(id.includes("gpt-5.6-luna"))return{input:0.20,cached:0.02,output:1.20,tier:"luna"};
+  if(id.includes("gpt-5.6-terra"))return{input:2.00,cached:0.20,output:12.00,tier:"terra"};
+  if(id.includes("gpt-5.6-sol")||id==="gpt-5.6")return{input:4.00,cached:0.40,output:20.00,tier:"sol"};
+  return{input:10.00,cached:1.00,output:50.00,tier:"unknown"};
+}
+function usageValues(data:any){
+  const usage=data?.usage||{},input=Math.max(0,Number(usage.input_tokens)||0),output=Math.max(0,Number(usage.output_tokens)||0);
+  const cached=Math.min(input,Math.max(0,Number(usage?.input_tokens_details?.cached_tokens)||0));
+  return{input,cached,output};
+}
+function usageCostMicros(model:string,data:any){
+  const rates=modelRates(model),u=usageValues(data);
+  const usd=((u.input-u.cached)*rates.input+u.cached*rates.cached+u.output*rates.output)/1_000_000;
+  // 1 USD is conservatively treated as 1 CHF, then a 25% safety factor absorbs FX/pricing drift.
+  return{...u,costMicros:Math.max(1,Math.ceil(usd*1_000_000*1.25))};
+}
+function reserveMicros(model:string,source:string){
+  const tier=modelRates(model).tier;
+  const table:any={
+    luna:{copilot_chat:100000,ui_translate:150000,stock_photo:250000,invoice_photo:350000},
+    terra:{copilot_chat:500000,ui_translate:600000,stock_photo:900000,invoice_photo:1200000},
+    sol:{copilot_chat:1000000,ui_translate:1200000,stock_photo:1800000,invoice_photo:2200000},
+    unknown:{copilot_chat:2000000,ui_translate:2200000,stock_photo:3000000,invoice_photo:3500000}
+  };
+  return Number(table[tier]?.[source]||table[tier]?.copilot_chat||2000000);
+}
+async function aiRestaurant(ctx:any,restaurantId:string,userId:string){
+  const {data:restaurant,error}=await ctx.supabaseAdmin.from("restaurants")
+    .select("id,organization_id,active").eq("id",restaurantId).eq("active",true).maybeSingle();
+  if(error||!restaurant)return null;
+  const {data:memberships,error:membershipError}=await ctx.supabaseAdmin.from("memberships")
+    .select("organization_id,restaurant_id,role,active").eq("user_id",userId).eq("active",true);
+  if(membershipError)return null;
+  const allowed=(memberships||[]).some((m:any)=>m.organization_id===restaurant.organization_id&&
+    (m.restaurant_id===restaurantId||(!m.restaurant_id&&AI_ORG_ROLES.has(String(m.role)))));
+  return allowed?restaurant:null;
+}
+async function budgetStatus(ctx:any,organizationId:string,restaurantId:string){
+  const {data,error}=await ctx.supabaseAdmin.rpc("ai_budget_status",{p_organization_id:organizationId,p_restaurant_id:restaurantId});
+  if(error)throw new Error("AI_BUDGET_STATUS_FAILED");
+  return data;
+}
+async function reserveBudget(ctx:any,organizationId:string,restaurantId:string,source:string,model:string){
+  const {data,error}=await ctx.supabaseAdmin.rpc("ai_budget_reserve",{
+    p_organization_id:organizationId,p_restaurant_id:restaurantId,p_source:source,
+    p_reserve_micros:reserveMicros(model,source),p_model:model,p_metadata:{channel:"hub"}
+  });
+  if(error)throw new Error("AI_BUDGET_RESERVE_FAILED");
+  return data;
+}
+async function commitBudget(ctx:any,reservationId:string,model:string,data:any){
+  const u=usageCostMicros(model,data);
+  const {data:budget,error}=await ctx.supabaseAdmin.rpc("ai_budget_commit",{
+    p_reservation_id:reservationId,p_actual_micros:u.costMicros,p_input_tokens:u.input,
+    p_cached_input_tokens:u.cached,p_output_tokens:u.output,p_metadata:{pricing:"openai-2026-09",safetyFactor:1.25}
+  });
+  if(error)throw new Error("AI_BUDGET_COMMIT_FAILED");
+  return budget;
+}
+async function releaseBudget(ctx:any,reservationId:string,reason:string){
+  if(!reservationId)return;
+  await ctx.supabaseAdmin.rpc("ai_budget_release",{p_reservation_id:reservationId,p_metadata:{reason}}).catch(()=>null);
+}
+
+export default {
+  fetch:withSupabase({auth:"user"},async (req,ctx) => {
   if(req.method === "OPTIONS") return new Response("ok", {headers:cors});
   if(req.method !== "POST") return json({error:"Method not allowed"},405);
 
+  let reservationId="",budgetCommitted=false;
   try{
     const body = await req.json();
     const action = body.action || "chat";
@@ -31,9 +103,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    const userId=String(ctx.userClaims?.id||""),restaurantId=String(body.restaurantId||"");
+    if(!userId||!validUuid(restaurantId))return json({error:"Valid restaurant and authenticated user required"},400);
+    const restaurant=await aiRestaurant(ctx,restaurantId,userId);
+    if(!restaurant)return json({error:"AI restaurant access denied"},403);
+    if(action==="usage")return json({ok:true,aiBudget:await budgetStatus(ctx,restaurant.organization_id,restaurantId)});
+
     if(!apiKey) return json({error:"OPENAI_API_KEY is not configured on the Supabase server. Add it as a Supabase secret."},503);
 
     const model = body.model || configuredModel;
+    const source=action==="invoice-photo"?"invoice_photo":action==="stock-photo"?"stock_photo":action==="translate"?"ui_translate":"copilot_chat";
+    const reservation=await reserveBudget(ctx,restaurant.organization_id,restaurantId,source,model);
+    if(!reservation?.allowed)return json({error:"AI_MONTHLY_BUDGET_EXHAUSTED",code:"AI_MONTHLY_BUDGET_EXHAUSTED",aiBudget:reservation},429);
+    reservationId=String(reservation.reservationId||"");
     let input: string | Array<Record<string, unknown>> = "";
     let instructions = "";
 
@@ -62,13 +144,18 @@ Deno.serve(async (req) => {
       input = body.question || "";
     }
 
+    const maxOutput=action==="translate"?8000:(action==="chat"?2500:2200);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method:"POST",
       headers:{"Content-Type":"application/json","Authorization":`Bearer ${apiKey}`},
-      body:JSON.stringify({model,instructions,input,store:false})
+      body:JSON.stringify({model,instructions,input,store:false,max_output_tokens:maxOutput})
     });
     const data = await response.json().catch(()=>({}));
-    if(!response.ok) return json({error:data?.error?.message || "OpenAI request failed", status:response.status},response.status);
+    if(!response.ok){
+      await releaseBudget(ctx,reservationId,"provider_error_"+String(response.status));reservationId="";
+      return json({error:data?.error?.message || "OpenAI request failed", status:response.status},response.status);
+    }
+    const aiBudget=await commitBudget(ctx,reservationId,model,data);budgetCommitted=true;
 
     const text = data.output_text || (data.output || [])
       .flatMap((x:any)=>x.content || [])
@@ -77,16 +164,19 @@ Deno.serve(async (req) => {
       .join("\n");
 
     if(action === "translate"){
-      try { return json({translations: JSON.parse(text)}); }
+      try { return json({translations: JSON.parse(text),aiBudget}); }
       catch { return json({error:"Translation response was not valid JSON."},502); }
     }
     if(action === "stock-photo" || action === "invoice-photo"){
-      try { return json(JSON.parse(text)); }
+      try { return json({...JSON.parse(text),aiBudget}); }
       catch { return json({error:"Vision response was not valid JSON."},502); }
     }
 
-    return json({answer:text || ""});
+    return json({answer:text || "",aiBudget});
   }catch(e){
-    return json({error:e instanceof Error?e.message:"Unexpected server error"},500);
+    if(reservationId&&!budgetCommitted)await releaseBudget(ctx,reservationId,"server_error");
+    const message=e instanceof Error?e.message:"Unexpected server error";
+    return json({error:message},message==="AI_BUDGET_COMMIT_FAILED"?503:500);
   }
-});
+  })
+};
