@@ -23,7 +23,7 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const flow=source.slice(source.indexOf('async function openSession('),source.indexOf('function linePayload('));
 const calls=[],alerts=[];
 const testState={...base,restaurant:{id:'a'},cashSession:null,busy:false};
-const context=vm.createContext({state:testState,parseCashAmount,closingChecks,uiAlert:x=>alerts.push(x),t:x=>x,ensureDevice:async()=>({id:'device'}),uuid:()=> 'session-1',dateKey:()=> '2026-09-25',sessionKey:id=>'session:'+id,kvSet:async()=>{},queueCommand:async(...args)=>calls.push(args),render:()=>{},flushQueue:async()=>{},updateQueueCount:async()=>{}});
+const context=vm.createContext({state:testState,parseCashAmount,closingChecks,uiAlert:x=>alerts.push(x),t:x=>x,requireOperatorPermission:()=>true,ensureDevice:async()=>({id:'device'}),uuid:()=> 'session-1',dateKey:()=> '2026-09-25',sessionKey:id=>'session:'+id,kvSet:async()=>{},queueCommand:async(...args)=>calls.push(args),render:()=>{},flushQueue:async()=>{},updateQueueCount:async()=>{}});
 vm.runInContext(flow,context);
 await context.openSession('bad');assert.equal(testState.cashSession,null);assert.equal(calls.length,0);
 await Promise.all([context.openSession('100,50'),context.openSession('200')]);
