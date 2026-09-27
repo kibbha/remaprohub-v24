@@ -41,8 +41,21 @@ assert.ok(css.includes('min-height:44px'),'touch targets must have 44px minimum'
 assert.ok(css.includes('focus-visible'),'keyboard focus style required');
 assert.ok(app.includes('paymentBusy:false'),'payment double-tap lock state required');
 assert.ok(app.includes('guardedPayment'),'critical payment guard required');
+assert.ok(app.includes("function canOperatorPermission(permission='sale')"),'shared POS must expose a generic operator permission gate');
+assert.ok(app.includes("function requireOperatorPermission(permission='sale')"),'POS runtime must reject unauthorized operator actions before queueing them');
 assert.ok(app.includes("function canManagerPermission(permission='settings')"),'shared POS must combine cloud-manager and operator permissions');
 assert.ok(app.includes("if(!canManageSettings()){uiAlert(t('managerRequired'));return}"),'manager editors must respect active operator permission');
+for(const [signature,permission] of [
+  ['async function openSession','cash'],['async function closeSession','cash'],
+  ['async function saveOpenOrder','sale'],['async function checkout','sale'],['async function splitCheckout','sale'],
+  ['async function refundReceipt','refund'],['async function cancelCurrentOrder','cancel'],
+  ['async function transferCurrentOrder','transfer'],['async function mergeCurrentOrderTable','transfer'],
+  ['async function sendCurrentOrderProduction','production'],['async function updateProductionItem','production']
+]){
+  const start=app.indexOf(signature);
+  assert.ok(start>=0,'missing POS handler '+signature);
+  assert.ok(app.slice(start,start+240).includes(`requireOperatorPermission('${permission}')`),'operator permission guard missing: '+signature+' -> '+permission);
+}
 assert.ok(app.includes("if(!state.online||!canManagerPermission('refund'))return"),'external refund confirmation must respect active operator refund permission');
 assert.ok(app.includes("canManageSettings()&&!plan"),'table administration must be hidden from non-manager PIN operators');
 assert.ok(app.includes("preservedPermissions=existing&&nextRole===String(o.role||'')"),'editing an operator without changing role must preserve custom permissions');
