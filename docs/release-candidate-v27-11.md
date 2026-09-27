@@ -41,7 +41,7 @@ Automated validation result: GitHub Actions `Test ReMaPro Hub V27.11.0` succeede
 - [ ] Verify the RevenueCat webhook secret and OpenAI server secret are configured.
 - [ ] Confirm Standard / Pro access from a real authenticated account.
 
-Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY; migrations 001–008 are applied. Live plans are Standard CHF 19.90/month or CHF 199/year and Pro CHF 39.90/month or CHF 399/year, with a 14-day trial and a five-restaurant Pro limit. Updated remapro-admin and remapro-bootstrap functions match the repository source exactly. The two server-only tables intentionally use RLS without client policies.
+Backend verification: production project `gkbzawjlmwjweuqckuxm` is ACTIVE_HEALTHY. The commercial model is CHF 49.90/month for one establishment with a 14-day trial and up to 10 users; each additional establishment costs CHF 19.90/month, up to five establishments. Production migrations are aligned through `pos_terminal_authorized_cancel_guard`; `remapro-pos-sync` is deployed with the audited restaurant-scope guards. Server-only tables intentionally use RLS without client grants/policies.
 
 ## Release Candidate Android build
 
@@ -58,10 +58,9 @@ GitHub Actions run `35711717482` succeeded on commit `653204a`.
 
 ## Remaining external launch blockers
 - Configure `REVENUECAT_ANDROID_API_KEY` in GitHub Actions.
-- Verify/create the Google Play + RevenueCat Standard and Pro products/offers using internal entitlement/offering codes `standard` and `multi`.
+- Verify/create the Google Play + RevenueCat establishment-count products/offers `remapro_1` through `remapro_5`, using the unified `remapro` entitlement. Legacy `standard` / `multi` handling remains compatibility-only.
 - Configure Android upload signing secrets before the production AAB build.
 - Enable Supabase Auth leaked-password protection in the Supabase dashboard.
-- Founder launch pricing requires dedicated Google Play / RevenueCat offers; do not simulate it locally.
 
 ## Gate 4 — physical Android validation
 - [ ] Sign-in / sign-out / password reset.
@@ -71,7 +70,7 @@ GitHub Actions run `35711717482` succeeded on commit `653204a`.
 - [ ] PDF export/share.
 - [ ] Notification permission and optional manager alerts.
 - [ ] Account deletion path.
-- [ ] Standard vs Multi restrictions.
+- [ ] Establishment-count entitlement (1–5 sites) and 10-user cap.
 
 ## Gate 5 — final Android artifacts
 Only after Gates 1–4 are green:
