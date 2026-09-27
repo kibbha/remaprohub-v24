@@ -28,8 +28,10 @@ console.log('hub-config-sync.test.mjs: OK');
 assert.match(app,/configurationRevision:Number\(head\?\.revision\)\|\|Number\(snapshot\.sourceRevision\)\+1/,'atomic snapshot derives the current configuration revision when no head is supplied');
 assert.match(app,/await Promise\.all\(\[refreshOperators\(\),refreshTerminals\(\),refreshPrinters\(\)\]\)/,'atomic configuration refresh also reloads dynamic operator and device state');
 
-assert.match(app,/network\.online'[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'network resume refreshes dynamic POS state without replacing local queue data');
-assert.match(app,/visibilitychange[\s\S]{0,800}refreshOperators\(\)[\s\S]{0,200}refreshOperationalData\(\)[\s\S]{0,200}refreshAvailability\(\)/,'foreground resume refreshes dynamic POS state');
+assert.match(app,/network\.online'[\s\S]{0,1200}refreshCashSessionState\(\)[\s\S]{0,1200}refreshOperators\(\)[\s\S]{0,250}refreshOperationalData\(\)[\s\S]{0,250}refreshAvailability\(\)/,'network resume reconciles cash session and dynamic POS state');
+assert.match(app,/visibilitychange[\s\S]{0,1200}refreshCashSessionState\(\)[\s\S]{0,1200}refreshOperators\(\)[\s\S]{0,250}refreshOperationalData\(\)[\s\S]{0,250}refreshAvailability\(\)/,'foreground resume reconciles cash session and dynamic POS state');
+assert.match(app,/network\.online'[\s\S]{0,500}flushQueue\(\{force:true\}\)/,'network recovery must immediately retry queued work instead of waiting for stale backoff');
+assert.match(app,/async function refreshCashSessionState\(\)[\s\S]{0,1800}pendingOpen[\s\S]{0,800}pendingClose[\s\S]{0,1200}kvDelete\(sessionKey\(restaurantId\)\)/,'cash-session reconciliation must preserve queued openings/closures and clear stale server-closed sessions');
 
 assert.match(app,/const runtime=await posFunction\(\{action:'bootstrap'[\s\S]{0,500}refreshHubManagedConfiguration\(head\)[\s\S]{0,600}runtime\?\.openSession/,'atomic startup keeps runtime cash session while static configuration comes from snapshot');
 assert.match(app,/state\.bootstrap=\{\.\.\.\(state\.bootstrap\|\|\{\}\),profile:runtime/,'runtime bootstrap merges only runtime metadata after atomic configuration');
