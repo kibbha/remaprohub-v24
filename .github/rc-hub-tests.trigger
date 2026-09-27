@@ -1,1 +1,1 @@
-prelaunch-audit-operator-runtime-permissions-2026-09-27
+prelaunch-audit-payment-permission-semantics-2026-09-27
