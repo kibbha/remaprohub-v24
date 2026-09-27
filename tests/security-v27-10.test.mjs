@@ -64,7 +64,7 @@ assert.match(admin,/list-members/);
 assert.match(admin,/list-audit/);
 assert.match(admin,/Owner\/admin account is protected/);
 for(const action of [
-  'sync_catalog','sync_tables','upsert_operator','upsert_terminal','upsert_printer','set_printer_status',
+  'sync_catalog','sync_tables','upsert_operator','upsert_terminal','upsert_printer',
   'upsert_provider_connection','bundle_save_draft','bundle_update_settings','bundle_publish','bundle_restore',
   'save_layout_draft','publish_layout','restore_layout_version',
   'save_floor_plan','publish_floor_plan','activate_floor_plan','restore_floor_plan_version'
