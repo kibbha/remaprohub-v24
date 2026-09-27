@@ -44,17 +44,61 @@ function extractText(data:any){
   if(typeof data?.output_text==="string")return data.output_text;
   return (data?.output||[]).flatMap((x:any)=>x?.content||[]).map((x:any)=>x?.text||x?.value||"").filter(Boolean).join("\n");
 }
+function supportModelRates(model:string){
+  const id=String(model||"").toLowerCase();
+  if(id.includes("gpt-5.6-luna"))return{input:0.20,cached:0.02,output:1.20,tier:"luna"};
+  if(id.includes("gpt-5.6-terra"))return{input:2.00,cached:0.20,output:12.00,tier:"terra"};
+  if(id.includes("gpt-5.6-sol")||id==="gpt-5.6")return{input:4.00,cached:0.40,output:20.00,tier:"sol"};
+  return{input:10.00,cached:1.00,output:50.00,tier:"unknown"};
+}
+function supportReserveMicros(model:string){
+  const tier=supportModelRates(model).tier;
+  return tier==="luna"?250000:tier==="terra"?750000:tier==="sol"?1500000:2500000;
+}
+function supportUsageAdd(total:any,data:any){
+  const u=data?.usage||{};
+  const input=Math.max(0,Number(u.input_tokens)||0),output=Math.max(0,Number(u.output_tokens)||0);
+  const cached=Math.min(input,Math.max(0,Number(u?.input_tokens_details?.cached_tokens)||0));
+  total.input+=input;total.cached+=cached;total.output+=output;
+}
+function supportUsageCostMicros(model:string,total:any){
+  const r=supportModelRates(model);
+  const usd=((total.input-total.cached)*r.input+total.cached*r.cached+total.output*r.output)/1_000_000;
+  return Math.max(1,Math.ceil(usd*1_000_000*1.25));
+}
+async function reserveSupportBudget(ctx:any,ticket:any,model:string){
+  if(!validUuid(ticket?.restaurant_id))return null;
+  const {data,error}=await ctx.supabaseAdmin.rpc("ai_budget_reserve",{
+    p_organization_id:ticket.organization_id,p_restaurant_id:ticket.restaurant_id,p_source:"support_ai",
+    p_reserve_micros:supportReserveMicros(model),p_model:model,p_metadata:{channel:"support",ticketId:ticket.id}
+  });
+  if(error)throw new Error("AI_BUDGET_RESERVE_FAILED");
+  return data;
+}
+async function commitSupportBudget(ctx:any,reservationId:string,model:string,total:any){
+  const {data,error}=await ctx.supabaseAdmin.rpc("ai_budget_commit",{
+    p_reservation_id:reservationId,p_actual_micros:supportUsageCostMicros(model,total),
+    p_input_tokens:total.input,p_cached_input_tokens:total.cached,p_output_tokens:total.output,
+    p_metadata:{pricing:"openai-2026-09",safetyFactor:1.25}
+  });
+  if(error)throw new Error("AI_BUDGET_COMMIT_FAILED");
+  return data;
+}
+async function releaseSupportBudget(ctx:any,reservationId:string,reason:string){
+  if(!reservationId)return;
+  await ctx.supabaseAdmin.rpc("ai_budget_release",{p_reservation_id:reservationId,p_metadata:{reason}}).catch(()=>null);
+}
 async function structured(apiKey:string,model:string,instructions:string,input:string,name:string,schema:any){
   const response=await fetch("https://api.openai.com/v1/responses",{
     method:"POST",
     headers:{"Content-Type":"application/json","Authorization":"Bearer "+apiKey},
-    body:JSON.stringify({model,instructions,input,store:false,text:{format:{type:"json_schema",name,strict:true,schema}}})
+    body:JSON.stringify({model,instructions,input,store:false,max_output_tokens:1500,text:{format:{type:"json_schema",name,strict:true,schema}}})
   });
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data?.error?.message||"OpenAI request failed");
   const text=extractText(data);
   if(!text)throw new Error("Empty OpenAI response");
-  return JSON.parse(text);
+  return {value:JSON.parse(text),usage:data?.usage||{}};
 }
 const triageSchema={type:"object",additionalProperties:false,properties:{
   category:{type:"string",enum:["question","bug","feature","billing","account","other"]},
@@ -118,8 +162,18 @@ function fallbackTriage(application:string,subject:string,message:string){
   return {category,priority,route,summary:clean(subject||message,500),requires_human:priority==="critical"||category==="billing",requires_approval:false};
 }
 async function triageTicket(ctx:any,ticket:any,message:string,context:any){
-  const apiKey=Deno.env.get("OPENAI_API_KEY")||"";
+  let apiKey=Deno.env.get("OPENAI_API_KEY")||"";
   const model=Deno.env.get("OPENAI_SUPPORT_MODEL")||Deno.env.get("OPENAI_MODEL")||"gpt-5.6-luna";
+  const usageTotal={input:0,cached:0,output:0};let aiCalls=0,budgetReservationId="",aiBudget:any=null,budgetExhausted=false;
+  if(apiKey&&validUuid(ticket?.restaurant_id)){
+    const reservation=await reserveSupportBudget(ctx,ticket,model);
+    if(reservation&&!reservation.allowed){
+      apiKey="";budgetExhausted=true;aiBudget=reservation;
+    }else budgetReservationId=String(reservation?.reservationId||"");
+  }
+  const runStructured=async(...args:any[])=>{
+    const result=await (structured as any)(...args);supportUsageAdd(usageTotal,result);aiCalls++;return result.value;
+  };
   const trainedCache=new Map<string,any>();
   const trained=async(role:string,fallback:string)=>{
     if(!trainedCache.has(role))trainedCache.set(role,await trainedAgent(ctx,role,fallback,model));
@@ -131,7 +185,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
   if(apiKey){
     try{
       const agent=await trained("dispatcher","You are ReMaPro's dispatcher agent. Classify a restaurant SaaS support request. Be conservative with critical priority. Never invent facts. Route bugs to the relevant Hub or POS developer, feature requests to product, documentation/how-to requests to knowledge/support. Output only the requested JSON schema.");
-      triage=await structured(apiKey,agent.model,agent.instructions,
+      triage=await runStructured(apiKey,agent.model,agent.instructions,
         JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,context}),
         "remapro_support_triage",triageSchema);
       await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"dispatcher",inputSummary:message,outputSummary:triage.summary,metadata:{...triage,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
@@ -140,7 +194,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
     }
     try{
       const agent=await trained("support","You are ReMaPro Support. Reply in the user's language. Be concise, practical, calm and specific. Do not claim a fix has been deployed. If information is missing, ask no more than three targeted diagnostic questions. For billing/account/security/data-loss/critical incidents, acknowledge and say the case requires human review rather than inventing a resolution.");
-      support=await structured(apiKey,agent.model,agent.instructions,
+      support=await runStructured(apiKey,agent.model,agent.instructions,
         JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,context}),
         "remapro_support_reply",supportSchema);
       await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"support",inputSummary:message,outputSummary:support.reply,metadata:{questions:support.diagnostic_questions,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
@@ -150,7 +204,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
     if(triage.category==="bug"){
       try{
         const agent=await trained("diagnostic","You are ReMaPro Diagnostic Agent. Convert the report into an engineering-ready bug brief. Do not guess root cause. Separate known reproduction facts from suspected components. Keep steps deterministic where possible.");
-        diagnostic=await structured(apiKey,agent.model,agent.instructions,
+        diagnostic=await runStructured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,context}),
           "remapro_bug_diagnostic",diagnosticSchema);
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"diagnostic",inputSummary:message,outputSummary:diagnostic.engineering_summary,metadata:{...diagnostic,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
@@ -170,7 +224,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
             ?"You are ReMaPro Knowledge Agent. Identify the documentation or in-product guidance needed, with concrete steps and checks. Never invent features that do not exist."
             :`You are ReMaPro ${ticket.application==="pos"?"POS":"Hub"} Developer Agent. Produce an implementation-ready change plan from the report and diagnostic. Separate confirmed facts from hypotheses. Never claim code was changed, merged or deployed.`;
         const agent=await trained(specialistRole,roleInstruction);
-        specialist=await structured(apiKey,agent.model,agent.instructions,
+        specialist=await runStructured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,context}),
           "remapro_specialist_work",specialistSchema);
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:specialistRole,inputSummary:triage.summary,outputSummary:specialist.work_summary,metadata:{...specialist,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
@@ -184,7 +238,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
           ?"You are ReMaPro QA Agent. Build a focused regression plan for the reported bug. Include reproduction verification, happy path, adjacent regression risks and acceptance checks. Never claim tests were executed."
           :"You are ReMaPro QA Agent. Build a focused validation and regression plan for the proposed product improvement. Cover the requested behavior, permissions, happy path, adjacent regressions and measurable acceptance checks. Never claim tests were executed.";
         const agent=await trained("qa",qaInstruction);
-        qa=await structured(apiKey,agent.model,agent.instructions,
+        qa=await runStructured(apiKey,agent.model,agent.instructions,
           JSON.stringify({application:ticket.application,appVersion:ticket.app_version,subject:ticket.subject,message,triage,diagnostic,specialist,context}),
           "remapro_qa_plan",specialistSchema);
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",inputSummary:triage.summary,outputSummary:qa.work_summary,metadata:{...qa,training:{profileVersion:agent.profileVersion,knowledgeIds:agent.knowledgeIds}}});
@@ -192,6 +246,15 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
         await insertRun(ctx,{ticketId:ticket.id,organizationId:ticket.organization_id,agentRole:"qa",status:"failed",inputSummary:triage.summary,outputSummary:error instanceof Error?error.message:String(error)});
       }
     }
+  }
+  if(budgetReservationId){
+    if(aiCalls>0){
+      try{aiBudget=await commitSupportBudget(ctx,budgetReservationId,model,usageTotal)}
+      catch(error){console.error("support ai budget commit failed",error instanceof Error?error.message:String(error))}
+    }else await releaseSupportBudget(ctx,budgetReservationId,"no_successful_ai_calls");
+  }
+  if(budgetExhausted){
+    support={reply:"Votre demande a bien été enregistrée. Le budget IA mensuel de cet établissement est atteint; le ticket reste disponible pour traitement.",diagnostic_questions:[]};
   }
   let existingJob:any=null,jobLookupFailed=false;
   const engineeringCategory=["bug","feature"].includes(triage.category);
@@ -229,7 +292,7 @@ async function triageTicket(ctx:any,ticket:any,message:string,context:any){
     ticket_id:ticket.id,organization_id:ticket.organization_id,sender_type:"ai",agent_role:"support",
     body:clean(support.reply,6000),metadata:{diagnostic_questions:support.diagnostic_questions||[]}
   });
-  return {triage,support,diagnostic};
+  return {triage,support,diagnostic,aiBudget,budgetExhausted};
 }
 
 export default {
@@ -388,7 +451,7 @@ export default {
         });
         const agents=await triageTicket(ctx,ticket,message,context);
         const {data:finalTicket}=await ctx.supabaseAdmin.from("support_tickets").select("*").eq("id",ticket.id).single();
-        return json({ok:true,ticket:finalTicket||ticket,assistantReply:agents.support.reply,questions:agents.support.diagnostic_questions||[]});
+        return json({ok:true,ticket:finalTicket||ticket,assistantReply:agents.support.reply,questions:agents.support.diagnostic_questions||[],aiBudget:agents.aiBudget,budgetExhausted:agents.budgetExhausted});
       }
 
       if(action==="list_tickets"){
@@ -416,7 +479,7 @@ export default {
         await ctx.supabaseAdmin.from("support_tickets").update({latest_message:message,status:"open",updated_at:new Date().toISOString()}).eq("id",ticketId);
         const agents=await triageTicket(ctx,{...ticket,status:"open"},message,{...ticket.engineering_context,...context});
         const {data:finalTicket}=await ctx.supabaseAdmin.from("support_tickets").select("*").eq("id",ticketId).single();
-        return json({ok:true,ticket:finalTicket||ticket,assistantReply:agents.support.reply,questions:agents.support.diagnostic_questions||[]});
+        return json({ok:true,ticket:finalTicket||ticket,assistantReply:agents.support.reply,questions:agents.support.diagnostic_questions||[],aiBudget:agents.aiBudget,budgetExhausted:agents.budgetExhausted});
       }
       if(action==="resolve"){
         await ctx.supabaseAdmin.from("support_tickets").update({status:"resolved",resolved_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",ticketId);
