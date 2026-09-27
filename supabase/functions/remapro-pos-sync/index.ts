@@ -303,7 +303,13 @@ export default {
         settle_open_order:"sale",settle_open_order_split:"sale",settle_open_order_allocated:"sale",pay_allocated_group:"sale",
         create_terminal_intent:"sale",cancel_terminal_intent:"sale",
         refund_order:"refund",confirm_external_refund:"refund",create_terminal_refund_intent:"refund",
-        claim_direct_order:"sale",link_direct_order:"sale"
+        claim_direct_order:"sale",link_direct_order:"sale",
+        sync_catalog:"settings",sync_tables:"settings",
+        upsert_operator:"settings",upsert_terminal:"settings",upsert_printer:"settings",set_printer_status:"settings",
+        upsert_provider_connection:"settings",
+        bundle_save_draft:"settings",bundle_update_settings:"settings",bundle_publish:"settings",bundle_restore:"settings",
+        save_layout_draft:"settings",publish_layout:"settings",restore_layout_version:"settings",
+        save_floor_plan:"settings",publish_floor_plan:"settings",activate_floor_plan:"settings",restore_floor_plan_version:"settings"
       };
       const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
       if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
