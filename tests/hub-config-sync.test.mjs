@@ -39,3 +39,12 @@ assert.match(app,/state\.terminals=publishedDeviceProfiles\(state\.terminals,man
 assert.match(app,/if\(!state\.providerConnections\.length&&Array\.isArray\(managed\.providers\)\)/,'managed provider copy is only a compatibility fallback');
 
 assert.match(app,/if\(data\.openSession\)[\s\S]{0,500}else if\(state\.online\)[\s\S]{0,150}kvDelete\(sessionKey\(restaurant\.id\)\)/,'online bootstrap clears a stale cached cash session when the server has none');
+
+const resetStart=app.indexOf('function resetRestaurantRuntime(){');
+const bootstrapStart=app.indexOf('async function bootstrapRestaurant(restaurant){');
+assert.ok(resetStart>=0&&bootstrapStart>resetStart,'restaurant runtime reset must exist before bootstrap');
+const bootstrapBlock=app.slice(bootstrapStart,bootstrapStart+900);
+assert.ok(bootstrapBlock.indexOf('resetRestaurantRuntime();')>=0,'every restaurant bootstrap must reset volatile POS state first');
+for(const token of ["bootstrap:null","cart:[]","activeOrderId:null","activeTableId:null","terminalIntents:[]","operator:null","paymentBusy:false"])
+  assert.ok(app.slice(resetStart,bootstrapStart).includes(token),'restaurant reset must clear '+token);
+assert.ok(bootstrapBlock.indexOf('resetRestaurantRuntime();')<bootstrapBlock.indexOf("kvGet(catalogKey(restaurant.id))"),'previous restaurant catalog must be cleared before reading the next cache');
