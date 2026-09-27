@@ -93,15 +93,24 @@ export function subscriptionAccessForIdentity(identity,organizationId,now=new Da
   const end=organization?.created_at?new Date(organization.created_at).getTime()+14*86400000:0;
   return{allowed:end>now.getTime(),status:end?'legacy_trial':'missing',plan:'standard',restaurantLimit:1,trialEndsAt:end?new Date(end).toISOString():null,currentPeriodEnd:null};
 }
+export function accessibleRestaurants(identity){
+  const memberships=Array.isArray(identity?.memberships)?identity.memberships:[],restaurants=Array.isArray(identity?.restaurants)?identity.restaurants:[];
+  return restaurants.filter(restaurant=>memberships.some(m=>
+    m?.organization_id===restaurant?.organization_id&&
+    (m?.restaurant_id===restaurant?.id||(!m?.restaurant_id&&['network_admin','network_manager'].includes(String(m?.role||''))))
+  ));
+}
 export async function loadIdentity(){
   const user=await request('/auth/v1/user'),uid=encodeURIComponent(user.id);
   const memberships=await request('/rest/v1/memberships?select=organization_id,restaurant_id,role,permissions&active=eq.true&user_id=eq.'+uid);
   const orgs=[...new Set((memberships||[]).map(m=>m.organization_id).filter(Boolean))];
   const filter=orgs.map(encodeURIComponent).join(',');
-  const restaurants=orgs.length?await request('/rest/v1/restaurants?select=id,organization_id,name,currency,timezone,active&active=eq.true&organization_id=in.('+filter+')'):[];
+  const allRestaurants=orgs.length?await request('/rest/v1/restaurants?select=id,organization_id,name,currency,timezone,active&active=eq.true&organization_id=in.('+filter+')'):[];
   const organizations=orgs.length?await request('/rest/v1/organizations?select=id,created_at&id=in.('+filter+')'):[];
   const subscriptions=orgs.length?await request('/rest/v1/subscriptions?select=organization_id,status,trial_ends_at,current_period_end,cancel_at_period_end,restaurant_limit,created_at,plan:subscription_plans(code)&organization_id=in.('+filter+')&order=created_at.desc'):[];
-  return{user,memberships:memberships||[],restaurants:restaurants||[],organizations:organizations||[],subscriptions:subscriptions||[],fetchedAt:new Date().toISOString()};
+  const identity={user,memberships:memberships||[],restaurants:allRestaurants||[],organizations:organizations||[],subscriptions:subscriptions||[],fetchedAt:new Date().toISOString()};
+  identity.restaurants=accessibleRestaurants(identity);
+  return identity;
 }
 export async function posFunction(payload){
   const {url,key}=config();let s=await fresh();if(!s?.access_token)throw new Error('AUTH_REQUIRED');
