@@ -12,3 +12,8 @@ export function queueRetryDue(item,now=Date.now()){
   const at=Date.parse(item?.next_retry_at||'');
   return !Number.isFinite(at)||at<=now;
 }
+
+export function definitiveQueueRejection(error){
+  const status=Number(error?.status)||0;
+  return [400,402,403,404,409].includes(status);
+}
