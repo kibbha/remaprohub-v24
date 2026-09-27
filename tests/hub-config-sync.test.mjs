@@ -43,7 +43,8 @@ assert.match(app,/if\(data\.openSession\)[\s\S]{0,500}else if\(state\.online\)[\
 const resetStart=app.indexOf('function resetRestaurantRuntime(){');
 const bootstrapStart=app.indexOf('async function bootstrapRestaurant(restaurant){');
 assert.ok(resetStart>=0&&bootstrapStart>resetStart,'restaurant runtime reset must exist before bootstrap');
-const bootstrapBlock=app.slice(bootstrapStart,bootstrapStart+900);
+const bootstrapEnd=app.indexOf('async function openCachedIdentity',bootstrapStart);
+const bootstrapBlock=app.slice(bootstrapStart,bootstrapEnd);
 assert.ok(bootstrapBlock.indexOf('resetRestaurantRuntime();')>=0,'every restaurant bootstrap must reset volatile POS state first');
 for(const token of ["bootstrap:null","cart:[]","activeOrderId:null","activeTableId:null","terminalIntents:[]","operator:null","paymentBusy:false"])
   assert.ok(app.slice(resetStart,bootstrapStart).includes(token),'restaurant reset must clear '+token);
