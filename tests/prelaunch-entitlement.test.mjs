@@ -8,8 +8,9 @@ const base={organizations:[{id:'org',created_at:'2026-09-25T00:00:00Z'}],subscri
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'active',plan:{code:'standard'}}]},'org',now).allowed,true);
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'trialing',trial_ends_at:'2026-09-28T00:00:00Z',plan:{code:'standard'}}]},'org',now).allowed,true);
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'trialing',trial_ends_at:'2026-09-26T00:00:00Z',plan:{code:'standard'}}]},'org',now).allowed,false);
-assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-28T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,true,'past_due remains in grace until current period end');
-assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-26T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,false);
+assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-28T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,true,'billing issue must retain access');
+assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'past_due',current_period_end:'2026-09-26T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,true,'billing issue remains entitled until RevenueCat sends EXPIRATION');
+assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'expired',current_period_end:'2026-09-26T00:00:00Z',plan:{code:'multi'}}]},'org',now).allowed,false,'EXPIRATION revokes access');
 assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-10-08T00:00:00Z')).allowed,true,'legacy organization remains entitled inside fourteen-day fallback');
 assert.equal(cloudSubscriptionAccess(base,'org',new Date('2026-10-09T00:00:01Z')).allowed,false,'legacy fallback expires after fourteen days');
 assert.equal(cloudSubscriptionAccess({...base,subscriptions:[{organization_id:'org',status:'active',restaurant_limit:3,plan:{code:'standard'}}]},'org',now).restaurantLimit,3,'entitlement exposes purchased establishment slots');

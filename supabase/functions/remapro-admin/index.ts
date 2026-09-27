@@ -22,7 +22,7 @@ async function subscriptionAccess(ctx:any,organizationId:string,now=new Date()){
     const status=String(subscription.status||""),planCode=String(subscription?.plan?.code||"standard");
     const trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
-    const allowed=status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
+    const allowed=status==="active"||(status==="trialing"&&trialEnd>now.getTime())||status==="past_due";
     return{allowed,status,planCode,restaurantLimit:Math.min(5,Math.max(1,Number(subscription.restaurant_limit)||1))};
   }
   const {data:organization,error:orgError}=await ctx.supabaseAdmin.from("organizations")

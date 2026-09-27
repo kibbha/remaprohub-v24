@@ -98,7 +98,7 @@ async function organizationEntitled(db:any,organizationId:string,now=new Date())
   if(subscription){
     const status=String(subscription.status||""),trialEnd=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
-    return status==="active"||(status==="trialing"&&trialEnd>now.getTime())||(status==="past_due"&&periodEnd>now.getTime());
+    return status==="active"||(status==="trialing"&&trialEnd>now.getTime())||status==="past_due";
   }
   const {data:organization,error:orgError}=await db.from("organizations").select("created_at").eq("id",organizationId).maybeSingle();
   if(orgError||!organization?.created_at)return false;
