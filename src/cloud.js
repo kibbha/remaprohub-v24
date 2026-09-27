@@ -203,7 +203,7 @@ export function cloudSubscriptionAccess(identity,organizationId,now=new Date()){
   if(subscription){
     const status=String(subscription.status||''),trialEnds=subscription.trial_ends_at?new Date(subscription.trial_ends_at).getTime():0;
     const periodEnd=subscription.current_period_end?new Date(subscription.current_period_end).getTime():0;
-    const allowed=status==='active'||(status==='trialing'&&trialEnds>now.getTime())||(status==='past_due'&&periodEnd>now.getTime());
+    const allowed=status==='active'||(status==='trialing'&&trialEnds>now.getTime())||status==='past_due';
     return{allowed,status,plan:subscription.plan?.code==='multi'?'multi':'standard',restaurantLimit:Math.min(5,Math.max(1,Number(subscription.restaurant_limit)||1)),trialEndsAt:subscription.trial_ends_at||null,currentPeriodEnd:subscription.current_period_end||null};
   }
   const organization=(identity.organizations||[]).find(x=>x.id===organizationId);
