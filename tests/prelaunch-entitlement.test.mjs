@@ -48,6 +48,18 @@ assert.ok(pos.includes('expiredServiceRecoveryAllowed'),'POS expiry gate must ve
 assert.ok(pos.includes('.eq("status","open").maybeSingle()'),'expiry recovery must require an actually open cash session for service mutations');
 assert.ok(pos.includes('if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402)'),'new mutations outside recovery must remain blocked after expiry');
 assert.ok(pos.includes('operatorBoundPermission'),'POS manager mutations must bind to the active operator PIN when one is present');
+assert.ok(pos.includes('operatorPermissionByAction'),'POS runtime mutations must have server-side operator permission mapping');
+assert.ok(pos.includes('{requireSession:true}'),'operational POS mutations must require an operator session when profiles exist');
+for(const [action,permission] of Object.entries({
+  open_cash_session:'cash',close_cash_session:'cash',
+  commit_order:'sale',save_open_order:'sale',
+  send_to_production:'production',update_production_item:'production',
+  transfer_open_order:'transfer',cancel_open_order:'cancel',
+  settle_open_order:'cash',settle_open_order_split:'cash',
+  refund_order:'refund',confirm_external_refund:'refund'
+})){
+  assert.match(pos,new RegExp(action+'[:"\\s]+"?'+permission),'server-side operator permission missing for '+action+' -> '+permission);
+}
 for(const action of ['upsert_operator','sync_tables','upsert_printer','upsert_terminal']){
   const start=pos.indexOf('if(action==="'+action+'")');
   assert.ok(start>=0,'missing manager action '+action);
