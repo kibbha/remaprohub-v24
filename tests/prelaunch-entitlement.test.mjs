@@ -37,12 +37,14 @@ for(const token of ['organizationSubscriptionAccess','ENTITLEMENT_MUTATIONS','SU
   assert.ok(pos.includes(token),'POS entitlement must include '+token);
 for(const action of ['commit_order','settle_open_order','open_cash_session','bundle_publish','sync_catalog','upsert_operator'])
   assert.ok(pos.includes('"'+action+'"'),'POS mutation entitlement set must protect '+action);
-for(const action of ['close_cash_session','settle_open_order','settle_open_order_split','settle_open_order_allocated','pay_allocated_group','cancel_open_order','refund_order','confirm_external_refund'])
+for(const action of ['commit_order','save_open_order','append_order_items','send_to_production','update_production_item','close_cash_session','settle_open_order','settle_open_order_split','settle_open_order_allocated','pay_allocated_group','cancel_open_order','refund_order','confirm_external_refund'])
   assert.ok(pos.includes('"'+action+'"'),'expired-service recovery must cover '+action);
-assert.ok(pos.includes('allowedStatuses=action==="refund_order"?["paid","refunded"]'),'refund recovery must only target an already-paid order');
-assert.ok(pos.includes('action==="confirm_external_refund"'),'external refund confirmation must remain recoverable during an open service');
-assert.ok(pos.includes('expiredServiceRecoveryAllowed'),'POS expiry gate must verify a pre-existing open service before recovery');
-assert.ok(pos.includes('.eq("status","open").maybeSingle()'),'expiry recovery must require an actually open cash session');
-assert.ok(pos.includes('if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402)'),'new mutations must remain blocked after expiry');
+assert.ok(pos.includes('openRecoverySession'),'expiry recovery must be tied to an existing server-open cash session');
+assert.ok(pos.includes('recoveryOrderSessionId'),'queued order operations must resolve back to the open cash session');
+assert.ok(pos.includes('body?.order?.cashSessionId'),'pre-expiry queued save/checkout payloads must recover through their original cash session');
+assert.ok(pos.includes('action==="confirm_external_refund"'),'external refund confirmation must remain recoverable as a financial finalization');
+assert.ok(pos.includes('expiredServiceRecoveryAllowed'),'POS expiry gate must verify recovery eligibility');
+assert.ok(pos.includes('.eq("status","open").maybeSingle()'),'expiry recovery must require an actually open cash session for service mutations');
+assert.ok(pos.includes('if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402)'),'new mutations outside recovery must remain blocked after expiry');
 
 console.log('Pre-launch subscription entitlement and recovery-access checks passed');
