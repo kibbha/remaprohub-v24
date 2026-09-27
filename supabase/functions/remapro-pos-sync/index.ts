@@ -285,19 +285,35 @@ export default {
           (m.restaurant_id===restaurantId && ["restaurant_admin","director","manager"].includes(m.role))
         )
       );
-      const operatorBoundPermission=async(permission:string)=>{
+      const operatorBoundPermission=async(permission:string,{requireSession=false}:{requireSession?:boolean}={})=>{
         const token=clean(body.operatorSessionToken,128);
-        if(!token)return{allowed:true,error:""};
+        if(!token&&!requireSession)return{allowed:true,error:""};
         const {data,error}=await ctx.supabaseAdmin.rpc("pos_operator_authorize",{
           p_restaurant_id:restaurantId,p_token:token,p_permission:permission,p_actor_user_id:userId
         });
         if(error)return{allowed:false,error:error.message};
         return{allowed:data?.required!==true||data?.authorized===true,error:data?.error||"OPERATOR_PERMISSION_DENIED"};
       };
+      const operatorPermissionByAction:Record<string,string>={
+        open_cash_session:"cash",close_cash_session:"cash",
+        commit_order:"sale",save_open_order:"sale",append_order_items:"sale",
+        send_to_production:"production",update_production_item:"production",set_production_priority:"production",recall_production_order:"production",
+        transfer_open_order:"transfer",merge_order_table:"transfer",unmerge_order_table:"transfer",
+        cancel_open_order:"cancel",reject_direct_order:"cancel",
+        settle_open_order:"cash",settle_open_order_split:"cash",settle_open_order_allocated:"cash",pay_allocated_group:"cash",
+        create_terminal_intent:"cash",cancel_terminal_intent:"cash",
+        refund_order:"refund",confirm_external_refund:"refund",create_terminal_refund_intent:"refund",
+        claim_direct_order:"sale",link_direct_order:"sale"
+      };
       const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
       if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
         const recoveryAllowed=await expiredServiceRecoveryAllowed(ctx.supabaseAdmin,action,restaurantId,body);
         if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402);
+      }
+      const requiredOperatorPermission=operatorPermissionByAction[action];
+      if(requiredOperatorPermission){
+        const operatorPermission=await operatorBoundPermission(requiredOperatorPermission,{requireSession:true});
+        if(!operatorPermission.allowed)return json({error:operatorPermission.error},403);
       }
 
       if(action==="list_operators"){
