@@ -21,7 +21,7 @@
 ## RevenueCat
 Create Android app `com.remaprohub.app`.
 Create the unified entitlement `remapro`.
-Create establishment-count offerings/products `remapro_1` through `remapro_5` for 1–5 establishments. Each uses a monthly package: CHF 49.90 for the first establishment plus CHF 19.90 for each additional establishment. Legacy `standard` / `multi` identifiers remain compatibility fallbacks only.
+Create establishment-count offerings/products `remapro_1` through `remapro_5` for 1–5 establishments. Each uses a monthly package: CHF 49.90 for the first establishment plus CHF 19.90 for each additional establishment. Legacy `standard` / `multi` identifiers remain compatibility fallbacks only.\nThe subscription includes a server-enforced CHF 15 monthly AI usage budget per establishment. This is a usage ceiling, not a separate Play product.
 Configure a RevenueCat webhook pointing to the deployed `remapro-revenuecat-webhook` Edge Function.
 Send `Authorization: Bearer <REVENUECAT_WEBHOOK_SECRET>`.
 
