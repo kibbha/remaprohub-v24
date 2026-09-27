@@ -19,4 +19,10 @@ assert.match(refundDateMigration,/join public\.pos_cash_sessions s[\s\S]*s\.busi
 assert.match(refundDateMigration,/select organization_id,restaurant_id,business_date from refunds/,'refund-only service days must remain visible in Hub daily finance');
 assert.match(refundDateMigration,/coalesce\(sa\.gross_sales,0\)-coalesce\(rf\.refund_total,0\)/,'daily net sales must subtract same-day completed refunds');
 
+const closeMigration=readFileSync('supabase/migrations/20260927083000_pos_close_cash_refunds_and_intents.sql','utf8');
+assert.match(closeMigration,/v_cash_sales[\s\S]*v_cash_refunds[\s\S]*v_expected:=round\(coalesce\(v_session\.opening_cash,0\)\+coalesce\(v_cash_sales,0\)-coalesce\(v_cash_refunds,0\),2\)/,'cash close must subtract completed cash refunds');
+assert.match(closeMigration,/status in \('created','pending','authorized'\)[\s\S]*OPEN_PAYMENT_INTENTS_EXIST/,'cash close must reject unresolved terminal intents');
+assert.match(closeMigration,/status='pending_external'[\s\S]*PENDING_REFUNDS_EXIST/,'cash close must reject unresolved external refunds');
+assert.match(closeMigration,/'cashRefunds',v_cash_refunds/,'cash close audit event must expose refund cash outflow');
+
 console.log('Service dashboard: POS totals, dates, refunds, isolation and non-mutation passed');
