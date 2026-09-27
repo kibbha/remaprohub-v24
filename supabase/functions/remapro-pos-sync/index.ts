@@ -215,6 +215,23 @@ const ENTITLEMENT_MUTATIONS=new Set([
   "sync_catalog","sync_tables","transfer_open_order","unmerge_order_table","update_production_item","upsert_operator","upsert_printer",
   "upsert_provider_connection","upsert_terminal"
 ]);
+const EXPIRED_SERVICE_RECOVERY_ACTIONS=new Set([
+  "close_cash_session","settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group","cancel_open_order"
+]);
+async function expiredServiceRecoveryAllowed(db:any,action:string,restaurantId:string,body:any){
+  if(!EXPIRED_SERVICE_RECOVERY_ACTIONS.has(action))return false;
+  if(action==="close_cash_session"){
+    const sessionId=clean(body.sessionId,64);if(!validUuid(sessionId))return false;
+    const {data}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
+    return !!data?.id;
+  }
+  const orderId=clean(body.orderId,64);if(!validUuid(orderId))return false;
+  const {data:order}=await db.from("pos_orders").select("id,cash_session_id,status").eq("id",orderId).eq("restaurant_id",restaurantId)
+    .in("status",["open","sent","preparing","served","payment_pending"]).maybeSingle();
+  if(!order?.id||!order.cash_session_id)return false;
+  const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",order.cash_session_id).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
+  return !!session?.id;
+}
 
 export default {
   fetch: withSupabase({auth:"user"},async(req,ctx)=>{
@@ -250,7 +267,8 @@ export default {
       );
       const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
       if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
-        return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402);
+        const recoveryAllowed=await expiredServiceRecoveryAllowed(ctx.supabaseAdmin,action,restaurantId,body);
+        if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402);
       }
 
       if(action==="list_operators"){
