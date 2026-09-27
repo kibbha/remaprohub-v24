@@ -41,6 +41,11 @@ assert.ok(css.includes('min-height:44px'),'touch targets must have 44px minimum'
 assert.ok(css.includes('focus-visible'),'keyboard focus style required');
 assert.ok(app.includes('paymentBusy:false'),'payment double-tap lock state required');
 assert.ok(app.includes('guardedPayment'),'critical payment guard required');
+assert.ok(app.includes("function canManagerPermission(permission='settings')"),'shared POS must combine cloud-manager and operator permissions');
+assert.ok(app.includes("if(!canManageSettings()){uiAlert(t('managerRequired'));return}"),'manager editors must respect active operator permission');
+assert.ok(app.includes("if(!state.online||!canManagerPermission('refund'))return"),'external refund confirmation must respect active operator refund permission');
+assert.ok(app.includes("canManageSettings()&&!plan"),'table administration must be hidden from non-manager PIN operators');
+
 assert.ok(sw.includes("url.origin!==self.location.origin"),'service worker must ignore cross-origin requests');
 assert.ok(sw.includes("runtime-config.js"),'runtime config must remain network-first');
 assert.match(harden,/compileSdkVersion = 36/);
