@@ -1374,8 +1374,7 @@ async function cancelCurrentOrder(){
   try{
     await posFunction({action:'cancel_open_order',restaurantId:state.restaurant.id,orderId:order.id,reason:reason.trim()});
     state.openOrders=state.openOrders.filter(x=>x.id!==order.id);await saveFloorCache();
-    applyLocalAvailabilityConsumption(state.cart);
-  state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
+    state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';state.error='';render();
   }catch(error){state.error=error.message||String(error);render()}
 }
 
@@ -2128,6 +2127,8 @@ async function checkout(method){
     await queuePut(queuedItem('commit_order',state.restaurant.id,{order},{clientEventId:eventId,queuedAt:now.toISOString()}));
   }
 
+  const soldLines=state.cart.map(line=>({...line}));
+  applyLocalAvailabilityConsumption(soldLines);
   state.cart=[];state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.view='floor';
   await saveFloorCache();await updateQueueCount();render();
   if(state.online){await flushQueue();await refreshAvailability()}else state.error='Vente enregistrée hors ligne — synchronisation automatique au retour du réseau.';
