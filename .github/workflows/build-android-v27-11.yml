@@ -32,7 +32,7 @@ jobs:
       - run: npm test
       - name: Verify V27.11.0 source
         run: |
-          grep -q '"version":"27.11.0"' package.json
+          grep -Eq '"version"[[:space:]]*:[[:space:]]*"27\\.11\\.0"' package.json
           grep -q "APP_VERSION='27.11.0'" src/app.js
           test -s app/sw.js
           test -s app/src/app.js
