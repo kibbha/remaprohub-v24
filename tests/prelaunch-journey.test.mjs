@@ -23,6 +23,10 @@ assert.match(android,/REQUIRE_REVENUECAT: '1'/,'production Android build must re
 assert.match(app,/\['dashboard','category','more','help','settings'\]/,'help/settings remain reachable for account recovery and billing');
 assert.match(app,/name="restaurantCount"/,'billing UI must price by establishment count');
 assert.match(app,/extraRestaurantMonthly/,'billing UI must show additional-establishment pricing');
+assert.match(app,/cloudActiveRestaurantCount/,'billing must know the organization-wide active establishment count');
+assert.match(app,/n<Math\.max\(1,cloudActiveRestaurantCount\(\)\)\?'disabled'/,'billing UI must disable plans below the active establishment count');
+assert.match(app,/requested<activeCount/,'billing submit must reject a downgrade below active establishments');
+assert.match(app,/purchasePlan\(requested\)/,'billing must purchase the validated establishment count');
 assert.doesNotMatch(app,/name="billing"/,'annual billing selector must be removed');
 assert.doesNotMatch(app,/name="plan"/,'legacy Standard\/Multi selector must be removed');
 
