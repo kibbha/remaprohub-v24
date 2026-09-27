@@ -487,12 +487,24 @@ async function runSimulationBatch(ctx:any,campaign:any,requested:number){
     try{results.push(await runSimulationScenario(ctx,claimed))}
     catch(error){results.push({scenarioId:scenario.id,error:error instanceof Error?error.message:String(error)})}
   }
-  const {count:pending}=await ctx.supabaseAdmin.from("ai_simulation_scenarios")
-    .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id).in("status",["queued","running","error"]);
-  if(Number(pending||0)===0){
-    await ctx.supabaseAdmin.from("ai_simulation_campaigns").update({status:"completed",completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",campaign.id);
+  const [{count:pending},{count:generated}]=await Promise.all([
+    ctx.supabaseAdmin.from("ai_simulation_scenarios")
+      .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id).in("status",["queued","running","error"]),
+    ctx.supabaseAdmin.from("ai_simulation_scenarios")
+      .select("*",{count:"exact",head:true}).eq("campaign_id",campaign.id)
+  ]);
+  const pendingCount=Number(pending||0),generatedCount=Number(generated||0),targetCount=Number(campaign.target_cases||0);
+  if(pendingCount===0&&generatedCount>=targetCount){
+    await ctx.supabaseAdmin.from("ai_simulation_campaigns").update({
+      status:"completed",completed_at:new Date().toISOString(),updated_at:new Date().toISOString(),last_error:""
+    }).eq("id",campaign.id);
+  }else if(pendingCount===0&&generatedCount<targetCount){
+    await ctx.supabaseAdmin.from("ai_simulation_campaigns").update({
+      status:"generating",completed_at:null,updated_at:new Date().toISOString(),last_error:""
+    }).eq("id",campaign.id);
   }
-  return {processed:results.length,dailyLimitReached:false,busy:false,recoveredStale,results};
+  return {processed:results.length,dailyLimitReached:false,busy:false,recoveredStale,
+    generatedCount,targetCount,remainingToGenerate:Math.max(0,targetCount-generatedCount),results};
 }
 async function validSimulationWorkerToken(ctx:any,req:Request){
   const token=String(req.headers.get("x-remapro-worker-token")||"");
