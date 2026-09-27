@@ -285,6 +285,15 @@ export default {
           (m.restaurant_id===restaurantId && ["restaurant_admin","director","manager"].includes(m.role))
         )
       );
+      const operatorBoundPermission=async(permission:string)=>{
+        const token=clean(body.operatorSessionToken,128);
+        if(!token)return{allowed:true,error:""};
+        const {data,error}=await ctx.supabaseAdmin.rpc("pos_operator_authorize",{
+          p_restaurant_id:restaurantId,p_token:token,p_permission:permission,p_actor_user_id:userId
+        });
+        if(error)return{allowed:false,error:error.message};
+        return{allowed:data?.required!==true||data?.authorized===true,error:data?.error||"OPERATOR_PERMISSION_DENIED"};
+      };
       const entitlement=await organizationSubscriptionAccess(ctx.supabaseAdmin,restaurant.organization_id);
       if(ENTITLEMENT_MUTATIONS.has(action)&&!entitlement.allowed){
         const recoveryAllowed=await expiredServiceRecoveryAllowed(ctx.supabaseAdmin,action,restaurantId,body);
@@ -301,6 +310,7 @@ export default {
 
       if(action==="upsert_operator"){
         if(!manager)return json({error:"Manager access required"},403);
+        const boundPermission=await operatorBoundPermission("settings");if(!boundPermission.allowed)return json({error:boundPermission.error},403);
         const op=body.operator||{},operatorId=clean(op.id,64),userIdValue=clean(op.userId,64),employeeId=clean(op.employeeId,64);
         const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_operator",{
           p_operator_id:validUuid(operatorId)?operatorId:null,
@@ -941,6 +951,7 @@ export default {
 
       if(action==="sync_tables"){
         if(!manager)return json({error:"Manager access required"},403);
+        const boundPermission=await operatorBoundPermission("settings");if(!boundPermission.allowed)return json({error:boundPermission.error},403);
         const raw=Array.isArray(body.tables)?body.tables:[];
         if(raw.length>300)return json({error:"Table limit exceeded"},400);
         const rows:any[]=[];
@@ -1558,6 +1569,7 @@ export default {
 
       if(action==="upsert_printer"){
         if(!manager)return json({error:"Manager access required"},403);
+        const boundPermission=await operatorBoundPermission("settings");if(!boundPermission.allowed)return json({error:boundPermission.error},403);
         const p=body.printer||{};
         const printerId=clean(p.id,64),deviceId=clean(p.deviceId,64);
         const {data,error}=await ctx.supabaseAdmin.rpc("pos_upsert_printer",{
@@ -1600,6 +1612,7 @@ export default {
 
       if(action==="upsert_terminal"){
         if(!manager)return json({error:"Manager access required"},403);
+        const boundPermission=await operatorBoundPermission("settings");if(!boundPermission.allowed)return json({error:boundPermission.error},403);
         const terminal=body.terminal||{};
         const terminalId=clean(terminal.id,64);
         const deviceId=clean(terminal.deviceId,64);
