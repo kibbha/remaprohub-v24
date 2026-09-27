@@ -45,6 +45,8 @@ assert.ok(app.includes("function canManagerPermission(permission='settings')"),'
 assert.ok(app.includes("if(!canManageSettings()){uiAlert(t('managerRequired'));return}"),'manager editors must respect active operator permission');
 assert.ok(app.includes("if(!state.online||!canManagerPermission('refund'))return"),'external refund confirmation must respect active operator refund permission');
 assert.ok(app.includes("canManageSettings()&&!plan"),'table administration must be hidden from non-manager PIN operators');
+assert.ok(app.includes("preservedPermissions=existing&&nextRole===String(o.role||'')"),'editing an operator without changing role must preserve custom permissions');
+assert.ok(app.includes("permissions:preservedPermissions"),'operator edit payload must not silently reset custom permissions');
 
 assert.ok(sw.includes("url.origin!==self.location.origin"),'service worker must ignore cross-origin requests');
 assert.ok(sw.includes("runtime-config.js"),'runtime config must remain network-first');
