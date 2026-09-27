@@ -145,6 +145,12 @@ export default {
           .select("id",{count:"exact",head:true}).eq("organization_id",organizationId).eq("active",true);
         if(countError)return fail("Unable to verify restaurant count",500);
         if((count||0)<=1)return fail("Last restaurant cannot be archived",409);
+        const [sessionCheck,orderCheck]=await Promise.all([
+          ctx.supabaseAdmin.from("pos_cash_sessions").select("id",{count:"exact",head:true}).eq("restaurant_id",restaurantId).eq("status","open"),
+          ctx.supabaseAdmin.from("pos_orders").select("id",{count:"exact",head:true}).eq("restaurant_id",restaurantId).in("status",["open","sent","preparing","served","payment_pending"])
+        ]);
+        if(sessionCheck.error||orderCheck.error)return fail("Unable to verify POS service state",500);
+        if((sessionCheck.count||0)>0||(orderCheck.count||0)>0)return fail("Close the POS service and all open orders before archiving this restaurant",409);
         const {data,error}=await ctx.supabaseAdmin.from("restaurants").update({active:false,updated_at:new Date().toISOString()})
           .eq("id",restaurantId).eq("organization_id",organizationId).select("id").maybeSingle();
         if(error||!data)return fail("Unable to archive restaurant",500);
