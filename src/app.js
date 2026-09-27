@@ -1,5 +1,5 @@
 import {parseCashAmount,mergePendingOrders,closingChecks,syncIndicator} from './service-flow.js';
-import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,subscriptionAccessForIdentity,posFunction,academyFunction,supportFunction} from './cloud.js';
+import {cloudConfigured,initializePosSessionStorage,signIn,signOut,currentSession,currentOperatorSession,saveOperatorSession,clearOperatorSession,loadIdentity,accessibleRestaurants,subscriptionAccessForIdentity,posFunction,academyFunction,supportFunction} from './cloud.js';
 import {kvGet,kvSet,kvDelete,queuePut,queueDelete,queueAll,uuid} from './db.js';
 import {discoverNativePrinters,printEscPosText,buildReceiptText,buildProductionText,buildTestText,nativePrinterReady} from './printer.js';
 import {publishedLayout,productById,itemForButton,buttonById,pageButtons,categoriesForPage,categoryNavigationForPage,configurationForButton,availabilityKeyForButton,availabilityConfigForButton,modifierPriceDelta,modifierSummary,productionModifierSummary,modifierRoutesToStation} from './layout.js';
@@ -887,9 +887,11 @@ async function bootstrapRestaurant(restaurant){
   await updateQueueCount();render();flushQueue().catch(()=>{});
 }
 async function openCachedIdentity(cached,message=''){
-  if(!cached?.restaurants?.length)return false;
-  state.identity=cached;
-  const preferred=await kvGet('restaurantId'),restaurants=cached.restaurants||[];
+  if(!cached||typeof cached!=='object')return false;
+  const restaurants=accessibleRestaurants(cached);
+  if(!restaurants.length)return false;
+  state.identity={...cached,restaurants};
+  const preferred=await kvGet('restaurantId');
   const target=restaurants.find(r=>r.id===preferred)||restaurants[0]||null;
   if(target){await kvSet('restaurantId',target.id);await bootstrapRestaurant(target)}
   if(message)state.error=message;
