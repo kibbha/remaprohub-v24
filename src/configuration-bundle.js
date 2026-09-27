@@ -13,6 +13,11 @@ export async function readPublishedBundle(result, head) {
   return{version:Number(bundle.version),document};
 }
 
+export function configurationSnapshotMatchesHead(snapshot,head){
+  const source=Number(snapshot?.sourceRevision),revision=Number(head?.revision);
+  return Number.isSafeInteger(source)&&source>=0&&Number.isSafeInteger(revision)&&revision===source+1;
+}
+
 export function applyPublishedBundle(bootstrap,bundle) {
   if(!bundle)return bootstrap;
   return{...bootstrap,catalog:bundle.document.catalog,layout:bundle.document.layout,configurationBundleVersion:bundle.version};
