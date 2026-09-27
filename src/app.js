@@ -1119,6 +1119,7 @@ async function saveOpenOrder(){
 
 
 async function acceptDirectOrder(id){
+  if(blockExpiredNewSale())return;
   if(!state.online){uiAlert(t('connectionRequired'));return}
   const direct=state.directOrders.find(x=>String(x.id)===String(id));if(!direct||!['pending','accepted','imported'].includes(direct.status))return;
   if(!state.cashSession||state.cashSession.status!=='open'){uiAlert(t('directCashRequired'));return}
@@ -1519,7 +1520,7 @@ async function prepareOrderForProgressivePayment(){
   if(!state.cart.length||!state.cashSession||state.cashSession.status!=='open')return null;
   if(paymentBlockedByDelta()){uiAlert(t('sendNewItemsFirst'));return null}
   let order=currentServerOrder();
-  if(!order||order.status==='open'){
+  if((!order||order.status==='open')&&!expiredServiceContinuity()){
     const device=await ensureDevice(),orderId=state.activeOrderId||uuid(),eventId=uuid();
     const payload=buildOpenOrder(orderId,eventId);payload.deviceId=device.id;
     try{
@@ -2641,6 +2642,7 @@ function render(){
   if(!state.identity){app.innerHTML=`<div class="login-wrap"><div class="card"><h1>ReMaPro POS</h1><label class="field compact-language"><span>${t('language')}</span><select id="pos-language">${languageOptions()}</select></label><p>${state.busy?'Chargement…':'Connexion au compte…'}</p>${state.error?'<div class="notice error">'+esc(state.error)+'</div>':''}<button class="secondary wide" id="open-academy">? Académie / Aide</button></div></div>`;wire();translateDom(app);return}
   if(!state.restaurant){app.innerHTML=pickerView();wire();translateDom(app);return}
   if(!currentSubscriptionAccess().allowed&&!expiredServiceContinuity()){app.innerHTML=subscriptionRequiredView();wire();translateDom(app);return}
+  if(expiredServiceContinuity()&&!state.error)state.error='Abonnement expiré — terminez les notes ouvertes et clôturez la caisse. Les nouvelles ventes sont bloquées.';
   if(state.operatorRequired&&!state.operator){app.innerHTML=operatorLoginView();wire();translateDom(app);return}
   if(!state.cashSession){app.innerHTML=sessionView();wire();translateDom(app);return}
   app.innerHTML=state.view==='floor'?floorView():state.view==='directOrders'?directOrdersView():state.view==='production'?productionView():state.view==='tickets'?ticketsView():state.view==='report'?reportView():state.view==='terminals'?terminalsView():state.view==='printers'?printersView():state.view==='team'?teamView():state.view==='sync'?syncView():state.view==='closing'?closingView():mainView();wire();translateDom(app);
@@ -2670,7 +2672,7 @@ document.querySelector('#nav-sync')?.addEventListener('click',()=>{state.view='s
   document.querySelector('#nav-floor')?.addEventListener('click',()=>openTables());
   document.querySelector('#open-tables')?.addEventListener('click',()=>openTables());
   document.querySelector('#new-order')?.addEventListener('click',()=>startNewOrder());
-  document.querySelector('#order-without-table')?.addEventListener('click',()=>{state.pendingNewOrder=false;state.view='sale';state.serviceType='dine_in';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;state.error='';render()});
+  document.querySelector('#order-without-table')?.addEventListener('click',()=>{if(blockExpiredNewSale())return;state.pendingNewOrder=false;state.view='sale';state.serviceType='dine_in';state.activeOrderId=null;state.activeTableId=null;state.tableLabel='';state.cart=[];state.covers=1;state.error='';render()});
   document.querySelector('#cancel-table-pick')?.addEventListener('click',()=>{state.pendingNewOrder=false;state.view='sale';state.error='';render()});
   document.querySelector('#nav-direct-orders')?.addEventListener('click',()=>{state.view='directOrders';refreshDirectOrders().then(render)});
   document.querySelector('#refresh-direct-orders')?.addEventListener('click',()=>refreshDirectOrders().then(render));
