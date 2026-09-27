@@ -241,7 +241,7 @@ function terminalsView(){
         <div class="terminal-meta"><div>ID prestataire <strong>${esc(t.external_terminal_id||'—')}</strong></div><div>Devise <strong>${esc(t.currency||'CHF')}</strong></div><div>Profil <strong>${t.active?'Actif':'Inactif'}</strong></div></div>
         ${canManageSettings()?'<button class="secondary wide" data-edit-terminal="'+t.id+'">Modifier</button>':''}
       </article>`).join(''):'<div class="empty"><h3>Aucun profil terminal</h3><p>Ajoutez Worldline, TWINT ou un profil générique. La connexion réelle sera activée séparément côté serveur.</p></div>'}</section>
-      <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><div class="intent-control"><strong class="intent-status intent-${esc(i.status)}">${esc(terminalIntentText(i.status))}</strong>${['created','pending','authorized'].includes(i.status)?'<button class="secondary tiny" data-cancel-intent="'+i.id+'">Annuler</button>':''}</div></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
+      <section class="terminal-intents"><h3>Derniers intents terminal</h3>${intents.length?intents.map(i=>`<div class="terminal-intent-row"><div><strong>${esc(i.kind)} · ${esc(i.method)}</strong><small>${esc(i.provider)} · ${new Date(i.created_at).toLocaleString('fr-CH')}</small></div><span>${money(i.amount)}${Number(i.tip_amount)?' + '+money(i.tip_amount)+' tip':''}</span><div class="intent-control"><strong class="intent-status intent-${esc(i.status)}">${esc(terminalIntentText(i.status))}</strong>${['created','pending'].includes(i.status)?'<button class="secondary tiny" data-cancel-intent="'+i.id+'">Annuler</button>':''}</div></div>`).join(''):'<div class="muted">Aucun intent terminal récent.</div>'}</section>
     </main></div>`;
 }
 
@@ -310,6 +310,11 @@ async function pollTerminalIntent(intentId,orderId){
     if(status)status.textContent=terminalIntentText(intent.status);
     const ref=modal?.querySelector('#terminal-live-reference');
     if(ref)ref.textContent=intent.provider_reference||'—';
+    const cancelButton=modal?.querySelector('#terminal-wait-cancel');
+    if(cancelButton&&intent.status==='authorized'){
+      cancelButton.disabled=true;
+      cancelButton.textContent='Autorisation reçue — annulation via prestataire';
+    }
     await finalizeTerminalUi(intent);
   }catch(error){
     recordDiagnostic('terminal.poll_error',{message:error.message||String(error)});
