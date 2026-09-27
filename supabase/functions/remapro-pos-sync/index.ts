@@ -216,33 +216,41 @@ const ENTITLEMENT_MUTATIONS=new Set([
   "upsert_provider_connection","upsert_terminal"
 ]);
 const EXPIRED_SERVICE_RECOVERY_ACTIONS=new Set([
-  "close_cash_session","settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group","cancel_open_order",
-  "refund_order","confirm_external_refund"
+  "commit_order","save_open_order","append_order_items","send_to_production","update_production_item","set_production_priority",
+  "recall_production_order","transfer_open_order","merge_order_table","unmerge_order_table","cancel_open_order",
+  "settle_open_order","settle_open_order_split","settle_open_order_allocated","pay_allocated_group",
+  "refund_order","confirm_external_refund","close_cash_session"
 ]);
+async function openRecoverySession(db:any,restaurantId:string,sessionId:string){
+  if(!validUuid(sessionId))return false;
+  const {data}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
+  return !!data?.id;
+}
+async function recoveryOrderSessionId(db:any,restaurantId:string,orderId:string){
+  if(!validUuid(orderId))return "";
+  const {data}=await db.from("pos_orders").select("cash_session_id").eq("id",orderId).eq("restaurant_id",restaurantId).maybeSingle();
+  return String(data?.cash_session_id||"");
+}
 async function expiredServiceRecoveryAllowed(db:any,action:string,restaurantId:string,body:any){
   if(!EXPIRED_SERVICE_RECOVERY_ACTIONS.has(action))return false;
-  if(action==="close_cash_session"){
-    const sessionId=clean(body.sessionId,64);if(!validUuid(sessionId))return false;
-    const {data}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
-    return !!data?.id;
-  }
   if(action==="confirm_external_refund"){
     const refundId=clean(body.refundId,64);if(!validUuid(refundId))return false;
-    const {data:refund}=await db.from("pos_refunds").select("id,cash_session_id,status").eq("id",refundId).eq("restaurant_id",restaurantId)
+    const {data:refund}=await db.from("pos_refunds").select("id,status").eq("id",refundId).eq("restaurant_id",restaurantId)
       .in("status",["recorded","pending_external"]).maybeSingle();
-    if(!refund?.id||!refund.cash_session_id)return false;
-    const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",refund.cash_session_id).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
-    return !!session?.id;
+    return !!refund?.id;
   }
-  const orderId=clean(body.orderId,64);if(!validUuid(orderId))return false;
-  const allowedStatuses=action==="refund_order"?["paid","refunded"]:["open","sent","preparing","served","payment_pending"];
-  const {data:order}=await db.from("pos_orders").select("id,cash_session_id,status").eq("id",orderId).eq("restaurant_id",restaurantId)
-    .in("status",allowedStatuses).maybeSingle();
-  if(!order?.id)return false;
-  const sessionId=action==="refund_order"?clean(body.cashSessionId,64):String(order.cash_session_id||"");
-  if(!validUuid(sessionId))return false;
-  const {data:session}=await db.from("pos_cash_sessions").select("id").eq("id",sessionId).eq("restaurant_id",restaurantId).eq("status","open").maybeSingle();
-  return !!session?.id;
+  let sessionId="";
+  if(action==="close_cash_session")sessionId=clean(body.sessionId,64);
+  else if(action==="commit_order"||action==="save_open_order")sessionId=clean(body?.order?.cashSessionId,64);
+  else if(action==="refund_order")sessionId=clean(body.cashSessionId,64);
+  else if(action==="update_production_item"){
+    const itemId=clean(body.itemId,64);if(!validUuid(itemId))return false;
+    const {data:item}=await db.from("pos_order_items").select("order_id").eq("id",itemId).maybeSingle();
+    sessionId=await recoveryOrderSessionId(db,restaurantId,String(item?.order_id||""));
+  }else{
+    sessionId=await recoveryOrderSessionId(db,restaurantId,clean(body.orderId,64));
+  }
+  return openRecoverySession(db,restaurantId,sessionId);
 }
 
 export default {
