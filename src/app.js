@@ -844,6 +844,9 @@ function resetRestaurantRuntime(){
     providerConnections:[],directOrders:[],availabilityRows:[],syncConfirmedAt:'',lastClosedSession:null,closingBusy:false,closingReport:null,
     closingError:'',mobilePanel:'products',syncLastRun:'',paymentBusy:false,layoutPageId:'',layoutCategoryId:''
   });
+  state.support={tickets:[],loaded:false,loading:false,error:'',lastReply:'',selectedTicket:null,messages:[],conversationLoading:false};
+  state.academy={...state.academy,query:'',scope:'all',role:'',module:'',selectedTopic:'',selectedPath:'',troubleshoot:'',progress:[],loaded:false,loading:false,managerVisibility:false,managerRows:[]};
+  resetTraining();
   applyPosSettings(null);
 }
 async function bootstrapRestaurant(restaurant){
@@ -985,7 +988,8 @@ async function loadAccount(){
 }
 async function logoutPos(){
   signOut();clearOperatorSession();await kvDelete('identity');
-  state.identity=null;state.restaurant=null;state.entitlement=null;state.operator=null;state.cashSession=null;state.view='sale';render();
+  resetRestaurantRuntime();
+  state.identity=null;state.restaurant=null;state.entitlement=null;render();
 }
 async function openSession(openingCash){
   if(!requireOperatorPermission('cash'))return;
