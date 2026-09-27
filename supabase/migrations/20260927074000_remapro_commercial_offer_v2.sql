@@ -10,9 +10,18 @@ alter table public.subscription_plans
 update public.subscription_plans
 set trial_days=14,
     monthly_price_cents=4990,
+    yearly_price_cents=null,
     extra_restaurant_monthly_price_cents=1990,
     max_restaurants=5,
-    user_limit=10
+    user_limit=10,
+    features=jsonb_build_object(
+      'restaurants',1,
+      'max_restaurants',5,
+      'users',10,
+      'extra_restaurant_monthly_price_cents',1990,
+      'staff_limited',false,
+      'trial_full_access',true
+    )
 where code in ('standard','multi');
 
 alter table public.subscriptions
