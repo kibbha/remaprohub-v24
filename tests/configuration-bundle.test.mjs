@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {readPublishedBundle,readConfigurationSnapshot,applyPublishedBundle,publishedDeviceProfiles ,readCachedConfigurationSnapshot} from '../src/configuration-bundle.js';
+import {readPublishedBundle,readConfigurationSnapshot,configurationSnapshotMatchesHead,applyPublishedBundle,publishedDeviceProfiles ,readCachedConfigurationSnapshot} from '../src/configuration-bundle.js';
 
 const document={schemaVersion:1,catalog:[{id:'a',name:'Plat'}],layout:{version:2},tables:[{id:'t',label:'1'}],floorPlan:null};
 const payload=JSON.stringify(document),checksum=createHash('sha256').update(payload).digest('hex');
@@ -24,6 +24,9 @@ assert.equal(atomic.version,4);
 assert.equal(atomic.sourceRevision,13);
 assert.deepEqual(atomic.document.catalog,document.catalog);
 assert.equal(atomic.settings.payments.cash,true);
+assert.equal(configurationSnapshotMatchesHead(atomic,{revision:14}),true,'published atomic snapshot matches exactly source revision + 1');
+assert.equal(configurationSnapshotMatchesHead(atomic,{revision:15}),false,'direct Hub edit must make the published atomic snapshot stale');
+assert.equal(configurationSnapshotMatchesHead(atomic,null),false,'atomic snapshot without a verified head must not be trusted');
 await assert.rejects(readConfigurationSnapshot({snapshot:{version:4,schema_version:1,source_revision:13,payload:payload+'x',checksum}}),/BUNDLE_CHECKSUM_INVALID/);
 
 const cachedPayload=JSON.stringify({schemaVersion:1,catalog:[],tables:[],layout:{}});
