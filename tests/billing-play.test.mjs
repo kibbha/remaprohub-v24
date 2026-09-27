@@ -13,6 +13,8 @@ assert.match(billing,/Purchases/);
 assert.match(billing,/purchasePackage/);
 assert.match(billing,/restorePurchases/);
 assert.match(billing,/entitlementPlan/);
+assert.match(billing,/remapro_.*restaurantCount|id='remapro_'/,'billing must select an offering by establishment count');
+assert.match(billing,/\$rc_monthly/,'commercial offer must use monthly packages');
 assert.match(app,/billingPurchaseForm/);
 assert.match(app,/subscribeWithGooglePlay/);
 assert.doesNotMatch(app,/id="subscriptionForm"/);
@@ -24,6 +26,8 @@ assert.match(serverOnly,/revoke all privileges on table public\.restaurant_works
 assert.match(serverOnly,/revoke all privileges on table public\.subscription_events from public, anon, authenticated/);
 assert.match(webhook,/REVENUECAT_WEBHOOK_SECRET/);
 assert.match(webhook,/revenuecat_event_id/);
+assert.match(webhook,/restaurant_limit:restaurantLimit/,'RevenueCat webhook must persist purchased establishment slots');
+assert.match(webhook,/remapro\[_-\]/,'RevenueCat webhook must parse ReMaPro establishment-count products');
 assert.match(account,/delete-self/);
 assert.match(account,/auth\.admin\.deleteUser/);
 assert.match(config,/\[functions\.remapro-revenuecat-webhook\][\s\S]*verify_jwt = false/);
