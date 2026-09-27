@@ -47,5 +47,12 @@ assert.ok(pos.includes('action==="confirm_external_refund"'),'external refund co
 assert.ok(pos.includes('expiredServiceRecoveryAllowed'),'POS expiry gate must verify recovery eligibility');
 assert.ok(pos.includes('.eq("status","open").maybeSingle()'),'expiry recovery must require an actually open cash session for service mutations');
 assert.ok(pos.includes('if(!recoveryAllowed)return json({error:"SUBSCRIPTION_REQUIRED",entitlement},402)'),'new mutations outside recovery must remain blocked after expiry');
+assert.ok(pos.includes('operatorBoundPermission'),'POS manager mutations must bind to the active operator PIN when one is present');
+for(const action of ['upsert_operator','sync_tables','upsert_printer','upsert_terminal']){
+  const start=pos.indexOf('if(action==="'+action+'")');
+  assert.ok(start>=0,'missing manager action '+action);
+  assert.ok(pos.slice(start,start+500).includes('operatorBoundPermission("settings")'),'shared-POS manager action must require settings permission: '+action);
+}
+
 
 console.log('Pre-launch subscription entitlement and recovery-access checks passed');
