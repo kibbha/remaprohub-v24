@@ -21,7 +21,7 @@ for(const token of [
 
 for(const token of [
   'withSupabase({auth:"user"}','AI_MONTHLY_BUDGET_EXHAUSTED','ai_budget_reserve',
-  'ai_budget_commit','max_output_tokens','restaurantId','remainingChf'
+  'ai_budget_commit','ai_budget_status','max_output_tokens','restaurantId'
 ]) assert.ok(ai.includes(token),'Hub AI budget enforcement missing: '+token);
 
 for(const token of [
