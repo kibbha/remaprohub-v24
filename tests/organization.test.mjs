@@ -70,6 +70,19 @@ assert.equal(loaded.restaurants.length,1);
 assert.equal(loaded.activeRestaurantId,loaded.restaurants[0].id);
 
 storage.clear();
+const freshCloudState=load();
+const placeholderId=freshCloudState.activeRestaurantId;
+assert.equal(freshCloudState.restaurants.length,1);
+assert.equal(freshCloudState.restaurants[0].name,'Restaurant 1');
+assert.ok(mergeCloudRestaurants(freshCloudState,[{id:'cloud-first',name:'Chez Romain',country_code:'CH',canton:'GE',currency:'CHF',active:true}]));
+assert.equal(freshCloudState.restaurants.length,1,'first cloud restaurant must adopt the pristine local placeholder');
+assert.equal(freshCloudState.restaurants[0].id,placeholderId,'placeholder adoption keeps local references stable');
+assert.equal(freshCloudState.restaurants[0].cloudId,'cloud-first');
+assert.equal(freshCloudState.restaurants[0].name,'Chez Romain');
+freshCloudState.subscription.restaurantLimit=2;
+assert.ok(recordRestaurant(freshCloudState,{name:'Second Site',currency:'CHF'},new Date()),'pristine placeholder must not consume a paid establishment slot');
+
+storage.clear();
 const limitState=load();
 limitState.subscription.restaurantLimit=5;
 for(let i=2;i<=5;i++)assert.ok(recordRestaurant(limitState,{name:'Limit '+i,currency:'CHF'},new Date()),'trial/Pro must allow up to five restaurants');
