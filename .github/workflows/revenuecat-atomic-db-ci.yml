@@ -1,0 +1,55 @@
+name: RevenueCat atomic PostgreSQL CI
+on:
+  pull_request:
+    branches: [rebuild/remaprohub-clean]
+    paths:
+      - 'supabase/functions/remapro-revenuecat-webhook/**'
+      - 'supabase/migrations/20261008093000_revenuecat_atomic_application.sql'
+      - 'tests/sql/revenuecat-*.sql'
+      - 'tests/revenuecat-event-policy.test.mjs'
+      - '.github/workflows/revenuecat-atomic-db-ci.yml'
+permissions:
+  contents: read
+jobs:
+  billing-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      PGOPTIONS: -c statement_timeout=10000
+    steps:
+      - uses: actions/checkout@v5
+      - name: Ensure PostgreSQL client
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Create isolated fixture, install migration and test rollback
+        run: |
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f tests/sql/revenuecat-atomic-fixture.sql
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261008093000_revenuecat_atomic_application.sql
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f tests/sql/revenuecat-atomic.test.sql
+      - name: Race two distinct webhook deliveries
+        run: |
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f tests/sql/revenuecat-concurrent-older.sql &
+          old_pid=$!
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f tests/sql/revenuecat-concurrent-newer.sql &
+          new_pid=$!
+          wait "$old_pid"
+          wait "$new_pid"
+          psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -f tests/sql/revenuecat-concurrent-verify.sql
