@@ -12,7 +12,7 @@ import {queuedPayload,queueRetryDelayMs,queueRetryDue,definitiveQueueRejection} 
 import {directOrderCart,renderDirectOrders} from './direct-orders.js';
 import {assertConsistentConfigurationRevision} from './configuration-revision.js';
 import {readPublishedBundle,readConfigurationSnapshot,readCachedConfigurationSnapshot,configurationSnapshotMatchesHead,applyPublishedBundle,publishedDeviceProfiles} from './configuration-bundle.js';
-import {normalizePosSettings,paymentAllowed} from './payment-policy.js';
+import {normalizePosSettings,paymentAllowed,requiresExternalSettlementConfirmation} from './payment-policy.js';
 import {customerDisplaySnapshot,publishCustomerDisplay,hardwareExtensionProfiles} from './customer-display.js';
 import {tapToPayCapabilities,startTapToPayPayment,tapToPayErrorMessage} from './tap-to-pay.js';
 
@@ -384,6 +384,21 @@ async function guardedPayment(task){
   state.paymentBusy=true;
   try{return await task()}finally{state.paymentBusy=false}
 }
+async function confirmExternalManualSettlement(method,context=''){
+  if(!requiresExternalSettlementConfirmation(method))return true;
+  // A connected integrated terminal must be settled by a real provider intent,
+  // not silently bypassed by a split-payment RPC.
+  if(state.bootstrap?.capabilities?.paymentProviders===true&&connectedTerminal(method)){
+    uiAlert('Paiement Carte/TWINT fractionné indisponible avec terminal intégré. Utilisez le parcours de paiement terminal standard.');
+    return false;
+  }
+  const label=method==='twint'?'TWINT':'carte';
+  return !!(await uiConfirm({
+    title:t('externalPaymentTitle'),
+    message:t('externalPaymentHint')+' '+label+(context?' · '+context:''),
+    danger:true
+  }));
+}
 async function payByMethod(method){
   if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
   if(method==='cash')return checkout(method);
@@ -392,9 +407,7 @@ async function payByMethod(method){
   if(matching&&state.bootstrap?.capabilities?.paymentProviders===true){
     return startTerminalPayment(method,matching);
   }
-  const label=method==='twint'?'TWINT':'carte';
-  const ok=await uiConfirm({title:t('externalPaymentTitle'),message:t('externalPaymentHint')+' '+label,danger:true});
-  if(!ok)return;
+  if(!(await confirmExternalManualSettlement(method)))return;
   return checkout(method);
 }
 
@@ -1477,6 +1490,9 @@ function collectAllocatedGroups(){
 async function settleAllocatedSplit(order){
   const groups=collectAllocatedGroups();if(!groups.length)return;
   if(groups.some(g=>!paymentAllowed(state.posSettings,g.method))){uiAlert('Un moyen de paiement est désactivé dans le Hub.');return}
+  for(const group of groups){
+    if(!(await confirmExternalManualSettlement(group.method,group.label)))return;
+  }
   const modal=document.querySelector('#allocated-split-modal');
   const submit=modal?.querySelector('#allocated-split-submit');
   if(submit)submit.disabled=true;
@@ -1620,6 +1636,7 @@ async function openProgressivePayment(){
     const label=modal.querySelector('#progressive-label')?.value?.trim()||('Personne '+(previous.length+1));
     const method=modal.querySelector('#progressive-method')?.value||'cash';
     if(!paymentAllowed(state.posSettings,method)){uiAlert('Ce moyen de paiement est désactivé dans le Hub.');return}
+    if(!(await confirmExternalManualSettlement(method,label)))return;
     const tip=parseMoneyInput(modal.querySelector('#progressive-tip')?.value||'0');
     const submit=modal.querySelector('#progressive-submit');if(submit){submit.disabled=true;submit.textContent='Encaissement…'}
     try{
@@ -1668,6 +1685,9 @@ async function splitCheckout(){
     remaining=Math.round((remaining-amount)*100)/100;
   }
   if(Math.abs(remaining)>0.01){uiAlert(t('splitTotalMismatch'));return}
+  for(let i=0;i<payments.length;i++){
+    if(!(await confirmExternalManualSettlement(payments[i].method,'Part '+(i+1)+'/'+payments.length+' · '+money(payments[i].amount))))return;
+  }
   const device=await ensureDevice(),now=new Date(),orderId=state.activeOrderId||uuid(),saveEventId=uuid(),payEventId=uuid();
   const existing=currentServerOrder();
   if((!existing||existing.status==='open')&&!expiredServiceContinuity()){
