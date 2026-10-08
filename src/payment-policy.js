@@ -12,3 +12,6 @@ export function normalizePosSettings(input) {
 }
 
 export const paymentAllowed=(settings,method)=>settings?.payments?.[String(method||'').toLowerCase()]!==false;
+
+// Card/TWINT entries require an explicit terminal acceptance before manual ledger settlement.
+export const requiresExternalSettlementConfirmation=method=>['card','twint'].includes(String(method||'').toLowerCase());

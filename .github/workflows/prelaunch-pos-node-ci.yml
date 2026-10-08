@@ -1,0 +1,32 @@
+name: Pre-launch POS Node CI
+on:
+  pull_request:
+    branches: [pos/remapro-pos]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'package.json'
+      - '.github/workflows/prelaunch-pos-node-ci.yml'
+permissions:
+  contents: read
+jobs:
+  pos-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run complete POS suite
+        run: npm test
+      - name: Prepare Android-packaged web assets (no APK build)
+        run: npm run prepare:web
+      - name: Verify POS packaged files
+        run: |
+          test -s app/index.html
+          test -s app/src/app.js
+          test -s app/src/payment-policy.js
