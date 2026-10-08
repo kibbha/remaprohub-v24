@@ -1,11 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
+import { classifyRevenueCatEvent, revenueCatEventRecordId } from "./policy.mjs";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, content-type",
   "Access-Control-Allow-Methods":"POST, OPTIONS"
 };
-const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{...cors,"Content-Type":"application/json"}});
+const json=(data:unknown,status=200)=>new Response(JSON.stringify(data),{
+  status,headers:{...cors,"Content-Type":"application/json"}
+});
+const validUuid=(value:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 Deno.serve(async(req)=>{
   if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
@@ -15,69 +19,42 @@ Deno.serve(async(req)=>{
 
   try{
     const body=await req.json(),event=body?.event||body;
+    const policy=classifyRevenueCatEvent(event);
+    if(policy.action==="ignore")return json({ok:true,ignored:true,reason:policy.reason});
+
     const eventId=String(event?.id||"");
     const appUserId=String(event?.app_user_id||"");
-    const [userId,organizationId]=appUserId.split(":");
-    if(!eventId||!userId||!organizationId)return json({error:"Invalid RevenueCat payload"},400);
+    const [userId,organizationId,...rest]=appUserId.split(":");
+    if(!eventId||eventId.length>256||rest.length||!validUuid(userId)||!validUuid(organizationId)){
+      return json({error:"Invalid RevenueCat payload"},400);
+    }
 
     const url=String(Deno.env.get("SUPABASE_URL")||"");
     const serviceKey=String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"");
     if(!url||!serviceKey)return json({error:"Supabase server credentials missing"},503);
     const admin=createClient(url,serviceKey,{auth:{persistSession:false}});
+    const recordId=await revenueCatEventRecordId(eventId);
 
-    const {data:membership}=await admin.from("memberships")
-      .select("id").eq("user_id",userId).eq("organization_id",organizationId).limit(1).maybeSingle();
-    if(!membership)return json({error:"RevenueCat user is not a member of the organization"},403);
-
-    const {data:existingEvent}=await admin.from("subscription_events")
-      .select("id").eq("revenuecat_event_id",eventId).maybeSingle();
-    if(existingEvent)return json({ok:true,duplicate:true});
-
-    const type=String(event?.type||"");
-    const productId=String(event?.product_id||event?.product_identifier||"");
-    const entitlementIds=Array.isArray(event?.entitlement_ids)?event.entitlement_ids.map(String):[];
-    const planCode=entitlementIds.includes("multi")||/multi/i.test(productId)?"multi":"standard";
-    const restaurantMatch=productId.match(/remapro[_-]([1-5])(?:\D|$)/i);
-    const restaurantLimit=restaurantMatch?Number(restaurantMatch[1]):planCode==="multi"?5:1;
-    const {data:plan,error:planError}=await admin.from("subscription_plans").select("id,code").eq("code",planCode).eq("active",true).single();
-    if(planError||!plan)return json({error:"Subscription plan not found"},500);
-
-    const expirationMs=Number(event?.expiration_at_ms||0);
-    const expiration=expirationMs?new Date(expirationMs).toISOString():null;
-    let status="active",cancelAtPeriodEnd=false;
-    if(type==="EXPIRATION")status="expired";
-    else if(type==="BILLING_ISSUE")status="past_due";
-    else if(type==="SUBSCRIPTION_PAUSED"){status="active";cancelAtPeriodEnd=false}
-    else if(type==="CANCELLATION"){status=expirationMs>Date.now()?"active":"canceled";cancelAtPeriodEnd=true}
-    else if(type==="UNCANCELLATION"){status="active";cancelAtPeriodEnd=false}
-
-    const now=new Date().toISOString();
-    const {error:subError}=await admin.from("subscriptions").upsert({
-      organization_id:organizationId,
-      plan_id:plan.id,
-      status,
-      current_period_end:expiration,
-      cancel_at_period_end:cancelAtPeriodEnd,
-      revenuecat_app_user_id:appUserId,
-      revenuecat_product_id:productId,
-      revenuecat_entitlement:planCode,
-      restaurant_limit:restaurantLimit,
-      store:String(event?.store||"PLAY_STORE").toLowerCase(),
-      updated_at:now
-    },{onConflict:"organization_id"});
-    if(subError)return json({error:subError.message},500);
-
-    const {error:eventError}=await admin.from("subscription_events").insert({
-      organization_id:organizationId,
-      event_type:type||"UNKNOWN",
-      payload:event,
-      revenuecat_event_id:eventId,
-      app_user_id:appUserId
+    // The database RPC holds an organization-scoped transaction lock and
+    // atomically saves both the webhook event and subscription transition.
+    // A separate select/upsert/insert sequence cannot provide this guarantee.
+    const {data,error}=await admin.rpc("remapro_apply_revenuecat_event",{
+      p_organization_id:organizationId,
+      p_user_id:userId,
+      p_event_record_id:recordId,
+      p_event:event
     });
-    if(eventError)return json({error:eventError.message},500);
-
-    return json({ok:true,organizationId,plan:planCode,status,restaurantLimit});
+    if(error){
+      console.error("RevenueCat atomic RPC failed",{code:error.code});
+      if(error.code==="42501")return json({error:"RevenueCat user is not a current member"},403);
+      if(error.code==="22023")return json({error:"Invalid RevenueCat payload"},400);
+      return json({error:"RevenueCat event could not be committed"},503);
+    }
+    return json(data||{error:"Empty RevenueCat RPC result"},data?200:503);
   }catch(error){
-    return json({error:error instanceof Error?error.message:"Unexpected webhook error"},500);
+    console.error("RevenueCat webhook processing error",{
+      name:error instanceof Error?error.name:"UnexpectedError"
+    });
+    return json({error:"RevenueCat webhook processing failed"},503);
   }
 });
