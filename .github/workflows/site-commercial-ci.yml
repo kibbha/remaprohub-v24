@@ -1,0 +1,28 @@
+name: Site commercial offer CI
+on:
+  pull_request:
+    branches: [gh-pages]
+    paths:
+      - 'index.html'
+      - 'pricing.html'
+      - 'faq.html'
+      - 'features.html'
+      - 'terms.html'
+      - 'app.js'
+      - 'tests/site-commercial.test.mjs'
+      - '.github/workflows/site-commercial-ci.yml'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Verify website JavaScript syntax
+        run: node --check app.js
+      - name: Audit public pricing and translated copy
+        run: node tests/site-commercial.test.mjs
