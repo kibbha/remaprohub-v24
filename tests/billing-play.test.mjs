@@ -30,7 +30,7 @@ assert.match(webhook,/REVENUECAT_WEBHOOK_SECRET/);
 assert.match(webhook,/revenuecat_event_id/);
 assert.match(webhook,/restaurant_limit:restaurantLimit/,'RevenueCat webhook must persist purchased establishment slots');
 const webhookPolicy=readFileSync('supabase/functions/remapro-revenuecat-webhook/policy.mjs','utf8');
-assert.match(webhookPolicy,/remapro\\[_-\\]/,'RevenueCat policy must accept only ReMaPro establishment-count products');
+assert.ok(webhookPolicy.includes('remapro[_-]'),'RevenueCat policy must accept only ReMaPro establishment-count products');
 assert.match(webhook,/SUBSCRIPTION_PAUSED"\)\{status="active"/,'scheduled Play pauses must retain access until expiration');
 assert.doesNotMatch(webhook,/SUBSCRIPTION_PAUSED"\)status="paused"/,'pause scheduling must not revoke access early');
 assert.match(account,/delete-self/);
