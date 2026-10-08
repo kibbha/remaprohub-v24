@@ -23,23 +23,6 @@ export function classifyRevenueCatEvent(event){
   return{action:'process',type,productId,restaurantLimit:Number(match[1])};
 }
 
-const ACTIVE_PURCHASE_EVENTS=new Set(['INITIAL_PURCHASE','RENEWAL']);
-export function shouldIgnoreOlderRevenueCatEvent(event,existingSubscription,latestTimestamp=0){
-  const incomingTime=Number(event?.event_timestamp_ms)||0;
-  if(!Number.isSafeInteger(incomingTime)||incomingTime<=0)return 'INVALID_EVENT_TIMESTAMP';
-  const previousTime=Number(latestTimestamp)||0;
-  if(previousTime>incomingTime)return 'STALE_EVENT';
-  const currentProduct=String(existingSubscription?.revenuecat_product_id||'');
-  const incomingProduct=String(event?.product_id||event?.product_identifier||'');
-  // After a product has actually changed, the old product must not revoke
-  // or overwrite the new subscription through a delayed lifecycle event.
-  const type=String(event?.type||'').toUpperCase();
-  if(currentProduct&&currentProduct!==incomingProduct&&!ACTIVE_PURCHASE_EVENTS.has(type)){
-    return 'PREVIOUS_PRODUCT_EVENT';
-  }
-  return '';
-}
-
 export async function revenueCatEventRecordId(eventId){
   const raw=String(eventId||'');
   if(!raw||raw.length>256)throw new Error('INVALID_REVENUECAT_EVENT_ID');
