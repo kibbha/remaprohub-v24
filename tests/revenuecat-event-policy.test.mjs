@@ -30,11 +30,19 @@ assert.equal(classify('garbage').action,'ignore');
 const webhook=fs.readFileSync(new URL('../supabase/functions/remapro-revenuecat-webhook/index.ts',import.meta.url),'utf8');
 assert.ok(webhook.includes('const policy=classifyRevenueCatEvent(event)'));
 assert.ok(webhook.includes('if(policy.action==="ignore")return json({ok:true,ignored:true'));
-assert.ok(webhook.includes('restaurant_limit:restaurantLimit'));
-assert.ok(webhook.includes('revenuecat_entitlement:"remapro"'));
-assert.ok(webhook.includes('id:recordId'));
-assert.ok(webhook.includes('shouldIgnoreOlderRevenueCatEvent'));
-assert.ok(webhook.includes('.eq("active",true)'));
+const atomic=fs.readFileSync(new URL('../supabase/migrations/20261008093000_revenuecat_atomic_application.sql',import.meta.url),'utf8');
+assert.ok(webhook.includes('admin.rpc("remapro_apply_revenuecat_event"'));
+assert.ok(!webhook.includes('admin.from("subscriptions").upsert('));
+assert.ok(!webhook.includes('admin.from("subscription_events").insert('));
+assert.ok(atomic.includes('pg_advisory_xact_lock'));
+assert.ok(atomic.includes('insert into public.subscription_events('));
+assert.ok(atomic.includes('update public.subscriptions set'));
+assert.ok(atomic.includes('from public,anon,authenticated'));
+assert.ok(atomic.includes('to service_role'));
+
+
+
+
 console.log('RevenueCat event gating, product whitelist and deferred product-change tests passed');
 
 const uuid1=await revenueCatEventRecordId('rc_123');
