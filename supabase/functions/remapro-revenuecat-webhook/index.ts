@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
-import { classifyRevenueCatEvent } from "./policy.mjs";
+import { classifyRevenueCatEvent, shouldIgnoreOlderRevenueCatEvent, revenueCatEventRecordId } from "./policy.mjs";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -21,7 +21,7 @@ Deno.serve(async(req)=>{
     const eventId=String(event?.id||"");
     const appUserId=String(event?.app_user_id||"");
     const [userId,organizationId]=appUserId.split(":");
-    if(!eventId||!userId||!organizationId)return json({error:"Invalid RevenueCat payload"},400);
+    if(!eventId||eventId.length>256||!userId||!organizationId)return json({error:"Invalid RevenueCat payload"},400);
 
     const url=String(Deno.env.get("SUPABASE_URL")||"");
     const serviceKey=String(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"");
@@ -29,12 +29,25 @@ Deno.serve(async(req)=>{
     const admin=createClient(url,serviceKey,{auth:{persistSession:false}});
 
     const {data:membership}=await admin.from("memberships")
-      .select("id").eq("user_id",userId).eq("organization_id",organizationId).limit(1).maybeSingle();
+      .select("id").eq("user_id",userId).eq("organization_id",organizationId).eq("active",true).limit(1).maybeSingle();
     if(!membership)return json({error:"RevenueCat user is not a member of the organization"},403);
 
-    const {data:existingEvent}=await admin.from("subscription_events")
-      .select("id").eq("revenuecat_event_id",eventId).maybeSingle();
+    const recordId=await revenueCatEventRecordId(eventId);
+    const {data:existingEvent,error:duplicateError}=await admin.from("subscription_events")
+      .select("id").eq("id",recordId).maybeSingle();
+    if(duplicateError)return json({error:"Unable to verify webhook idempotence"},503);
     if(existingEvent)return json({ok:true,duplicate:true});
+
+    const [subscriptionResult,historyResult]=await Promise.all([
+      admin.from("subscriptions").select("revenuecat_product_id").eq("organization_id",organizationId).maybeSingle(),
+      admin.from("subscription_events").select("payload").eq("organization_id",organizationId)
+        .order("created_at",{ascending:false}).limit(100)
+    ]);
+    if(subscriptionResult.error||historyResult.error)return json({error:"Unable to verify webhook timeline"},503);
+    const latestTimestamp=(historyResult.data||[]).reduce((max:number,row:any)=>
+      Math.max(max,Number(row?.payload?.event_timestamp_ms)||0),0);
+    const ignoredReason=shouldIgnoreOlderRevenueCatEvent(event,subscriptionResult.data,latestTimestamp);
+    if(ignoredReason)return json({ok:true,ignored:true,reason:ignoredReason});
 
     const type=policy.type;
     const productId=policy.productId;
@@ -70,13 +83,17 @@ Deno.serve(async(req)=>{
     if(subError)return json({error:subError.message},500);
 
     const {error:eventError}=await admin.from("subscription_events").insert({
+      id:recordId,
       organization_id:organizationId,
       event_type:type||"UNKNOWN",
       payload:event,
       revenuecat_event_id:eventId,
       app_user_id:appUserId
     });
-    if(eventError)return json({error:eventError.message},500);
+    if(eventError){
+      if(eventError.code==="23505")return json({ok:true,duplicate:true});
+      return json({error:eventError.message},500);
+    }
 
     return json({ok:true,organizationId,plan:planCode,status,restaurantLimit});
   }catch(error){
