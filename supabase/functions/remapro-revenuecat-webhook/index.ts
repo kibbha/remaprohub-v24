@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.95.0";
+import { classifyRevenueCatEvent } from "./policy.mjs";
 
 const cors={
   "Access-Control-Allow-Origin":"*",
@@ -15,6 +16,8 @@ Deno.serve(async(req)=>{
 
   try{
     const body=await req.json(),event=body?.event||body;
+    const policy=classifyRevenueCatEvent(event);
+    if(policy.action==="ignore")return json({ok:true,ignored:true,reason:policy.reason});
     const eventId=String(event?.id||"");
     const appUserId=String(event?.app_user_id||"");
     const [userId,organizationId]=appUserId.split(":");
@@ -33,12 +36,11 @@ Deno.serve(async(req)=>{
       .select("id").eq("revenuecat_event_id",eventId).maybeSingle();
     if(existingEvent)return json({ok:true,duplicate:true});
 
-    const type=String(event?.type||"");
-    const productId=String(event?.product_id||event?.product_identifier||"");
-    const entitlementIds=Array.isArray(event?.entitlement_ids)?event.entitlement_ids.map(String):[];
-    const planCode=entitlementIds.includes("multi")||/multi/i.test(productId)?"multi":"standard";
-    const restaurantMatch=productId.match(/remapro[_-]([1-5])(?:\D|$)/i);
-    const restaurantLimit=restaurantMatch?Number(restaurantMatch[1]):planCode==="multi"?5:1;
+    const type=policy.type;
+    const productId=policy.productId;
+    // Existing plan codes remain compatibility-only; all ReMaPro slots use the one offer.
+    const planCode="standard";
+    const restaurantLimit=policy.restaurantLimit;
     const {data:plan,error:planError}=await admin.from("subscription_plans").select("id,code").eq("code",planCode).eq("active",true).single();
     if(planError||!plan)return json({error:"Subscription plan not found"},500);
 
@@ -60,7 +62,7 @@ Deno.serve(async(req)=>{
       cancel_at_period_end:cancelAtPeriodEnd,
       revenuecat_app_user_id:appUserId,
       revenuecat_product_id:productId,
-      revenuecat_entitlement:planCode,
+      revenuecat_entitlement:"remapro",
       restaurant_limit:restaurantLimit,
       store:String(event?.store||"PLAY_STORE").toLowerCase(),
       updated_at:now
