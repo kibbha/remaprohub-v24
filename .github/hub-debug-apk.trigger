@@ -1,1 +1,1 @@
-scan-menu-ia-2026-11-06
+scan-menu-ia-ci-retry-2026-11-06

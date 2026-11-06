@@ -59,9 +59,9 @@ assert.doesNotMatch(cloudClient,/OPENAI_API_KEY|service_role|sb_secret_/,'privil
 assert.match(edge,/Deno\.env\.get\("OPENAI_API_KEY"\)/);
 assert.match(edge,/https:\/\/api\.openai\.com\/v1\/responses/);
 assert.match(edge,/store:false/);assert.match(edge,/context\.manager\.readyActions/);assert.match(edge,/context\.manager\.closing/);assert.match(edge,/context\.manager\.waste/);assert.match(edge,/context\.manager\.supplierOpportunities/);assert.match(edge,/context\.manager\.setupSteps/);assert.match(edge,/daily management report/);assert.match(edge,/supplier payments due/);assert.match(edge,/context\.manager\.weeklyReview/);assert.match(edge,/context\.manager\.serviceReadiness/);assert.match(edge,/context\.manager\.planningConflicts/);assert.match(edge,/context\.manager\.allergenCoverage/);assert.match(edge,/context\.manager\.reservationAttention/);assert.match(edge,/context\.manager\.rejectedDeliveries/);assert.match(edge,/training renewal tasks/);assert.match(edge,/routine completion/);assert.match(edge,/closing readiness/);
-for(const action of ['stock-photo','invoice-photo','health'])assert.match(edge,new RegExp(action));
+for(const action of ['stock-photo','invoice-photo','menu-photo','health'])assert.match(edge,new RegExp(action));
 assert.match(edge,/role:"user",content:\[\{type:"input_text"/,'vision input must use a user message content array');
-assert.equal((edge.match(/role:"user",content:\[/g)||[]).length,2,'both vision actions must use documented Responses input shape');
+assert.equal((edge.match(/role:"user",content:\[/g)||[]).length,3,'all three vision actions must use documented Responses input shape');
 assert.match(app,/function ai\(\)/);
 assert.match(app,/id="stockPhotoInput"/);
 assert.match(app,/action:'stock-photo'/);
