@@ -821,3 +821,16 @@ html[data-theme="dark"] .module-section-nav [data-module-section].active{backgro
 
 .pos-layout-order-name{max-width:170px;min-height:34px;border:1px solid var(--line);border-radius:7px;padding:5px 7px;background:var(--surface,#fff);font-weight:700}
 @media(max-width:560px){.pos-layout-order-name{max-width:135px}}
+
+/* Scan Menu IA: compact mobile-first review, isolated from the POS tile grid. */
+.pos-menu-scan{margin:12px 0 18px;border:1px solid var(--line,#d8ccbd);border-radius:12px;background:var(--surface,#fff);padding:12px}
+.pos-menu-scan summary{cursor:pointer;font-weight:700;line-height:1.5}
+.pos-menu-scan-content{display:grid;gap:10px;padding-top:12px}
+.pos-menu-scan-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;border:1px solid #ded4c9;border-radius:10px;padding:10px;align-items:end}
+.pos-menu-scan-row label{display:grid;gap:3px;font-size:.85rem}
+.pos-menu-scan-row input,.pos-menu-scan-row select,.pos-menu-scan-content select{min-width:0;width:100%;max-width:100%}
+.pos-menu-scan-row small{grid-column:1/-1}
+.pos-menu-scan-list{display:grid;gap:8px}
+.pos-menu-scan-error{color:#a32222;font-weight:600}
+.pos-menu-scan-photo{display:inline-block;background:#ede5d9;padding:4px 8px;margin:3px;border-radius:5px;word-break:break-word}
+@media(max-width:560px){.pos-menu-scan-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.pos-menu-scan-row label:first-child,.pos-menu-scan-row label:nth-child(3){grid-column:1/-1}}

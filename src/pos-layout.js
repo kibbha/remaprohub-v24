@@ -1,3 +1,4 @@
+import {renderMenuScanPanel,bindMenuScanPanel} from './menu-scan.js';
 const uid=prefix=>prefix+'_'+Math.random().toString(36).slice(2,9);
 const clone=value=>JSON.parse(JSON.stringify(value));
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -139,7 +140,7 @@ function move(list,id,delta){
   if(index<0||target<0||target>=sorted.length)return list;
   const [item]=sorted.splice(index,1);sorted.splice(target,0,item);sorted.forEach((x,i)=>x.sortOrder=i);return sorted;
 }
-export function renderPosLayoutEditor({layout,catalog=[],published=null,history=[],selectedButtonId='',selectedPageId='',selectedCategoryId='all',sectionNav=''}) {
+export function renderPosLayoutEditor({layout,catalog=[],published=null,history=[],selectedButtonId='',selectedPageId='',selectedCategoryId='all',sectionNav='',restaurantId=''}) {
   const doc=normalizePosLayout(layout),selectedRaw=doc.buttons.find(b=>b.id===selectedButtonId)||null;
   const pages=[...doc.pages].sort((a,b)=>a.sortOrder-b.sortOrder);
   const page=pages.find(p=>p.id===selectedPageId)||pages.find(p=>p.id===selectedRaw?.pageId)||pages[0]||null;
@@ -181,7 +182,7 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
     +'<div class="pos-layout-head"><div><h2>Configuration POS</h2><p class="muted">Créez ici toutes les touches de caisse. Un produit Hub est optionnel.</p></div><div class="actions"><button class="btn" id="posLayoutSeed">Importer le catalogue Hub</button><button class="btn" id="posLayoutSave">Enregistrer brouillon</button><button class="btn primary" id="posLayoutPublish">Publier vers les POS</button></div></div>'
     +historyHtml
     +sectionNav+'<div class="module-section-panes">'
-    +'<div data-module-pane="touches"><details class="pos-layout-create"><summary>Créer une touche de caisse</summary>'
+    +'<div data-module-pane="touches">'+renderMenuScanPanel(restaurantId,doc)+'<details class="pos-layout-create"><summary>Créer une touche de caisse</summary>'
     +'<form id="posLayoutButtonForm" class="pos-layout-create-form"><label>Type<select name="itemType"><option value="dish">Plat</option><option value="drink">Boisson</option><option value="other">Autre</option></select></label><label>Nom<input name="name" required maxlength="120" placeholder="Ex. Burger maison"></label><label>Prix CHF<input name="price" required type="number" min="0" step="0.01" inputmode="decimal" placeholder="18.50"></label><label>TVA %<input name="taxRate" required type="number" min="0" max="100" step="0.1" value="8.1"></label><label>Destination<select name="station"><option value="">Auto</option><option value="kitchen">Cuisine</option><option value="bar">Bar</option><option value="none">Aucune</option></select></label><label>Disponibilité<select name="availabilityMode"><option value="unlimited">Illimitée</option><option value="manual">Quantité manuelle</option><option value="stock">Calculée par stock/recette</option></select></label><label>Qté manuelle<input name="manualQuantity" type="number" min="0" step="1" value="0"></label><label>Alerte basse<input name="lowThreshold" type="number" min="0" step="1" value="3"></label><label>Page<select name="pageId"><option value="">Auto : Caisse</option>'+pageOptions+'</select></label><label>Catégorie<select name="categoryId"><option value="">Auto selon le type</option>'+catOptions+'</select></label><label>Lien Hub facultatif<select name="productId"><option value="">Aucun — touche autonome</option>'+productOptions+'</select></label><button class="btn primary pos-layout-create-submit">+ Ajouter la touche</button></form>'
     +'<p class="muted pos-layout-create-note">Une touche autonome fonctionne en caisse, hors ligne, sur les tickets et en cuisine/bar. Sans lien Hub, elle ne décrémente simplement pas le stock et n’a pas de food cost associé.</p></details>'
     +'<div class="pos-layout-workspace"><div class="pos-layout-preview"><div class="pos-layout-pages">'+pages.map(p=>'<button type="button" data-layout-page-select="'+esc(p.id)+'" class="'+(p.id===page?.id?'active':'')+'">'+esc(p.name)+'</button>').join('')+'</div>'+previewCategoryNav+'<div class="pos-layout-grid" id="posLayoutGrid">'+previewButtons.map(b=>{const p=layoutButtonItem(b,catalog),cat=categories.find(c=>c.id===b.categoryId),photo=photoSrc(b.photo||p?.photo||p?.photo_url||p?.image_url||p?.image||'');return '<button type="button" class="pos-layout-tile '+(b.id===selected?.id?'selected ':'')+(b.hidden?'is-hidden ':'')+(b.unavailable?'is-unavailable ':'')+'" draggable="true" data-layout-button="'+esc(b.id)+'" style="--tile-color:'+esc(b.color)+';--tile-w:'+b.w+';--tile-h:'+b.h+'"><span class="pos-layout-tile-visual">'+(photo?'<img src="'+esc(photo)+'" alt="">':'<span class="pos-layout-photo-placeholder"></span>')+'</span><span class="pos-layout-tile-copy"><strong>'+esc(b.label||p?.name||'Article')+'</strong><small>'+esc(cat?.name||itemTypeLabel(b.item?.type||''))+(p?.price!=null?' · '+Number(p.price).toFixed(2)+' CHF':'')+(p?.autoMatched?' · Liée Hub auto':'')+'</small></span></button>'}).join('')+'</div></div>'
@@ -197,9 +198,10 @@ export function renderPosLayoutEditor({layout,catalog=[],published=null,history=
     +'</div>'    +'</div></div>'
     +'</section>';
 }
-export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSelected,getPage,setPage,setCategory,catalog,onDirty,onSave,onPublish,onRestore,onSeed,onRender}){
+export function bindPosLayoutEditor(root,{getLayout,setLayout,getSelected,setSelected,getPage,setPage,setCategory,catalog,onDirty,onSave,onPublish,onRestore,onSeed,onRender,restaurantId=''}){
   if(!root)return;
   const mutate=fn=>{const doc=normalizePosLayout(getLayout());fn(doc);setLayout(doc);onDirty?.();};
+  bindMenuScanPanel(root,{restaurantId,getLayout,setLayout,onDirty,onRender});
   root.querySelector('#posLayoutSeed')?.addEventListener('click',()=>onSeed?.());
   root.querySelector('#posLayoutSave')?.addEventListener('click',()=>onSave?.());
   root.querySelectorAll('[data-layout-preview-category]').forEach(el=>el.addEventListener('click',()=>{setCategory?.(el.dataset.layoutPreviewCategory);onRender?.()}));

@@ -1,1 +1,1 @@
-ReMaPro Hub three-app test build — 2026-09-26T15:00Z
+scan-menu-ia-2026-11-06
