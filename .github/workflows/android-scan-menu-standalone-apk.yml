@@ -1,0 +1,134 @@
+name: Android ReMaPro Scan Menu IA Standalone
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [rebuild/remaprohub-clean]
+    paths:
+      - '.github/hub-scan-standalone.trigger'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: rebuild/remaprohub-clean
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Inject test runtime config
+        env:
+          REVENUECAT_ANDROID_API_KEY: ${{ secrets.REVENUECAT_ANDROID_API_KEY }}
+          REQUIRE_REVENUECAT: '0'
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/inject-runtime-config.mjs
+
+      - name: Run Hub test suite
+        run: npm test
+
+      - name: Verify packaged Hub runtime
+        run: |
+          node scripts/package-web.mjs
+          test -s app/src/floor-plan.js
+          grep -q "floor-plan.js" app/sw.js
+
+      - name: Generate Capacitor Android project
+        run: npx cap add android
+
+      - name: Make Scan IA installable alongside existing ReMaPro Hub
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          gradle = Path('android/app/build.gradle')
+          code = gradle.read_text()
+          expression = r'applicationId\\s+["\\x27]com\\.remaprohub\\.app["\\x27]'
+          # Match the original app identity before modifying the generated project.
+          match = re.search(r'applicationId\s+["\x27]com\.remaprohub\.app["\x27]', code)
+          if not match:
+              raise SystemExit('Expected ReMaPro Hub applicationId missing')
+          code = code[:match.start()] + 'applicationId "com.remaprohub.scanmenu"' + code[match.end():]
+          gradle.write_text(code)
+          labels = Path('android/app/src/main/res/values/strings.xml')
+          content = labels.read_text()
+          content, count = re.subn(r'(<string name="app_name">)[^<]*(</string>)', r'\g<1>ReMaPro Scan IA\g<2>', content)
+          if count != 1:
+              raise SystemExit('Android app_name not found')
+          labels.write_text(content)
+          assert 'applicationId "com.remaprohub.scanmenu"' in gradle.read_text()
+          print('Independent package com.remaprohub.scanmenu configured')
+          PY
+
+      - name: Stamp Android version
+        run: node scripts/stamp-android-version.mjs
+
+      - name: Apply immersive Android activity
+        run: |
+          install -m 644 android-native/MainActivity.java android/app/src/main/java/com/remaprohub/app/MainActivity.java
+          grep -q 'WindowInsetsCompat.Type.systemBars()' android/app/src/main/java/com/remaprohub/app/MainActivity.java
+
+      - name: Synchronize native runtime
+        run: npx cap sync android
+
+      - name: Harden Android runtime
+        run: |
+          node scripts/harden-android.mjs
+          grep -q 'compileSdkVersion = 36' android/variables.gradle
+          grep -q 'targetSdkVersion = 36' android/variables.gradle
+          grep -q 'android:allowBackup="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android:launchMode="singleTop"' android/app/src/main/AndroidManifest.xml
+
+      - name: Enable camera capture
+        run: |
+          node scripts/patch-android-camera.mjs
+          grep -q 'android.permission.CAMERA' android/app/src/main/AndroidManifest.xml
+
+      - name: Apply ReMaPro Hub Android branding
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/mipmap-anydpi
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p android/app/src/main/res/values
+          install -m 644 android-native/remaprohub_foreground.xml android/app/src/main/res/drawable/remaprohub_foreground.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_legacy.xml android/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml
+          install -m 644 android-native/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          install -m 644 android-native/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          install -m 644 android-native/remaprohub_colors.xml android/app/src/main/res/values/remaprohub_colors.xml
+          grep -q '#8D7B6A' android/app/src/main/res/values/remaprohub_colors.xml
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Verify APK
+        run: |
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)"
+          test -x "$ZIPALIGN"
+          "$ZIPALIGN" -c -P 16 -v 4 "$APK"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ReMaPro-Scan-Menu-IA-Standalone-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
